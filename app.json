@@ -1,29 +1,35 @@
 {
   "expo": {
-    "name": "Kishkwambi",
-    "slug": "Kishkwambi",
+    "name": "Simba Terminals",
+    "slug": "simba-terminals",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
+    "icon": "./assets/logo/logo.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
+    "scheme": "simba-terminals",
     "splash": {
-      "image": "./assets/splash-icon.png",
+      "image": "./assets/logo/logo.png",
       "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
+      "backgroundColor": "#BC8405"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "backgroundColor": "#BC8405"
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
+        "foregroundImage": "./assets/logo/logo.png",
+        "backgroundColor": "#BC8405"
       },
+      "backgroundColor": "#BC8405",
       "edgeToEdgeEnabled": true
     },
     "web": {
-      "favicon": "./assets/favicon.png"
-    }
+      "favicon": "./assets/logo/logo.jpg"
+    },
+    "plugins": [
+      "expo-router"
+    ]
   }
 }
