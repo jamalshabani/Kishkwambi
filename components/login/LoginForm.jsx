@@ -1,52 +1,129 @@
-import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, ScrollView } from 'react-native';
+import React, { useState, useRef, useEffect } from 'react';
+import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator } from 'react-native';
+import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { cn } from '../../lib/tw';
 import InputFieldWithNoLabel from '../common/InputFieldWithNoLabel';
 import Button from '../common/Button';
 import GridShape from './GridShape';
+import { useAuth } from '../../contexts/AuthContext';
+
+// Global error store that persists across re-renders
+let globalError = '';
 
 const LoginForm = () => {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
-    const [loading, setLoading] = useState(false);
+    const [forceRender, setForceRender] = useState(0);
+    const { signIn, loading, isAuthenticated, setLoadingState } = useAuth();
+    const errorRef = useRef('');
+
+    // Redirect if already logged in
+    React.useEffect(() => {
+        if (isAuthenticated) {
+            router.replace('/dashboard');
+        }
+    }, [isAuthenticated]);
+
+
+    // Auto-dismiss error after 2 seconds
+    React.useEffect(() => {
+        if (error || globalError) {
+            const timer = setTimeout(() => {
+                setError('');
+                globalError = '';
+                errorRef.current = '';
+            }, 2000);
+
+            return () => clearTimeout(timer);
+        }
+    }, [error, globalError]);
+
 
     const handleLogin = async () => {
-        setLoading(true);
         setError('');
+        globalError = '';
+        errorRef.current = '';
 
         // Basic validation
         if (!email || !password) {
             setError('Please fill in all fields');
-            setLoading(false);
             return;
         }
 
         if (!email.includes('@')) {
             setError('Please enter a valid email address');
-            setLoading(false);
             return;
         }
 
         if (password.length < 8) {
             setError('Password must be at least 8 characters long');
-            setLoading(false);
             return;
         }
 
-        // Simulate login process
-        try {
-            await new Promise(resolve => setTimeout(resolve, 1000));
-            // Here you would typically make an API call to authenticate
-            console.log('Login attempt:', { email, password });
-            // For now, just show success
-            setError('Login successful! (Demo)');
-        } catch (err) {
-            setError('Login failed. Please try again.');
-        } finally {
-            setLoading(false);
+        const result = await signIn(email, password);
+
+        if (result.success) {
+            // Clear any previous errors
+            setError('');
+            globalError = '';
+            errorRef.current = '';
+        } else {
+            // Handle specific error messages
+            switch (result.error) {
+                case 'Email and password are required':
+                    const errorMsg1 = 'Please fill in all fields';
+                    globalError = errorMsg1;
+                    setError(errorMsg1);
+                    errorRef.current = errorMsg1;
+                    setForceRender(prev => prev + 1);
+                    break;
+                case 'Invalid email address':
+                    const errorMsg2 = 'No account found with this email address';
+                    globalError = errorMsg2;
+                    setError(errorMsg2);
+                    errorRef.current = errorMsg2;
+                    setForceRender(prev => prev + 1);
+                    break;
+                case 'Account is deactivated. Please contact administrator.':
+                    const errorMsg3 = 'Your account has been deactivated. Please contact administrator.';
+                    globalError = errorMsg3;
+                    setError(errorMsg3);
+                    errorRef.current = errorMsg3;
+                    setForceRender(prev => prev + 1);
+                    break;
+                case 'Invalid password':
+                    const errorMsg4 = 'Incorrect password. Please try again.';
+                    globalError = errorMsg4;
+                    setError(errorMsg4);
+                    errorRef.current = errorMsg4;
+                    setForceRender(prev => prev + 1);
+                    break;
+                case 'Failed to fetch users from database':
+                    const errorMsg5 = 'Unable to connect to server. Please try again later.';
+                    globalError = errorMsg5;
+                    setError(errorMsg5);
+                    errorRef.current = errorMsg5;
+                    setForceRender(prev => prev + 1);
+                    break;
+                case 'Unable to connect to server. Please try again later.':
+                    const errorMsg6 = 'Unable to connect to server. Please check your internet connection and try again.';
+                    globalError = errorMsg6;
+                    setError(errorMsg6);
+                    errorRef.current = errorMsg6;
+                    setForceRender(prev => prev + 1);
+                    break;
+                default:
+                    const errorMsg7 = result.error || 'Login failed. Please try again.';
+                    globalError = errorMsg7;
+                    setError(errorMsg7);
+                    errorRef.current = errorMsg7;
+                    setForceRender(prev => prev + 1);
+            }
         }
+
+        // Loading state is managed by AuthContext
     };
 
     return (
@@ -60,6 +137,7 @@ const LoginForm = () => {
             >
                 <GridShape />
             </LinearGradient>
+
 
             <View style={cn('flex-1 justify-center items-center px-6')}>
                 <View style={cn('w-full max-w-md')}>
@@ -88,7 +166,9 @@ const LoginForm = () => {
                                 <InputFieldWithNoLabel
                                     placeholder="Email"
                                     value={email}
-                                    onChangeText={setEmail}
+                                    onChangeText={(text) => {
+                                        setEmail(text);
+                                    }}
                                     keyboardType="email-address"
                                     autoCapitalize="none"
                                     autoCorrect={false}
@@ -103,19 +183,23 @@ const LoginForm = () => {
                                 <InputFieldWithNoLabel
                                     placeholder="Password"
                                     value={password}
-                                    onChangeText={setPassword}
+                                    onChangeText={(text) => {
+                                        setPassword(text);
+                                    }}
                                     secureTextEntry
                                 />
                             </View>
 
+
                             {/* Error Message */}
-                            {error && (
-                                <View style={cn('bg-red-500 rounded-md py-2 px-2 mb-6')}>
+                            {(error || errorRef.current || globalError) && (
+                                <View style={cn('bg-red-500 rounded-md py-3 px-4 mb-6')}>
                                     <Text style={cn('text-white text-center font-bold text-sm')}>
-                                        {error}
+                                        {error || errorRef.current || globalError}
                                     </Text>
                                 </View>
                             )}
+
 
                             {/* Login Button */}
                             <View style={cn('mb-6')}>
@@ -125,10 +209,31 @@ const LoginForm = () => {
                                     size="md"
                                     className="w-full"
                                 >
-                                    {loading ? 'Submitting...' : 'Login'}
+                                    {loading ? (
+                                        <View style={cn('flex-row items-center justify-center')}>
+                                            <ActivityIndicator 
+                                                size="small" 
+                                                color="#FFFFFF" 
+                                                style={cn('mr-2')}
+                                            />
+                                            <Text style={cn('text-white font-semibold')}>
+                                                Submitting...
+                                            </Text>
+                                        </View>
+                                    ) : (
+                                        'Login'
+                                    )}
                                 </Button>
                             </View>
 
+                            {/* Forgot Password Link */}
+                            <View style={cn('items-start mb-4')}>
+                                <TouchableOpacity onPress={() => router.push('/forgot-password')}>
+                                    <Text style={cn('text-sm text-black')}>
+                                        Forgot password?
+                                    </Text>
+                                </TouchableOpacity>
+                            </View>
                         </View>
                     </View>
                 </View>
