@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, ScrollView } from 'react-native';
 import { router } from 'expo-router';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { StatusBar } from 'expo-status-bar';
 import { LinearGradient } from 'expo-linear-gradient';
 import { cn } from "../lib/tw";
 import InputFieldWithNoLabel from '../components/common/InputFieldWithNoLabel';
@@ -45,16 +47,28 @@ const ForgotPasswordScreen = () => {
     };
 
     return (
-        <ScrollView style={cn('flex-1')} contentContainerStyle={{ flexGrow: 1 }}>
-            {/* Background with Grid Pattern */}
-            <LinearGradient
-                colors={['#FBBF24', '#000000', '#FBBF24']} // yellow-400, black, yellow-400
-                start={{ x: 0, y: 0 }}
-                end={{ x: 0, y: 1 }}
-                style={cn('absolute inset-0')}
-            >
-                <GridShape />
-            </LinearGradient>
+        <SafeAreaView style={cn('flex-1')}>
+            <StatusBar style="light" backgroundColor="#FFFFFF" />
+            {/* Screen Header */}
+            <View style={cn('px-6 py-4')}>
+                <Text style={cn('text-2xl font-bold text-white text-center')}>
+                    Reset Password
+                </Text>
+                <Text style={cn('text-sm text-white/80 text-center mt-1')}>
+                    Recover your account access
+                </Text>
+            </View>
+            
+            <ScrollView style={cn('flex-1')} contentContainerStyle={{ flexGrow: 1 }}>
+                {/* Background with Grid Pattern */}
+                <LinearGradient
+                    colors={['#FBBF24', '#000000', '#FBBF24']} // yellow-400, black, yellow-400
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 0, y: 1 }}
+                    style={cn('absolute inset-0')}
+                >
+                    <GridShape />
+                </LinearGradient>
 
             <View style={cn('flex-1 justify-center items-center px-6')}>
                 <View style={cn('w-full max-w-md')}>
@@ -132,7 +146,8 @@ const ForgotPasswordScreen = () => {
                     </View>
                 </View>
             </View>
-        </ScrollView>
+            </ScrollView>
+        </SafeAreaView>
     );
 };
 

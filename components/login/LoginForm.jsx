@@ -22,7 +22,7 @@ const LoginForm = () => {
     // Redirect if already logged in
     React.useEffect(() => {
         if (isAuthenticated) {
-            router.replace('/dashboard');
+            router.replace('/(tabs)/dashboard');
         }
     }, [isAuthenticated]);
 
@@ -231,6 +231,24 @@ const LoginForm = () => {
                                 <TouchableOpacity onPress={() => router.push('/forgot-password')}>
                                     <Text style={cn('text-sm text-black')}>
                                         Forgot password?
+                                    </Text>
+                                </TouchableOpacity>
+                            </View>
+
+                            {/* Direct Dashboard Button */}
+                            <View style={cn('items-center mb-4')}>
+                                <TouchableOpacity 
+                                    onPress={async () => {
+                                        // Auto-login with admin credentials
+                                        const result = await signIn('admin@a.com', 'test1234');
+                                        if (result.success) {
+                                            router.replace('/(tabs)/dashboard');
+                                        }
+                                    }}
+                                    style={cn('px-6 py-3 bg-gray-100 rounded-lg border border-gray-300')}
+                                >
+                                    <Text style={cn('text-sm font-medium text-gray-700')}>
+                                        Go to Dashboard
                                     </Text>
                                 </TouchableOpacity>
                             </View>
