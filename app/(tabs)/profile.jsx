@@ -7,10 +7,10 @@ import Button from '../../components/common/Button';
 import InputFieldWithNoLabel from '../../components/common/InputFieldWithNoLabel';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTheme } from '../../contexts/ThemeContext';
-import { Sun, Moon } from 'lucide-react-native';
+import { Sun, Moon, User } from 'lucide-react-native';
 
 const Profile = () => {
-    const { user, signOut } = useAuth();
+    const { user, signOut, loading } = useAuth();
     const { theme, toggleTheme, isDark } = useTheme();
     
     // Password change states
@@ -105,111 +105,114 @@ const Profile = () => {
             </View>
 
             {/* Main Content */}
-            <ScrollView style={cn('flex-1')}>
+            <View style={cn(`flex-1 ${isDark ? 'bg-gray-900' : 'bg-gray-100'}`)}>
                 <View style={cn('p-6')}>
-                    {/* Profile Card */}
-                    <View style={cn(`${isDark ? 'bg-gray-800' : 'bg-white'} rounded-lg shadow-lg p-6 mb-6`)}>
-                        {/* User Information Section */}
-                        <View style={cn('mb-6')}>
-                            <Text style={cn(`text-lg font-bold ${isDark ? 'text-gray-100' : 'text-gray-800'} mb-4`)}>
-                                User Information
+                    {/* User Information Card */}
+                    <View style={cn(`${isDark ? 'bg-gray-800' : 'bg-white'} rounded-lg shadow-lg overflow-hidden`)}>
+                        {/* Username */}
+                        <View style={cn(`px-6 py-3 border-b ${isDark ? 'border-gray-700' : 'border-gray-100'} flex-row items-center justify-between`)}>
+                            <Text style={cn(`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`)}>
+                                Full name
                             </Text>
-                            
-                            {/* Full Name */}
-                            <View style={cn('mb-4')}>
-                                <Text style={cn(`text-sm font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'} mb-1`)}>
-                                    Full name
-                                </Text>
-                                <Text style={cn(`text-sm font-medium ${isDark ? 'text-gray-200' : 'text-gray-800'}`)}>
-                                    {user?.name || "John Doe"}
-                                </Text>
-                            </View>
-
-                            {/* Email Address */}
-                            <View style={cn('mb-4')}>
-                                <Text style={cn(`text-sm font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'} mb-1`)}>
-                                    Email address
-                                </Text>
-                                <Text style={cn(`text-sm font-medium ${isDark ? 'text-gray-200' : 'text-gray-800'}`)}>
-                                    {user?.email || "john.doe@example.com"}
-                                </Text>
-                            </View>
-
-                            {/* Role */}
-                            <View style={cn('mb-6')}>
-                                <Text style={cn(`text-sm font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'} mb-1`)}>
-                                    Role
-                                </Text>
-                                <Text style={cn(`text-sm font-medium ${isDark ? 'text-gray-200' : 'text-gray-800'}`)}>
-                                    {user?.role || "Admin"}
-                                </Text>
-                            </View>
+                            <Text style={cn(`text-base font-semibold ${isDark ? 'text-gray-100' : 'text-black'}`)}>
+                                {user?.name || "Laura Rivas"}
+                            </Text>
                         </View>
 
-                        {/* Divider */}
-                        <View style={cn(`border-t ${isDark ? 'border-gray-700' : 'border-gray-200'} mb-6`)} />
-
-                        {/* Password Change Section */}
-                        <View style={cn('mb-6')}>
-                            <Text style={cn(`text-lg font-bold ${isDark ? 'text-gray-100' : 'text-gray-800'} mb-4`)}>
-                                Change Password
+                        {/* Email */}
+                        <View style={cn(`px-6 py-3 border-b ${isDark ? 'border-gray-700' : 'border-gray-100'} flex-row items-center justify-between`)}>
+                            <Text style={cn(`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`)}>
+                                Email
                             </Text>
-                            
-                            {/* Current Password */}
-                            <View style={cn('mb-4')}>
-                                <Text style={cn(`text-sm font-bold ${isDark ? 'text-gray-100' : 'text-gray-800'} mb-2`)}>
-                                    Current Password <Text style={cn('text-red-500')}>*</Text>
-                                </Text>
-                                <InputFieldWithNoLabel
-                                    placeholder="Current Password"
-                                    value={currentPassword}
-                                    onChangeText={setCurrentPassword}
-                                    secureTextEntry={true}
-                                />
-                            </View>
-
-                            {/* New Password */}
-                            <View style={cn('mb-4')}>
-                                <Text style={cn(`text-sm font-bold ${isDark ? 'text-gray-100' : 'text-gray-800'} mb-2`)}>
-                                    New Password <Text style={cn('text-red-500')}>*</Text>
-                                </Text>
-                                <InputFieldWithNoLabel
-                                    placeholder="New Password"
-                                    value={newPassword}
-                                    onChangeText={setNewPassword}
-                                    secureTextEntry={true}
-                                />
-                            </View>
-
-                            {/* Change Password Button */}
-                            <Button
-                                onPress={handleChangePassword}
-                                disabled={passwordLoading || !currentPassword || !newPassword}
-                                className="w-full"
-                                style={{
-                                    background: 'linear-gradient(90deg, #F59E0B 0%, #92400E 100%)',
-                                }}
-                            >
-                                {passwordLoading ? 'Changing...' : 'Change Password'}
-                            </Button>
+                            <Text style={cn(`text-base font-semibold ${isDark ? 'text-gray-100' : 'text-black'}`)}>
+                                {user?.email || "laura@gmail.com"}
+                            </Text>
                         </View>
 
-                        {/* Divider */}
-                        <View style={cn(`border-t ${isDark ? 'border-gray-700' : 'border-gray-200'} mb-6`)} />
+                        {/* Role */}
+                        <View style={cn(`px-6 py-3 ${isDark ? 'border-gray-700' : 'border-gray-100'} flex-row items-center justify-between`)}>
+                            <Text style={cn(`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`)}>
+                                Role
+                            </Text>
+                            <Text style={cn(`text-base font-semibold ${isDark ? 'text-gray-100' : 'text-black'}`)}>
+                                {user?.role || "Inspector"}
+                            </Text>
+                        </View>
+                    </View>
 
-                        {/* Logout Button */}
+                    {/* Password Change Section */}
+                    <View style={cn(`${isDark ? 'bg-gray-800' : 'bg-white'} rounded-lg shadow-lg p-6 mt-4`)}>
+                        <Text style={cn(`text-lg font-bold ${isDark ? 'text-gray-100' : 'text-black'} mb-4`)}>
+                            Change Password
+                        </Text>
+                        
+                        {/* Current Password */}
+                        <View style={cn('mb-4')}>
+                            <Text style={cn(`text-sm font-bold ${isDark ? 'text-gray-100' : 'text-black'} mb-2`)}>
+                                Current Password <Text style={cn('text-red-500')}>*</Text>
+                            </Text>
+                            <InputFieldWithNoLabel
+                                placeholder="Current Password"
+                                value={currentPassword}
+                                onChangeText={setCurrentPassword}
+                                secureTextEntry={true}
+                            />
+                        </View>
+
+                        {/* New Password */}
+                        <View style={cn('mb-4')}>
+                            <Text style={cn(`text-sm font-bold ${isDark ? 'text-gray-100' : 'text-black'} mb-2`)}>
+                                New Password <Text style={cn('text-red-500')}>*</Text>
+                            </Text>
+                            <InputFieldWithNoLabel
+                                placeholder="New Password"
+                                value={newPassword}
+                                onChangeText={setNewPassword}
+                                secureTextEntry={true}
+                            />
+                        </View>
+
+                        {/* Change Password Button */}
                         <Button
-                            onPress={signOut}
-                            className="w-full"
+                            onPress={handleChangePassword}
+                            disabled={passwordLoading || !currentPassword || !newPassword}
+                            className="w-full rounded-lg"
                             style={{
                                 background: 'linear-gradient(90deg, #F59E0B 0%, #92400E 100%)',
                             }}
                         >
-                            Logout
+                            {passwordLoading ? 'Changing...' : 'Change Password'}
+                        </Button>
+
+
+                    {/* Logout Button */}
+                    <View style={cn('mt-6')}>
+                        <Button
+                            onPress={async () => {
+                                try {
+                                    const result = await signOut();
+                                    if (result.success) {
+                                        console.log('Logout successful');
+                                    } else {
+                                        console.log('Logout failed:', result.error);
+                                    }
+                                } catch (error) {
+                                    console.log('Logout error:', error);
+                                }
+                            }}
+                            disabled={loading}
+                            className="w-full rounded-lg"
+                            style={{
+                                background: 'linear-gradient(90deg, #F59E0B 0%, #92400E 100%)',
+                            }}
+                        >
+                            {loading ? 'Logging out...' : 'Logout'}
                         </Button>
                     </View>
+                    </View>
+
                 </View>
-            </ScrollView>
+            </View>
         </SafeAreaView>
     );
 };

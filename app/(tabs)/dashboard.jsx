@@ -8,7 +8,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import { Sun, Moon } from 'lucide-react-native';
 
-const Dashboard = () => {
+const Dashboard = ({ onTakePhoto }) => {
     const { user, isAuthenticated, loading } = useAuth();
     const { theme, toggleTheme, isDark } = useTheme();
     const [containerNumber, setContainerNumber] = useState('');
@@ -100,7 +100,7 @@ const Dashboard = () => {
             </View>
             
             {/* Main Content */}
-            <ScrollView style={cn('flex-1')}>
+            <View style={cn(`flex-1 mt-10 ${isDark ? 'bg-gray-900' : 'bg-gray-100'}`)}>
                 <View style={cn('p-6')}>
                    
                     {/* Main Card */}
@@ -138,46 +138,31 @@ const Dashboard = () => {
                                     <Text style={cn('text-white font-bold')}>⚡</Text>
                                 </View>
                                 <Text style={cn(`text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'} flex-1`)}>
-                                    Ready to begin? <Text style={cn('font-bold')}>Enter the container number</Text> to proceed.
+                                    Ready to begin? <Text style={cn('font-bold')}>Click the button below</Text> to proceed.
                                 </Text>
                             </View>
                         </View>
 
                         {/* Container Check */}
                         <Text style={cn(`text-lg font-bold ${isDark ? 'text-gray-100' : 'text-gray-800'} mb-4`)}>
-                            Container Check
+                            Take Container Photo
                         </Text>
-
-                        {/* Container Number Input */}
-                        <View style={cn('mb-4')}>
-                            <Text style={cn(`text-sm font-bold ${isDark ? 'text-gray-100' : 'text-gray-800'} mb-2`)}>
-                                Container Number <Text style={cn('text-red-500')}>*</Text>
-                            </Text>
-                            <TextInput
-                                style={cn(`border ${isDark ? 'border-gray-600 bg-gray-700' : 'border-gray-300 bg-white'} rounded-lg px-4 py-3 ${isDark ? 'text-gray-100' : 'text-gray-900'}`)}
-                                placeholder="Enter container number"
-                                value={containerNumber}
-                                onChangeText={setContainerNumber}
-                                placeholderTextColor={isDark ? "#9CA3AF" : "#9CA3AF"}
-                            />
-                        </View>
 
                         {/* Check Button */}
                         <Button
                             onPress={() => {
-                                // Handle container check
-                                console.log('Checking container:', containerNumber);
+                                onTakePhoto();
                             }}
                             className="w-full rounded-lg"
                             style={{
                                 background: 'linear-gradient(90deg, #F59E0B 0%, #92400E 100%)',
                             }}
                         >
-                            Check Container Number
+                            Take Container Photo
                         </Button>
                     </View>
                 </View>
-            </ScrollView>
+            </View>
 
         </SafeAreaView>
     );

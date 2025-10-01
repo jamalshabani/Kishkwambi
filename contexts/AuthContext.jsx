@@ -66,9 +66,13 @@ export const AuthProvider = ({ children }) => {
             const result = await auth.signOut();
             if (result.success) {
                 setUser(null);
+                console.log('User logged out successfully');
+            } else {
+                console.log('Logout failed:', result.error);
             }
             return result;
         } catch (error) {
+            console.log('Logout error:', error);
             return {
                 success: false,
                 error: 'Failed to sign out'

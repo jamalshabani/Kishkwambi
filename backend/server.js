@@ -15,7 +15,8 @@ let db;
 
 // Middleware
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '50mb' })); // Increase limit for base64 images
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 // Connect to MongoDB
 async function connectToDatabase() {
@@ -140,6 +141,148 @@ app.get('/api/status', async (req, res) => {
         res.status(500).json({
             connected: false,
             message: `Database connection failed: ${error.message}`
+        });
+    }
+});
+
+// Vision AI endpoint for OCR
+app.post('/api/vision/process-image', async (req, res) => {
+    try {
+        const { base64Image } = req.body;
+
+        if (!base64Image) {
+            return res.status(400).json({
+                success: false,
+                error: 'Base64 image is required'
+            });
+        }
+
+        // Plate Recognizer API token from environment variable
+        const PLATE_RECOGNIZER_TOKEN = process.env.PLATE_RECOGNIZER_TOKEN;
+        
+        if (!PLATE_RECOGNIZER_TOKEN) {
+            return res.status(500).json({
+                success: false,
+                error: 'Plate Recognizer API token not configured'
+            });
+        }
+
+        const PLATE_RECOGNIZER_URL = 'https://api.platerecognizer.com/v1/plate-reader/';
+        
+        const fetch = require('node-fetch');
+        const FormData = require('form-data');
+        
+        // Convert base64 to buffer
+        const imageBuffer = Buffer.from(base64Image, 'base64');
+        
+        // Create form data
+        const formData = new FormData();
+        formData.append('upload', imageBuffer, {
+            filename: 'container.jpg',
+            contentType: 'image/jpeg'
+        });
+        formData.append('regions', 'container'); // Optimize for containers
+        
+        const response = await fetch(PLATE_RECOGNIZER_URL, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Token ${PLATE_RECOGNIZER_TOKEN}`,
+                ...formData.getHeaders()
+            },
+            body: formData,
+        });
+
+        const data = await response.json();
+        
+        console.log('=== PLATE RECOGNIZER RESPONSE ===');
+        console.log(JSON.stringify(data, null, 2));
+        console.log('=== RESPONSE STRUCTURE ===');
+        console.log('Has results?', !!data.results);
+        console.log('Results count:', data.results?.length || 0);
+        console.log('Processing time:', data.processing_time);
+        
+        // Check for API-level errors
+        if (data.error) {
+            console.log('=== PLATE RECOGNIZER ERROR ===');
+            console.log('Error:', data.error);
+            console.log('========================');
+            
+            return res.status(500).json({
+                success: false,
+                error: `Plate Recognizer API Error: ${data.error}`
+            });
+        }
+        
+        if (data.results && data.results.length > 0) {
+            const result = data.results[0];
+            const detectedText = result.plate || '';
+            
+            console.log('=== DETECTED CONTAINER NUMBER ===');
+            console.log('Plate:', detectedText);
+            console.log('Confidence:', result.score);
+            console.log('Candidates:', result.candidates?.length || 0);
+            console.log('========================');
+            
+            // Plate Recognizer returns the container number directly
+            const containerNumber = detectedText.replace(/\s/g, '');
+            
+            // Extract ISO code from vehicle info if available
+            let isoCode = '';
+            if (result.vehicle?.type) {
+                // Check if there's ISO code in vehicle type or other fields
+                const vehicleText = JSON.stringify(result.vehicle);
+                const isoPattern = /\b\d{2}[A-Z]\d\b/g;
+                const isoMatch = vehicleText.match(isoPattern);
+                if (isoMatch) {
+                    isoCode = isoMatch[0];
+                }
+            }
+            
+            // Try to extract ISO code from any text in the response
+            if (!isoCode && result.region?.code) {
+                const regionText = result.region.code;
+                const isoPattern = /\b\d{2}[A-Z]\d\b/g;
+                const isoMatch = regionText.match(isoPattern);
+                if (isoMatch) {
+                    isoCode = isoMatch[0];
+                }
+            }
+
+            console.log('=== EXTRACTED INFO ===');
+            console.log('Container Number:', containerNumber || 'NOT FOUND');
+            console.log('ISO Code:', isoCode || 'NOT FOUND');
+            console.log('Confidence Score:', (result.score * 100).toFixed(2) + '%');
+            console.log('Processing Time:', data.processing_time + 's');
+            console.log('=====================');
+
+            res.json({
+                success: true,
+                data: {
+                    containerNumber,
+                    isoCode,
+                    containerColor: '', // Plate Recognizer doesn't detect colors
+                    colorHex: '',
+                    confidence: result.score,
+                    processingTime: data.processing_time,
+                    candidates: result.candidates || [],
+                    rawText: detectedText
+                }
+            });
+        } else {
+            console.log('=== NO TEXT DETECTED ===');
+            console.log('Vision API returned no text annotations');
+            console.log('========================');
+            
+            res.json({
+                success: false,
+                error: 'No text detected in image'
+            });
+        }
+    } catch (error) {
+        console.error('Vision API error:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message || 'Failed to process image'
         });
     }
 });
