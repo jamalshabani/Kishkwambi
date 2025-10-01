@@ -157,102 +157,219 @@ app.post('/api/vision/process-image', async (req, res) => {
             });
         }
 
-        // Plate Recognizer API token from environment variable
-        const PLATE_RECOGNIZER_TOKEN = process.env.PLATE_RECOGNIZER_TOKEN;
+        // Google Cloud Vision API key from environment variable
+        const VISION_API_KEY = process.env.GOOGLE_VISION_API_KEY;
         
-        if (!PLATE_RECOGNIZER_TOKEN) {
+        if (!VISION_API_KEY) {
             return res.status(500).json({
                 success: false,
-                error: 'Plate Recognizer API token not configured'
+                error: 'Vision API key not configured'
             });
         }
 
-        const PLATE_RECOGNIZER_URL = 'https://api.platerecognizer.com/v1/plate-reader/';
+        const VISION_API_URL = `https://vision.googleapis.com/v1/images:annotate?key=${VISION_API_KEY}`;
         
+        const requestBody = {
+            requests: [
+                {
+                    image: {
+                        content: base64Image,
+                    },
+                    features: [
+                        {
+                            type: 'TEXT_DETECTION',
+                            maxResults: 1,
+                        },
+                        {
+                            type: 'IMAGE_PROPERTIES',
+                            maxResults: 1,
+                        },
+                    ],
+                },
+            ],
+        };
+
         const fetch = require('node-fetch');
-        const FormData = require('form-data');
-        
-        // Convert base64 to buffer
-        const imageBuffer = Buffer.from(base64Image, 'base64');
-        
-        // Create form data
-        const formData = new FormData();
-        formData.append('upload', imageBuffer, {
-            filename: 'container.jpg',
-            contentType: 'image/jpeg'
-        });
-        formData.append('regions', 'container'); // Optimize for containers
-        
-        const response = await fetch(PLATE_RECOGNIZER_URL, {
+        const response = await fetch(VISION_API_URL, {
             method: 'POST',
             headers: {
-                'Authorization': `Token ${PLATE_RECOGNIZER_TOKEN}`,
-                ...formData.getHeaders()
+                'Content-Type': 'application/json',
             },
-            body: formData,
+            body: JSON.stringify(requestBody),
         });
 
         const data = await response.json();
         
-        console.log('=== PLATE RECOGNIZER RESPONSE ===');
+        console.log('=== VISION API RESPONSE ===');
         console.log(JSON.stringify(data, null, 2));
         console.log('=== RESPONSE STRUCTURE ===');
-        console.log('Has results?', !!data.results);
-        console.log('Results count:', data.results?.length || 0);
-        console.log('Processing time:', data.processing_time);
+        console.log('Has responses?', !!data.responses);
+        console.log('First response?', !!data.responses?.[0]);
+        console.log('Has textAnnotations?', !!data.responses?.[0]?.textAnnotations);
+        console.log('Has error?', !!data.responses?.[0]?.error);
         
         // Check for API-level errors
         if (data.error) {
-            console.log('=== PLATE RECOGNIZER ERROR ===');
-            console.log('Error:', data.error);
+            console.log('=== GOOGLE API ERROR ===');
+            console.log('Code:', data.error.code);
+            console.log('Message:', data.error.message);
+            console.log('Status:', data.error.status);
             console.log('========================');
             
             return res.status(500).json({
                 success: false,
-                error: `Plate Recognizer API Error: ${data.error}`
+                error: `Google Vision API Error: ${data.error.message}`,
+                code: data.error.code
             });
         }
         
-        if (data.results && data.results.length > 0) {
-            const result = data.results[0];
-            const detectedText = result.plate || '';
+        if (data.responses && data.responses[0].textAnnotations) {
+            const detectedText = data.responses[0].textAnnotations[0].description;
             
-            console.log('=== DETECTED CONTAINER NUMBER ===');
-            console.log('Plate:', detectedText);
-            console.log('Confidence:', result.score);
-            console.log('Candidates:', result.candidates?.length || 0);
+            console.log('=== ALL DETECTED TEXT ===');
+            console.log(detectedText);
             console.log('========================');
             
-            // Plate Recognizer returns the container number directly
-            const containerNumber = detectedText.replace(/\s/g, '');
-            
-            // Extract ISO code from vehicle info if available
+            // Extract container information
+            // Pattern: 4 letters + 6 or 7 digits (with optional spaces and check digit)
+            const containerPattern = /[A-Z]{4}\s*\d{6,7}\s*\d?/g;
+            const containerMatch = detectedText.match(containerPattern);
+            let containerNumber = '';
+            if (containerMatch) {
+                // Remove all spaces and take first match
+                containerNumber = containerMatch[0].replace(/\s/g, '');
+                // Ensure it's 11 characters (4 letters + 7 digits)
+                if (containerNumber.length < 11) {
+                    // Pad with spaces if needed
+                    containerNumber = containerNumber.padEnd(11, '');
+                }
+            }
+
+            // ISO Code extraction with OCR error correction
             let isoCode = '';
-            if (result.vehicle?.type) {
-                // Check if there's ISO code in vehicle type or other fields
-                const vehicleText = JSON.stringify(result.vehicle);
-                const isoPattern = /\b\d{2}[A-Z]\d\b/g;
-                const isoMatch = vehicleText.match(isoPattern);
-                if (isoMatch) {
-                    isoCode = isoMatch[0];
-                }
-            }
             
-            // Try to extract ISO code from any text in the response
-            if (!isoCode && result.region?.code) {
-                const regionText = result.region.code;
-                const isoPattern = /\b\d{2}[A-Z]\d\b/g;
-                const isoMatch = regionText.match(isoPattern);
-                if (isoMatch) {
-                    isoCode = isoMatch[0];
+            // First, try to match the correct pattern: 2 digits + letter + digit
+            const isoPattern = /\b\d{2}[A-Z]\d\b/g;
+            const isoMatch = detectedText.match(isoPattern);
+            
+            if (isoMatch) {
+                isoCode = isoMatch[0];
+            } else {
+                // If no match, look for 4 consecutive digits (common OCR error)
+                const fourDigitsPattern = /\b\d{4}\b/g;
+                const fourDigitsMatch = detectedText.match(fourDigitsPattern);
+                
+                if (fourDigitsMatch) {
+                    // Common OCR confusions for letters in ISO codes
+                    const digitToLetter = {
+                        '0': 'O',
+                        '1': 'I',
+                        '5': 'S',
+                        '6': 'G',
+                        '8': 'B'
+                    };
+                    
+                    // Try each 4-digit match
+                    for (const candidate of fourDigitsMatch) {
+                        // ISO code format: 2 digits + letter + digit
+                        // So the 3rd character (index 2) should be a letter
+                        const digits = candidate.split('');
+                        const thirdChar = digits[2];
+                        
+                        // If third character is a commonly confused digit, replace it
+                        if (digitToLetter[thirdChar]) {
+                            digits[2] = digitToLetter[thirdChar];
+                            isoCode = digits.join('');
+                            console.log(`OCR Correction: ${candidate} -> ${isoCode} (replaced ${thirdChar} with ${digitToLetter[thirdChar]})`);
+                            break;
+                        }
+                    }
                 }
             }
+
+            // Extract color from text (fallback method)
+            const colors = ['red', 'blue', 'green', 'yellow', 'white', 'grey', 'gray', 'orange', 'brown', 'black'];
+            const textLower = detectedText.toLowerCase();
+            let containerColorFromText = '';
+            for (const color of colors) {
+                if (textLower.includes(color)) {
+                    containerColorFromText = color.charAt(0).toUpperCase() + color.slice(1);
+                    break;
+                }
+            }
+
+            // Helper function to convert RGB to Hex
+            const rgbToHex = (r, g, b) => {
+                return '#' + [r, g, b].map(x => {
+                    const hex = Math.round(x).toString(16);
+                    return hex.length === 1 ? '0' + hex : hex;
+                }).join('');
+            };
+
+            // Helper function to get color name from RGB
+            const getColorName = (r, g, b) => {
+                // Simple color categorization
+                const max = Math.max(r, g, b);
+                const min = Math.min(r, g, b);
+                
+                // Check for grayscale
+                if (max - min < 30) {
+                    if (max > 200) return 'White';
+                    if (max < 80) return 'Black';
+                    return 'Gray';
+                }
+                
+                // Check dominant color
+                if (r > g && r > b) {
+                    if (g > 100 && b < 100) return 'Orange';
+                    if (r > 150 && g < 100 && b < 100) return 'Red';
+                    return 'Brown';
+                }
+                if (g > r && g > b) return 'Green';
+                if (b > r && b > g) {
+                    if (g > 100) return 'Cyan';
+                    return 'Blue';
+                }
+                if (r > 150 && g > 150 && b < 100) return 'Yellow';
+                
+                return 'Unknown';
+            };
+
+            // Extract dominant color from image properties
+            let dominantColor = null;
+            let dominantColorHex = '';
+            let dominantColorName = '';
+
+            if (data.responses[0].imagePropertiesAnnotation) {
+                const imageProps = data.responses[0].imagePropertiesAnnotation;
+                console.log('=== IMAGE PROPERTIES ===');
+                console.log(JSON.stringify(imageProps.dominantColors, null, 2));
+                
+                if (imageProps.dominantColors && imageProps.dominantColors.colors && imageProps.dominantColors.colors.length > 0) {
+                    // Get the most dominant color
+                    dominantColor = imageProps.dominantColors.colors[0];
+                    const rgb = dominantColor.color;
+                    dominantColorHex = rgbToHex(rgb.red || 0, rgb.green || 0, rgb.blue || 0);
+                    dominantColorName = getColorName(rgb.red || 0, rgb.green || 0, rgb.blue || 0);
+                    
+                    console.log('Dominant Color RGB:', rgb);
+                    console.log('Dominant Color Hex:', dominantColorHex);
+                    console.log('Dominant Color Name:', dominantColorName);
+                    console.log('Color Score:', dominantColor.score);
+                    console.log('Pixel Fraction:', dominantColor.pixelFraction);
+                }
+                console.log('========================');
+            }
+
+            // Use image-detected color, fallback to text-detected color
+            const finalColorName = dominantColorName || containerColorFromText;
 
             console.log('=== EXTRACTED INFO ===');
             console.log('Container Number:', containerNumber || 'NOT FOUND');
             console.log('ISO Code:', isoCode || 'NOT FOUND');
-            console.log('Confidence Score:', (result.score * 100).toFixed(2) + '%');
-            console.log('Processing Time:', data.processing_time + 's');
+            console.log('Color (from text):', containerColorFromText || 'NOT FOUND');
+            console.log('Color (from image):', dominantColorName || 'NOT FOUND');
+            console.log('Color Hex:', dominantColorHex || 'NOT FOUND');
             console.log('=====================');
 
             res.json({
@@ -260,11 +377,15 @@ app.post('/api/vision/process-image', async (req, res) => {
                 data: {
                     containerNumber,
                     isoCode,
-                    containerColor: '', // Plate Recognizer doesn't detect colors
-                    colorHex: '',
-                    confidence: result.score,
-                    processingTime: data.processing_time,
-                    candidates: result.candidates || [],
+                    containerColor: finalColorName,
+                    colorHex: dominantColorHex,
+                    colorDetails: dominantColor ? {
+                        rgb: dominantColor.color,
+                        hex: dominantColorHex,
+                        name: dominantColorName,
+                        score: dominantColor.score,
+                        pixelFraction: dominantColor.pixelFraction
+                    } : null,
                     rawText: detectedText
                 }
             });

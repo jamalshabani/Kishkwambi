@@ -87,7 +87,7 @@ const StepOneContainerPhoto = ({ onBack }) => {
         setIsProcessing(true);
         try {
             // Call backend API endpoint
-            const BACKEND_URL = 'http://192.168.12.134:3001'; // Your backend URL
+            const BACKEND_URL = 'http://localhost:3001'; // Your backend URL
             
             console.log('Sending image to Vision API...');
             
