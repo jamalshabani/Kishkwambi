@@ -157,107 +157,112 @@ app.post('/api/vision/process-image', async (req, res) => {
             });
         }
 
-        // Google Cloud Vision API key from environment variable
-        const VISION_API_KEY = process.env.GOOGLE_VISION_API_KEY;
+        // ParkPow Container API key from environment variable
+        const PARKPOW_API_KEY = process.env.PARKPOW_API_KEY;
         
-        if (!VISION_API_KEY) {
+        if (!PARKPOW_API_KEY) {
             return res.status(500).json({
                 success: false,
-                error: 'Vision API key not configured'
+                error: 'ParkPow API key not configured. Please set PARKPOW_API_KEY in your environment variables.'
             });
         }
 
-        const VISION_API_URL = `https://vision.googleapis.com/v1/images:annotate?key=${VISION_API_KEY}`;
+        console.log('=== SENDING TO PARKPOW API ===');
+        console.log('API Key configured:', !!PARKPOW_API_KEY);
         
-        const requestBody = {
-            requests: [
-                {
-                    image: {
-                        content: base64Image,
-                    },
-                    features: [
-                        {
-                            type: 'TEXT_DETECTION',
-                            maxResults: 1,
-                        },
-                        {
-                            type: 'IMAGE_PROPERTIES',
-                            maxResults: 1,
-                        },
-                    ],
-                },
-            ],
-        };
+        // Convert base64 to buffer for multipart form data
+        const imageBuffer = Buffer.from(base64Image, 'base64');
+        
+        // Create FormData for ParkPow API
+        const FormData = require('form-data');
+        const form = new FormData();
+        form.append('image', imageBuffer, {
+            filename: 'container.jpg',
+            contentType: 'image/jpeg'
+        });
 
         const fetch = require('node-fetch');
-        const response = await fetch(VISION_API_URL, {
+        const response = await fetch('https://container-api.parkpow.com/api/v1/predict/', {
             method: 'POST',
             headers: {
-                'Content-Type': 'application/json',
+                'Authorization': `Token ${PARKPOW_API_KEY}`,
+                ...form.getHeaders()
             },
-            body: JSON.stringify(requestBody),
+            body: form
         });
 
         const data = await response.json();
         
-        console.log('=== VISION API RESPONSE ===');
+        console.log('=== PARKPOW API RESPONSE ===');
         console.log(JSON.stringify(data, null, 2));
-        console.log('=== RESPONSE STRUCTURE ===');
-        console.log('Has responses?', !!data.responses);
-        console.log('First response?', !!data.responses?.[0]);
-        console.log('Has textAnnotations?', !!data.responses?.[0]?.textAnnotations);
-        console.log('Has error?', !!data.responses?.[0]?.error);
+        console.log('===========================');
         
-        // Check for API-level errors
-        if (data.error) {
-            console.log('=== GOOGLE API ERROR ===');
-            console.log('Code:', data.error.code);
-            console.log('Message:', data.error.message);
-            console.log('Status:', data.error.status);
+        // Check for API errors
+        if (!response.ok) {
+            console.log('=== PARKPOW API ERROR ===');
+            console.log('Status:', response.status);
+            console.log('Response:', data);
             console.log('========================');
             
             return res.status(500).json({
                 success: false,
-                error: `Google Vision API Error: ${data.error.message}`,
-                code: data.error.code
+                error: `ParkPow API Error: ${data.error || data.message || 'Unknown error'}`,
+                status: response.status
             });
         }
+
+        // Extract container information from ParkPow response
+        let containerNumber = '';
+        let isoCode = '';
+        let containerColor = '';
+        let colorHex = '';
+        let rawText = '';
+
+        // ParkPow typically returns structured data
+        if (data.container_number) {
+            containerNumber = data.container_number;
+        }
         
-        if (data.responses && data.responses[0].textAnnotations) {
-            const detectedText = data.responses[0].textAnnotations[0].description;
-            
-            console.log('=== ALL DETECTED TEXT ===');
-            console.log(detectedText);
-            console.log('========================');
-            
-            // Extract container information
+        if (data.iso_code) {
+            isoCode = data.iso_code;
+        }
+        
+        if (data.color) {
+            containerColor = data.color;
+        }
+        
+        if (data.color_hex) {
+            colorHex = data.color_hex;
+        }
+        
+        if (data.raw_text) {
+            rawText = data.raw_text;
+        }
+
+        // If ParkPow doesn't return structured data, try to extract from raw text
+        if (!containerNumber && rawText) {
             // Pattern: 4 letters + 6 or 7 digits (with optional spaces and check digit)
             const containerPattern = /[A-Z]{4}\s*\d{6,7}\s*\d?/g;
-            const containerMatch = detectedText.match(containerPattern);
-            let containerNumber = '';
+            const containerMatch = rawText.match(containerPattern);
             if (containerMatch) {
-                // Remove all spaces and take first match
                 containerNumber = containerMatch[0].replace(/\s/g, '');
-                // Ensure it's 11 characters (4 letters + 7 digits)
                 if (containerNumber.length < 11) {
-                    // Pad with spaces if needed
                     containerNumber = containerNumber.padEnd(11, '');
                 }
             }
+        }
 
+        if (!isoCode && rawText) {
             // ISO Code extraction with OCR error correction
-            let isoCode = '';
-            
-            // First, try to match the correct pattern: 2 digits + letter + digit
             const isoPattern = /\b\d{2}[A-Z]\d\b/g;
-            const isoMatch = detectedText.match(isoPattern);
+            const isoMatch = rawText.match(isoPattern);
             
             if (isoMatch) {
                 isoCode = isoMatch[0];
             } else {
                 // If no match, look for 4 consecutive digits (common OCR error)
                 const fourDigitsPattern = /\b\d{4}\b/g;
-                const fourDigitsMatch = detectedText.match(fourDigitsPattern);
+                const fourDigitsMatch = rawText.match(fourDigitsPattern);
                 
                 if (fourDigitsMatch) {
                     // Common OCR confusions for letters in ISO codes
@@ -271,12 +276,9 @@ app.post('/api/vision/process-image', async (req, res) => {
                     
                     // Try each 4-digit match
                     for (const candidate of fourDigitsMatch) {
-                        // ISO code format: 2 digits + letter + digit
-                        // So the 3rd character (index 2) should be a letter
                         const digits = candidate.split('');
                         const thirdChar = digits[2];
                         
-                        // If third character is a commonly confused digit, replace it
                         if (digitToLetter[thirdChar]) {
                             digits[2] = digitToLetter[thirdChar];
                             isoCode = digits.join('');
@@ -286,124 +288,45 @@ app.post('/api/vision/process-image', async (req, res) => {
                     }
                 }
             }
+        }
 
-            // Extract color from text (fallback method)
+        if (!containerColor && rawText) {
+            // Extract color from text
             const colors = ['red', 'blue', 'green', 'yellow', 'white', 'grey', 'gray', 'orange', 'brown', 'black'];
-            const textLower = detectedText.toLowerCase();
-            let containerColorFromText = '';
+            const textLower = rawText.toLowerCase();
             for (const color of colors) {
                 if (textLower.includes(color)) {
-                    containerColorFromText = color.charAt(0).toUpperCase() + color.slice(1);
+                    containerColor = color.charAt(0).toUpperCase() + color.slice(1);
                     break;
                 }
             }
-
-            // Helper function to convert RGB to Hex
-            const rgbToHex = (r, g, b) => {
-                return '#' + [r, g, b].map(x => {
-                    const hex = Math.round(x).toString(16);
-                    return hex.length === 1 ? '0' + hex : hex;
-                }).join('');
-            };
-
-            // Helper function to get color name from RGB
-            const getColorName = (r, g, b) => {
-                // Simple color categorization
-                const max = Math.max(r, g, b);
-                const min = Math.min(r, g, b);
-                
-                // Check for grayscale
-                if (max - min < 30) {
-                    if (max > 200) return 'White';
-                    if (max < 80) return 'Black';
-                    return 'Gray';
-                }
-                
-                // Check dominant color
-                if (r > g && r > b) {
-                    if (g > 100 && b < 100) return 'Orange';
-                    if (r > 150 && g < 100 && b < 100) return 'Red';
-                    return 'Brown';
-                }
-                if (g > r && g > b) return 'Green';
-                if (b > r && b > g) {
-                    if (g > 100) return 'Cyan';
-                    return 'Blue';
-                }
-                if (r > 150 && g > 150 && b < 100) return 'Yellow';
-                
-                return 'Unknown';
-            };
-
-            // Extract dominant color from image properties
-            let dominantColor = null;
-            let dominantColorHex = '';
-            let dominantColorName = '';
-
-            if (data.responses[0].imagePropertiesAnnotation) {
-                const imageProps = data.responses[0].imagePropertiesAnnotation;
-                console.log('=== IMAGE PROPERTIES ===');
-                console.log(JSON.stringify(imageProps.dominantColors, null, 2));
-                
-                if (imageProps.dominantColors && imageProps.dominantColors.colors && imageProps.dominantColors.colors.length > 0) {
-                    // Get the most dominant color
-                    dominantColor = imageProps.dominantColors.colors[0];
-                    const rgb = dominantColor.color;
-                    dominantColorHex = rgbToHex(rgb.red || 0, rgb.green || 0, rgb.blue || 0);
-                    dominantColorName = getColorName(rgb.red || 0, rgb.green || 0, rgb.blue || 0);
-                    
-                    console.log('Dominant Color RGB:', rgb);
-                    console.log('Dominant Color Hex:', dominantColorHex);
-                    console.log('Dominant Color Name:', dominantColorName);
-                    console.log('Color Score:', dominantColor.score);
-                    console.log('Pixel Fraction:', dominantColor.pixelFraction);
-                }
-                console.log('========================');
-            }
-
-            // Use image-detected color, fallback to text-detected color
-            const finalColorName = dominantColorName || containerColorFromText;
-
-            console.log('=== EXTRACTED INFO ===');
-            console.log('Container Number:', containerNumber || 'NOT FOUND');
-            console.log('ISO Code:', isoCode || 'NOT FOUND');
-            console.log('Color (from text):', containerColorFromText || 'NOT FOUND');
-            console.log('Color (from image):', dominantColorName || 'NOT FOUND');
-            console.log('Color Hex:', dominantColorHex || 'NOT FOUND');
-            console.log('=====================');
-
-            res.json({
-                success: true,
-                data: {
-                    containerNumber,
-                    isoCode,
-                    containerColor: finalColorName,
-                    colorHex: dominantColorHex,
-                    colorDetails: dominantColor ? {
-                        rgb: dominantColor.color,
-                        hex: dominantColorHex,
-                        name: dominantColorName,
-                        score: dominantColor.score,
-                        pixelFraction: dominantColor.pixelFraction
-                    } : null,
-                    rawText: detectedText
-                }
-            });
-        } else {
-            console.log('=== NO TEXT DETECTED ===');
-            console.log('Vision API returned no text annotations');
-            console.log('========================');
-            
-            res.json({
-                success: false,
-                error: 'No text detected in image'
-            });
         }
+
+        console.log('=== EXTRACTED INFO ===');
+        console.log('Container Number:', containerNumber || 'NOT FOUND');
+        console.log('ISO Code:', isoCode || 'NOT FOUND');
+        console.log('Color:', containerColor || 'NOT FOUND');
+        console.log('Color Hex:', colorHex || 'NOT FOUND');
+        console.log('Raw Text:', rawText || 'NOT FOUND');
+        console.log('=====================');
+
+        res.json({
+            success: true,
+            data: {
+                containerNumber,
+                isoCode,
+                containerColor,
+                colorHex,
+                rawText,
+                parkpowResponse: data // Include full ParkPow response for debugging
+            }
+        });
+
     } catch (error) {
-        console.error('Vision API error:', error);
+        console.error('ParkPow API error:', error);
         res.status(500).json({
             success: false,
-            error: error.message || 'Failed to process image'
+            error: error.message || 'Failed to process image with ParkPow API'
         });
     }
 });

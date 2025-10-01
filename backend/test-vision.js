@@ -7,10 +7,10 @@ async function testVision(imagePath) {
         const imageBuffer = fs.readFileSync(imagePath);
         const base64Image = imageBuffer.toString('base64');
         
-        console.log('Sending image to Vision API...');
+        console.log('Sending image to ParkPow API via backend...');
         console.log('Image size:', (base64Image.length / 1024 / 1024).toFixed(2), 'MB');
         
-        const response = await fetch('http://192.168.1.144:3001/api/vision/process-image', {
+        const response = await fetch('http://localhost:3001/api/vision/process-image', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
