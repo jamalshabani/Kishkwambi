@@ -34,6 +34,11 @@ const tripSegmentSchema = new Schema({
         required: false
     },
 
+    trailerPhoto: {
+        type: String,
+        required: false
+    },
+
     outwardTruckPhoto: {
         type: String,
         required: false

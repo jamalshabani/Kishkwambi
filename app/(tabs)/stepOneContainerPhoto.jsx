@@ -1,16 +1,16 @@
 import React, { useState, useRef } from 'react';
-import { View, Text, TouchableOpacity, Alert, Image, ScrollView, Animated, Modal, TextInput, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, TouchableOpacity, Alert, Image, ScrollView, Animated, Modal, TextInput, KeyboardAvoidingView, Platform, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { LinearGradient } from 'expo-linear-gradient';
-import * as ImagePicker from 'expo-image-picker';
 import { cn } from '../../lib/tw';
 import { useTheme } from '../../contexts/ThemeContext';
 import Button from '../../components/common/Button';
+import { API_CONFIG } from '../../lib/config';
 import { Camera as CameraIcon, Image as ImageIcon, Sun, Moon, ArrowLeft, RotateCcw, Eye, X } from 'lucide-react-native';
 
-const StepOneContainerPhoto = ({ onBack }) => {
+const StepOneContainerPhoto = ({ onBack, onNavigateToStepTwo }) => {
     const { isDark, toggleTheme } = useTheme();
     const [permission, requestPermission] = useCameraPermissions();
     const [image, setImage] = useState(null);
@@ -20,10 +20,16 @@ const StepOneContainerPhoto = ({ onBack }) => {
     const [extractedData, setExtractedData] = useState({
         containerNumber: '',
         isoCode: '',
-        containerColor: ''
+    });
+    const [comparisonResults, setComparisonResults] = useState({
+        parkrow: { containerNumber: '', isoCode: '' },
+        googleVision: { containerNumber: '', isoCode: '' },
+        processingTime: 0
     });
     const [isProcessing, setIsProcessing] = useState(false);
     const [facing, setFacing] = useState('back');
+    const [showContainerModal, setShowContainerModal] = useState(false);
+    const [containerModalData, setContainerModalData] = useState({ type: '', message: '' });
     const cameraRef = useRef(null);
     const containerNumberRefs = useRef([]);
     const isoCodeRefs = useRef([]);
@@ -70,8 +76,14 @@ const StepOneContainerPhoto = ({ onBack }) => {
                     base64: true,
                     //shutterSound: false,
                 });
-                setImage(photo.uri);
-                await processImageWithVisionAI(photo.base64);
+                
+                // Crop the image to the overlay area
+                const croppedImage = await cropImageToOverlay(photo.uri);
+                setImage(croppedImage);
+                
+                // Process the cropped image
+                const croppedBase64 = await convertImageToBase64(croppedImage);
+                await processImageWithVisionAI(croppedBase64);
             } catch (error) {
                 Alert.alert('Error', 'Failed to take picture');
                 console.error('Camera error:', error);
@@ -79,67 +91,253 @@ const StepOneContainerPhoto = ({ onBack }) => {
         }
     };
 
+    // Function to crop image to overlay area
+    const cropImageToOverlay = async (imageUri) => {
+        try {
+            // For now, we'll use the original image
+            // In a real implementation, you would use react-native-image-crop-picker
+            // or similar library to crop the image to the overlay dimensions
+            return imageUri;
+        } catch (error) {
+            console.error('Crop error:', error);
+            return imageUri; // Fallback to original image
+        }
+    };
+
+    // Function to convert image to base64
+    const convertImageToBase64 = async (imageUri) => {
+        try {
+            // For now, we'll use the original base64
+            // In a real implementation, you would convert the cropped image to base64
+            const response = await fetch(imageUri);
+            const blob = await response.blob();
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onloadend = () => {
+                    const base64 = reader.result.split(',')[1];
+                    resolve(base64);
+                };
+                reader.onerror = reject;
+                reader.readAsDataURL(blob);
+            });
+        } catch (error) {
+            console.error('Base64 conversion error:', error);
+            return '';
+        }
+    };
+
     const pickImage = async () => {
        
+    };
+
+    // Function to select the best results based on confidence scores
+    const selectBestResults = (parkrowData, googleVisionData) => {
+        const parkrow = parkrowData || {};
+        const googleVision = googleVisionData || {};
+        
+        // Select container number with highest confidence
+        const parkrowContainerConfidence = parkrow.containerNumberConfidence || 0;
+        const googleVisionContainerConfidence = googleVision.containerNumberConfidence || 0;
+        
+        const bestContainerNumber = parkrowContainerConfidence > googleVisionContainerConfidence 
+            ? parkrow.containerNumber 
+            : googleVision.containerNumber;
+        
+        // Select ISO code with highest confidence
+        const parkrowIsoConfidence = parkrow.isoCodeConfidence || 0;
+        const googleVisionIsoConfidence = googleVision.isoCodeConfidence || 0;
+        
+        const bestIsoCode = parkrowIsoConfidence > googleVisionIsoConfidence 
+            ? parkrow.isoCode 
+            : googleVision.isoCode;
+        
+        console.log('=== CONFIDENCE COMPARISON ===');
+        console.log('Container Number:');
+        console.log(`  ParkRow: "${parkrow.containerNumber}" (${(parkrowContainerConfidence * 100).toFixed(1)}%)`);
+        console.log(`  Google Vision: "${googleVision.containerNumber}" (${(googleVisionContainerConfidence * 100).toFixed(1)}%)`);
+        console.log(`  Selected: "${bestContainerNumber}"`);
+        console.log('ISO Code:');
+        console.log(`  ParkRow: "${parkrow.isoCode}" (${(parkrowIsoConfidence * 100).toFixed(1)}%)`);
+        console.log(`  Google Vision: "${googleVision.isoCode}" (${(googleVisionIsoConfidence * 100).toFixed(1)}%)`);
+        console.log(`  Selected: "${bestIsoCode}"`);
+        console.log('=============================');
+        
+        return {
+            containerNumber: bestContainerNumber,
+            isoCode: bestIsoCode,
+            containerNumberConfidence: Math.max(parkrowContainerConfidence, googleVisionContainerConfidence),
+            isoCodeConfidence: Math.max(parkrowIsoConfidence, googleVisionIsoConfidence),
+            selectedFrom: {
+                containerNumber: parkrowContainerConfidence > googleVisionContainerConfidence ? 'ParkRow' : 'Google Vision',
+                isoCode: parkrowIsoConfidence > googleVisionIsoConfidence ? 'ParkRow' : 'Google Vision'
+            }
+        };
+    };
+
+    // Function to validate container number against database and detect color
+    const validateContainerNumber = async () => {
+        // Use the manually corrected container number from input fields
+        const correctedContainerNumber = containerNumber.join('').trim();
+        
+        if (!correctedContainerNumber || correctedContainerNumber.length === 0) {
+            Alert.alert('No Container Number', 'Please take a photo first to extract the container number or enter it manually.');
+            return;
+        }
+
+        try {
+            const BACKEND_URL = API_CONFIG.getBackendUrl();
+            
+            console.log('🔍 Validating container number:', correctedContainerNumber);
+            
+            // Call both validation and color detection concurrently
+            const [validationResponse, colorResponse] = await Promise.all([
+                // Container validation
+                fetch(`${BACKEND_URL}/api/validate-container`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ containerNumber: correctedContainerNumber }),
+                }).then(res => res.json()).catch(err => ({
+                    success: false,
+                    error: `Validation Error: ${err.message}`
+                })),
+                
+                // Color detection (only if we have an image)
+                image ? fetch(`${BACKEND_URL}/api/vision/google-vision-color`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ base64Image: image }),
+                }).then(res => res.json()).catch(err => ({
+                    success: false,
+                    error: `Color Detection Error: ${err.message}`,
+                    data: { containerColor: '', colorHex: '' }
+                })) : Promise.resolve({
+                    success: false,
+                    error: 'No image available for color detection',
+                    data: { containerColor: '', colorHex: '' }
+                })
+            ]);
+
+            console.log('🔍 Validation result:', validationResponse);
+            console.log('🎨 Color detection result:', colorResponse);
+            
+            if (validationResponse.success) {
+                if (validationResponse.exists) {
+                    // Prepare container data with color information using corrected container number
+                    const containerData = {
+                        containerNumber: correctedContainerNumber,
+                        isoCode: isoCode.join('').trim() || extractedData.isoCode,
+                        containerColor: colorResponse.success ? colorResponse.data.containerColor : '',
+                        colorHex: colorResponse.success ? colorResponse.data.colorHex : ''
+                    };
+                    
+                    console.log('🎨 Detected color:', containerData.containerColor);
+                    console.log('🎨 Color hex:', containerData.colorHex);
+                    
+                    // Navigate to step two with container data including color
+                    if (onNavigateToStepTwo) {
+                        onNavigateToStepTwo(containerData);
+                    }
+                } else {
+                    setContainerModalData({
+                        type: 'error',
+                        message: validationResponse.message
+                    });
+                    setShowContainerModal(true);
+                }
+            } else {
+                setContainerModalData({
+                    type: 'error',
+                    message: validationResponse.error || 'Failed to validate container number'
+                });
+                setShowContainerModal(true);
+            }
+            
+        } catch (error) {
+            console.error('Container validation error:', error);
+            setContainerModalData({
+                type: 'error',
+                message: 'Failed to validate container number. Please check your connection.'
+            });
+            setShowContainerModal(true);
+        }
     };
 
     const processImageWithVisionAI = async (base64Image) => {
         setIsProcessing(true);
         try {
-            // Call backend API endpoint
-            const BACKEND_URL = 'http://localhost:3001'; // Your backend URL
+            const BACKEND_URL = API_CONFIG.getBackendUrl();
+            const startTime = Date.now();
             
-            console.log('Sending image to Vision API...');
+            console.log('🚀 Testing both ParkRow API and Google Vision AI concurrently...');
             
-            const response = await fetch(`${BACKEND_URL}/api/vision/process-image`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ base64Image }),
+            // Call both APIs concurrently using Promise.all
+            const [parkrowResponse, googleVisionResponse] = await Promise.all([
+                // ParkRow API call
+                fetch(`${BACKEND_URL}/api/vision/process-image`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ base64Image }),
+                }).then(res => res.json()).catch(err => ({
+                    success: false,
+                    error: `ParkRow API Error: ${err.message}`,
+                    data: { containerNumber: '', isoCode: '' }
+                })),
+                
+                // Google Vision API call
+                fetch(`${BACKEND_URL}/api/vision/google-vision`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ base64Image }),
+                }).then(res => res.json()).catch(err => ({
+                    success: false,
+                    error: `Google Vision API Error: ${err.message}`,
+                    data: { containerNumber: '', isoCode: '' }
+                }))
+            ]);
+            
+            const endTime = Date.now();
+            const processingTime = ((endTime - startTime) / 1000).toFixed(2);
+            
+            console.log('⏱️ Total processing time:', processingTime + 's');
+            console.log('📊 === COMPARISON RESULTS ===');
+            console.log('🔹 PARKROW API RESULT:', parkrowResponse);
+            console.log('🔸 GOOGLE VISION AI RESULT:', googleVisionResponse);
+            
+            // Store comparison results
+            setComparisonResults({
+                parkrow: parkrowResponse.data || { containerNumber: '', isoCode: '' },
+                googleVision: googleVisionResponse.data || { containerNumber: '', isoCode: '' },
+                processingTime: parseFloat(processingTime)
             });
-
-            console.log('Response status:', response.status);
-            console.log('Response headers:', response.headers);
-
-            // Check if response is ok
-            if (!response.ok) {
-                const errorText = await response.text();
-                console.error('Backend error response:', errorText);
-                throw new Error(`Backend returned ${response.status}: ${errorText.substring(0, 100)}`);
-            }
-
-            // Try to parse JSON
-            const contentType = response.headers.get('content-type');
-            if (!contentType || !contentType.includes('application/json')) {
-                const text = await response.text();
-                console.error('Non-JSON response:', text.substring(0, 200));
-                throw new Error('Backend returned non-JSON response. Make sure the server is running correctly.');
-            }
-
-            const result = await response.json();
-            console.log('Vision API result:', result);
             
-            if (result.success && result.data) {
-                const extractedInfo = result.data;
-                console.log('Detected text:', extractedInfo.rawText);
-                console.log('Extracted info:', extractedInfo);
+            // Select the best results based on confidence scores
+            const bestResults = selectBestResults(parkrowResponse.data, googleVisionResponse.data);
+            
+            if (bestResults) {
+                console.log('Best results selected:', bestResults);
                 
                 setExtractedData({
-                    containerNumber: extractedInfo.containerNumber,
-                    isoCode: extractedInfo.isoCode,
-                    containerColor: extractedInfo.containerColor
+                    containerNumber: bestResults.containerNumber || '',
+                    isoCode: bestResults.isoCode || ''
                 });
                 
                 // Populate individual character arrays
-                const containerChars = extractedInfo.containerNumber.padEnd(11, ' ').split('').slice(0, 11);
-                const isoChars = extractedInfo.isoCode.padEnd(4, ' ').split('').slice(0, 4);
+                const containerChars = (bestResults.containerNumber || '').padEnd(11, ' ').split('').slice(0, 11);
+                const isoChars = (bestResults.isoCode || '').padEnd(4, ' ').split('').slice(0, 4);
                 setContainerNumber(containerChars);
                 setIsoCode(isoChars);
             } else {
-                // Fallback to empty values if no text detected
-                Alert.alert('No Text Detected', result.error || 'Could not extract text from the image. Please try again.');
-                setExtractedData({ containerNumber: '', isoCode: '', containerColor: '' });
+                // Fallback to empty values if no data detected
+                Alert.alert('No Data Detected', 'Could not extract container information from the image. Please try again.');
+                setExtractedData({ containerNumber: '', isoCode: '' });
                 setContainerNumber(Array(11).fill(''));
                 setIsoCode(Array(4).fill(''));
             }
@@ -150,7 +348,7 @@ const StepOneContainerPhoto = ({ onBack }) => {
             console.error('Error stack:', error.stack);
             
             // Set empty values on error
-            setExtractedData({ containerNumber: '', isoCode: '', containerColor: '' });
+            setExtractedData({ containerNumber: '', isoCode: '' });
             setContainerNumber(Array(11).fill(''));
             setIsoCode(Array(4).fill(''));
         } finally {
@@ -187,13 +385,19 @@ const StepOneContainerPhoto = ({ onBack }) => {
         setExtractedData({
             containerNumber: '',
             isoCode: '',
-            containerColor: ''
+        });
+        setComparisonResults({
+            parkrow: { containerNumber: '', isoCode: '' },
+            googleVision: { containerNumber: '', isoCode: '' },
+            processingTime: 0
         });
     };
 
+    // Function to simulate container positioning detection
+
     if (!permission) {
         return (
-            <SafeAreaView style={cn(`flex-1 ${isDark ? 'bg-gray-900' : 'bg-gray-100'}`)} edges={['top']}>
+            <SafeAreaView style={cn(`flex-1 ${isDark ? 'bg-gray-900' : 'bg-gray-100'}`)}>
                 <StatusBar style={isDark ? "light" : "dark"} />
                 <View style={cn('flex-1 justify-center items-center')}>
                     <Text style={cn(`text-lg ${isDark ? 'text-gray-100' : 'text-gray-800'}`)}>
@@ -206,7 +410,7 @@ const StepOneContainerPhoto = ({ onBack }) => {
 
     if (!permission.granted) {
         return (
-            <SafeAreaView style={cn(`flex-1 ${isDark ? 'bg-gray-900' : 'bg-gray-100'}`)} edges={['top']}>
+            <SafeAreaView style={cn(`flex-1 ${isDark ? 'bg-gray-900' : 'bg-gray-100'}`)}>
                 <StatusBar style={isDark ? "light" : "dark"} />
                 <View style={cn('flex-1 justify-center items-center p-6')}>
                     <Text style={cn(`text-lg text-center ${isDark ? 'text-gray-100' : 'text-gray-800'} mb-4`)}>
@@ -280,6 +484,176 @@ const StepOneContainerPhoto = ({ onBack }) => {
                         ratio="1:1"
                     />
                     
+                    {/* Container Guide Overlay */}
+                    <View style={cn('absolute inset-0 justify-center items-center')}>
+                        {/* Instruction Text */}
+                        <View style={cn('absolute top-4 left-4 right-4 items-center')}>
+                            <View style={cn('bg-black/70 px-6 py-3 rounded-lg')}>
+                                <Text style={cn('text-white text-center text-lg font-semibold')}>
+                                    Make sure the container number is clearly visible
+                                </Text>
+                            </View>
+                            
+                            {/* Skip Photo Button */}
+                            <TouchableOpacity
+                                onPress={async () => {
+                                    try {
+                                        const BACKEND_URL = API_CONFIG.getBackendUrl();
+                                        const containerNumber = 'BSIU2253788';
+                                        
+                                        console.log('🔍 Fetching container info for:', containerNumber);
+                                        
+                                        // Fetch container information from database
+                                        const response = await fetch(`${BACKEND_URL}/api/validate-container`, {
+                                            method: 'POST',
+                                            headers: {
+                                                'Content-Type': 'application/json',
+                                            },
+                                            body: JSON.stringify({ containerNumber }),
+                                        });
+                                        
+                                        const result = await response.json();
+                                        console.log('📊 Database response:', result);
+                                        
+                                        if (result.success && result.exists) {
+                                            // Container found in database, use database data
+                                            const containerData = {
+                                                containerNumber: containerNumber,
+                                                isoCode: '45G1', // Default ISO code
+                                                containerColor: 'Black',
+                                                colorHex: '#000000',
+                                                tripSegmentNumber: result.containerData?.tripSegmentNumber || 'N/A',
+                                                // Add other database fields as needed
+                                                ...result.containerData
+                                            };
+                                            
+                                            console.log('✅ Using database data:', containerData);
+                                            
+                                            if (onNavigateToStepTwo) {
+                                                onNavigateToStepTwo(containerData);
+                                            }
+                                        } else {
+                                            // Container not found, use default data
+                                            console.log('⚠️ Container not found in database, using default data');
+                                            const containerData = {
+                                                containerNumber: containerNumber,
+                                                isoCode: '45G1',
+                                                containerColor: 'Black',
+                                                colorHex: '#000000',
+                                                tripSegmentNumber: 'N/A'
+                                            };
+                                            
+                                            if (onNavigateToStepTwo) {
+                                                onNavigateToStepTwo(containerData);
+                                            }
+                                        }
+                                    } catch (error) {
+                                        console.error('❌ Error fetching container data:', error);
+                                        
+                                        // Fallback to default data on error
+                                        const containerData = {
+                                            containerNumber: 'BSIU2253788',
+                                            isoCode: '45G1',
+                                            containerColor: 'Black',
+                                            colorHex: '#000000',
+                                            tripSegmentNumber: 'N/A'
+                                        };
+                                        
+                                        if (onNavigateToStepTwo) {
+                                            onNavigateToStepTwo(containerData);
+                                        }
+                                    }
+                                }}
+                                style={cn('mt-4 rounded-lg overflow-hidden')}
+                            >
+                                <LinearGradient
+                                    colors={['#F59E0B', '#000000']}
+                                    start={{ x: 0, y: 0 }}
+                                    end={{ x: 1, y: 0 }}
+                                    style={cn('px-6 py-3')}
+                                >
+                                    <Text style={cn('text-white text-center font-semibold')}>
+                                        Skip Photo - Use Test Data
+                                    </Text>
+                                </LinearGradient>
+                            </TouchableOpacity>
+                        </View>
+                        
+                        {/* Container Guide Frame */}
+                        <View style={cn('relative')}>
+                            {/* Container Rectangle Outline */}
+                            <View 
+                                style={[
+                                    cn('border-2 border-green-500 bg-green-500/10'),
+                                    {
+                                        width: 320,
+                                        height: 298, // Adjusted for 2.44m × 2.59m ratio (0.94:1)
+                                        borderRadius: 8,
+                                    }
+                                ]}
+                            />
+                            
+                            {/* Corner Brackets */}
+                            {/* Top Left */}
+                            <View 
+                                style={[
+                                    cn('absolute -top-2 -left-2'),
+                                    {
+                                        width: 20,
+                                        height: 20,
+                                        borderTopWidth: 3,
+                                        borderLeftWidth: 3,
+                                        borderTopColor: '#10b981',
+                                        borderLeftColor: '#10b981',
+                                    }
+                                ]}
+                            />
+                            {/* Top Right */}
+                            <View 
+                                style={[
+                                    cn('absolute -top-2 -right-2'),
+                                    {
+                                        width: 20,
+                                        height: 20,
+                                        borderTopWidth: 3,
+                                        borderRightWidth: 3,
+                                        borderTopColor: '#10b981',
+                                        borderRightColor: '#10b981',
+                                    }
+                                ]}
+                            />
+                            {/* Bottom Left */}
+                            <View 
+                                style={[
+                                    cn('absolute -bottom-2 -left-2'),
+                                    {
+                                        width: 20,
+                                        height: 20,
+                                        borderBottomWidth: 3,
+                                        borderLeftWidth: 3,
+                                        borderBottomColor: '#10b981',
+                                        borderLeftColor: '#10b981',
+                                    }
+                                ]}
+                            />
+                            {/* Bottom Right */}
+                            <View 
+                                style={[
+                                    cn('absolute -bottom-2 -right-2'),
+                                    {
+                                        width: 20,
+                                        height: 20,
+                                        borderBottomWidth: 3,
+                                        borderRightWidth: 3,
+                                        borderBottomColor: '#10b981',
+                                        borderRightColor: '#10b981',
+                                    }
+                                ]}
+                            />
+                        </View>
+                        
+                    </View>
+                    
                     {/* Camera Controls Overlay */}
                     <View style={cn('absolute bottom-0 left-0 right-0 bg-black/50 pb-8 pt-4')}>
                         <View style={cn('flex-row items-center justify-between px-8')}>
@@ -314,12 +688,13 @@ const StepOneContainerPhoto = ({ onBack }) => {
                 <KeyboardAvoidingView 
                     style={cn('flex-1')}
                     behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-                    keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+                    keyboardVerticalOffset={Platform.OS === 'ios' ? 100 : 20}
                 >
                     <ScrollView 
                         style={cn('flex-1')} 
                         keyboardShouldPersistTaps="handled"
                         contentContainerStyle={{ paddingBottom: 400 }}
+                        showsVerticalScrollIndicator={false}
                     >
                         <View style={cn('p-6')}>
                         <View style={cn(`${isDark ? 'bg-gray-800' : 'bg-white'} rounded-lg shadow-lg p-4 mb-6`)}>
@@ -358,14 +733,19 @@ const StepOneContainerPhoto = ({ onBack }) => {
                         <View style={cn(`${isDark ? 'bg-gray-800' : 'bg-white'} rounded-lg shadow-lg p-4`)}>
                             {isProcessing ? (
                                 <View style={cn('items-center py-8')}>
+                                    <ActivityIndicator 
+                                        size="large" 
+                                        color={isDark ? '#eab308' : '#a16207'} 
+                                        style={cn('mb-4')}
+                                    />
                                     <Text style={cn(`text-lg ${isDark ? 'text-gray-100' : 'text-gray-800'}`)}>
-                                        Processing with Vision AI...
+                                        Processing...
                                     </Text>
                                 </View>
                             ) : (
                                 <View>
                                     {/* Container Number */}
-                                    <View style={cn(`p-4 rounded-lg ${isDark ? 'bg-gray-700' : 'bg-gray-50'} mb-2`)}>
+                                    <View style={cn(`px-4 py-2 rounded-lg ${isDark ? 'bg-gray-700' : 'bg-gray-50'}`)}>
                                         <Text style={cn(`text-sm font-bold ${isDark ? 'text-gray-300' : 'text-gray-600'} mb-2`)}>
                                             Container Number
                                         </Text>
@@ -395,8 +775,8 @@ const StepOneContainerPhoto = ({ onBack }) => {
                                         </View>
                                     </View>
 
-                                    {/* ISO Code and Container Color Row */}
-                                    <View style={cn('flex-row gap-2')}>
+                                    {/* ISO Code */}
+                                    <View style={cn('flex-row gap-2 mt-2')}>
                                         {/* ISO Code */}
                                         <View style={[cn(`p-4 rounded-lg ${isDark ? 'bg-gray-700' : 'bg-gray-50'}`), { flex: 0.9 }]}>
                                             <Text style={cn(`text-sm font-bold ${isDark ? 'text-gray-300' : 'text-gray-600'} mb-2`)}>
@@ -427,19 +807,30 @@ const StepOneContainerPhoto = ({ onBack }) => {
                                                 ))}
                                             </View>
                                         </View>
-
-                                        {/* Container Color */}
-                                        <View style={[cn(`p-4 rounded-lg ${isDark ? 'bg-gray-700' : 'bg-gray-50'}`), { flex: 0.4 }]}>
-                                            <Text style={cn(`text-sm font-bold ${isDark ? 'text-gray-300' : 'text-gray-600'} mb-2`)}>
-                                                Color
-                                            </Text>
-                                            <Text style={cn(`text-lg font-semibold ${isDark ? 'text-gray-100' : 'text-gray-800'}`)}>
-                                                {extractedData.containerColor || 'Not detected'}
-                                            </Text>
-                                        </View>
                                     </View>
                                 </View>
                             )}
+
+                            {/* Check Container Number Button */}
+                            <View style={cn('mt-4')}>
+                                <TouchableOpacity
+                                    onPress={validateContainerNumber}
+                                    disabled={isProcessing}
+                                    style={cn(`rounded-lg overflow-hidden w-full ${isProcessing ? 'opacity-50' : ''}`)}
+                                >
+                                    <LinearGradient
+                                        colors={isProcessing ? ['#9CA3AF', '#6B7280'] : ['#F59E0B', '#000000']}
+                                        start={{ x: 0, y: 0 }}
+                                        end={{ x: 1, y: 0 }}
+                                        style={cn('p-4 items-center')}
+                                    >
+                                        <Text style={cn('text-white font-bold')}>
+                                            {isProcessing ? 'Processing...' : 'Check Container Number'}
+                                        </Text>
+                                    </LinearGradient>
+                                </TouchableOpacity>
+                            </View>
+                           
                         </View>
                         </View>
                     </ScrollView>
@@ -468,6 +859,39 @@ const StepOneContainerPhoto = ({ onBack }) => {
                         style={cn('w-full h-full')}
                         resizeMode="contain"
                     />
+                </View>
+            </Modal>
+
+            {/* Custom Container Validation Modal */}
+            <Modal
+                visible={showContainerModal}
+                transparent={true}
+                animationType="fade"
+                onRequestClose={() => setShowContainerModal(false)}
+            >
+                <View style={cn('flex-1 justify-center items-center bg-black/50')}>
+                    <View style={cn('bg-white rounded-3xl mx-8 p-6')}>
+                        
+                        {/* Message Text */}
+                        <View style={cn('mt-4 mb-6')}>
+                            <Text style={cn('text-red-500 text-center text-lg font-semibold leading-6')}>
+                                {containerModalData.type === 'success' ? 'Container Found!' : 'Container Not Found'}
+                            </Text>
+                            <Text style={cn('text-gray-600 font-bold text-center text-sm mt-2')}>
+                                {containerModalData.message}
+                            </Text>
+                        </View>
+                        
+                        {/* OK Button */}
+                        <TouchableOpacity
+                            onPress={() => setShowContainerModal(false)}
+                            style={cn('bg-red-500 rounded-xl py-4')}
+                        >
+                            <Text style={cn('text-white text-center font-semibold text-base')}>
+                                OK
+                            </Text>
+                        </TouchableOpacity>
+                    </View>
                 </View>
             </Modal>
         </SafeAreaView>

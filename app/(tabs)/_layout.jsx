@@ -9,11 +9,16 @@ import { ArrowBigRight, User } from 'lucide-react-native';
 import Dashboard from './dashboard';
 import Profile from './profile';
 import StepOneContainerPhoto from './stepOneContainerPhoto';
+import StepTwoContainerDetails from './stepTwoContainerDetails';
+import StepThreeTrailerPhoto from './stepThreeTrailerPhoto';
 
 export default function TabLayout() {
     const { isDark } = useTheme();
     const { isAuthenticated, loading } = useAuth();
     const [activeTab, setActiveTab] = useState('dashboard');
+    const [containerData, setContainerData] = useState(null);
+    const [trailerData, setTrailerData] = useState(null);
+    const [driverData, setDriverData] = useState(null);
 
     // Redirect to login if not authenticated
     useEffect(() => {
@@ -70,6 +75,34 @@ export default function TabLayout() {
 
     const navigateBackToDashboard = () => {
         setActiveTab('dashboard');
+        setContainerData(null);
+    };
+
+    const navigateToStepTwo = (data) => {
+        setContainerData(data);
+        setActiveTab('stepTwoContainerDetails');
+    };
+
+    const navigateBackToStepOne = () => {
+        setActiveTab('stepOneContainerPhoto');
+    };
+
+    const navigateToStepThree = (data) => {
+        setTrailerData(data);
+        setActiveTab('stepThreeTrailerPhoto');
+    };
+
+    const navigateBackToStepTwo = () => {
+        setActiveTab('stepTwoContainerDetails');
+    };
+
+    const navigateToStepFour = (data) => {
+        // TODO: Add driver details screen later
+        console.log('Navigate to driver details:', data);
+    };
+
+    const navigateBackToStepThree = () => {
+        setActiveTab('stepThreeTrailerPhoto');
     };
 
     const renderContent = () => {
@@ -79,7 +112,11 @@ export default function TabLayout() {
             case 'profile':
                 return <Profile />;
             case 'stepOneContainerPhoto':
-                return <StepOneContainerPhoto onBack={navigateBackToDashboard} />;
+                return <StepOneContainerPhoto onBack={navigateBackToDashboard} onNavigateToStepTwo={navigateToStepTwo} />;
+            case 'stepTwoContainerDetails':
+                return <StepTwoContainerDetails onBack={navigateBackToStepOne} containerData={containerData} onNavigateToStepThree={navigateToStepThree} />;
+            case 'stepThreeTrailerPhoto':
+                return <StepThreeTrailerPhoto onBack={navigateBackToStepTwo} containerData={trailerData} onNavigateToStepFour={navigateToStepFour} />;
             default:
                 return <Dashboard onTakePhoto={navigateToStepOne} />;
         }
@@ -92,8 +129,8 @@ export default function TabLayout() {
                 {renderContent()}
             </View>
 
-            {/* Tab Bar - Hidden for container photo screen */}
-            {activeTab !== 'stepOneContainerPhoto' && (
+            {/* Tab Bar - Hidden for container photo, details, and trailer photo screens */}
+            {activeTab !== 'stepOneContainerPhoto' && activeTab !== 'stepTwoContainerDetails' && activeTab !== 'stepThreeTrailerPhoto' && (
                 <View style={cn(`border-t ${isDark ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-white'} shadow-lg`)}>
                     <View style={cn('flex-row h-24 px-5')}>
                         {renderTabIcon(
