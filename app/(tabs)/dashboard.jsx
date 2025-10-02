@@ -2,11 +2,11 @@ import React, { useState, useRef } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, TextInput, Animated } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
+import { LinearGradient } from 'expo-linear-gradient';
 import { cn } from '../../lib/tw';
-import Button from '../../components/common/Button';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTheme } from '../../contexts/ThemeContext';
-import { Sun, Moon } from 'lucide-react-native';
+import { Sun, Moon, Check, CircleCheck, Zap } from 'lucide-react-native';
 
 const Dashboard = ({ onTakePhoto }) => {
     const { user, isAuthenticated, loading } = useAuth();
@@ -115,7 +115,7 @@ const Dashboard = ({ onTakePhoto }) => {
                             {/* Item 1 */}
                             <View style={cn(`${isDark ? 'bg-green-900/30 border-green-700' : 'bg-green-50 border-green-200'} border rounded-lg p-4 flex-row items-center mb-3`)}>
                                 <View style={cn('w-8 h-8 bg-green-500 rounded-full items-center justify-center mr-3')}>
-                                    <Text style={cn('text-white font-bold')}>✓</Text>
+                                    <Check size={16} color="white" />
                                 </View>
                                 <Text style={cn(`text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'} flex-1`)}>
                                     Verify the <Text style={cn('font-bold')}>Expiration Date</Text> of the Depot Allocation Document.
@@ -125,7 +125,7 @@ const Dashboard = ({ onTakePhoto }) => {
                             {/* Item 2 */}
                             <View style={cn(`${isDark ? 'bg-blue-900/30 border-blue-700' : 'bg-blue-50 border-blue-200'} border rounded-lg p-4 flex-row items-center mb-3`)}>
                                 <View style={cn('w-8 h-8 bg-blue-500 rounded-full items-center justify-center mr-3')}>
-                                    <Text style={cn('text-white font-bold')}>↻</Text>
+                                    <CircleCheck size={16} color="white" />
                                 </View>
                                 <Text style={cn(`text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'} flex-1`)}>
                                     Confirm the <Text style={cn('font-bold')}>Correctness</Text> of the Depot Allocation Document details.
@@ -135,7 +135,7 @@ const Dashboard = ({ onTakePhoto }) => {
                             {/* Item 3 */}
                             <View style={cn(`${isDark ? 'bg-purple-900/30 border-purple-700' : 'bg-purple-50 border-purple-200'} border rounded-lg p-4 flex-row items-center`)}>
                                 <View style={cn('w-8 h-8 bg-purple-500 rounded-full items-center justify-center mr-3')}>
-                                    <Text style={cn('text-white font-bold')}>⚡</Text>
+                                    <Zap size={16} color="white" />
                                 </View>
                                 <Text style={cn(`text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'} flex-1`)}>
                                     Ready to begin? <Text style={cn('font-bold')}>Click the button below</Text> to proceed.
@@ -145,21 +145,27 @@ const Dashboard = ({ onTakePhoto }) => {
 
                         {/* Container Check */}
                         <Text style={cn(`text-lg font-bold ${isDark ? 'text-gray-100' : 'text-gray-800'} mb-4`)}>
-                            Take Container Photo
+                            Start Arrival Inspection
                         </Text>
 
                         {/* Check Button */}
-                        <Button
+                        <TouchableOpacity
                             onPress={() => {
                                 onTakePhoto();
                             }}
-                            className="w-full rounded-lg"
-                            style={{
-                                background: 'linear-gradient(90deg, #F59E0B 0%, #92400E 100%)',
-                            }}
+                            style={cn('w-full rounded-lg overflow-hidden')}
                         >
-                            Take Container Photo
-                        </Button>
+                            <LinearGradient
+                                colors={['#000000', '#F59E0B']}
+                                start={{ x: 0, y: 0 }}
+                                end={{ x: 1, y: 0 }}
+                                style={cn('p-4 items-center')}
+                            >
+                                <Text style={cn('text-white font-bold text-lg')}>
+                                    Start Arrival Inspection
+                                </Text>
+                            </LinearGradient>
+                        </TouchableOpacity>
                     </View>
                 </View>
             </View>

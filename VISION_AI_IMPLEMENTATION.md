@@ -46,7 +46,7 @@ cd backend
 npm run dev
 ```
 
-The server will start on `http://192.168.12.134:3001`
+The server will start on `http://192.168.1.144:3001`
 
 ### 3. Test the Vision AI
 

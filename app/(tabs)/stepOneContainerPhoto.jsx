@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { View, Text, TouchableOpacity, Alert, Image, ScrollView, Animated, Modal, TextInput, KeyboardAvoidingView, Platform, ActivityIndicator } from 'react-native';
+import { View, Text, TouchableOpacity, Alert, Image, Animated, Modal, TextInput, ActivityIndicator, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { CameraView, useCameraPermissions } from 'expo-camera';
@@ -225,7 +225,8 @@ const StepOneContainerPhoto = ({ onBack, onNavigateToStepTwo }) => {
                         containerNumber: correctedContainerNumber,
                         isoCode: isoCode.join('').trim() || extractedData.isoCode,
                         containerColor: colorResponse.success ? colorResponse.data.containerColor : '',
-                        colorHex: colorResponse.success ? colorResponse.data.colorHex : ''
+                        colorHex: colorResponse.success ? colorResponse.data.colorHex : '',
+                        tripSegmentNumber: validationResponse.containerData?.tripSegmentNumber || 'N/A'
                     };
                     
                     console.log('🎨 Detected color:', containerData.containerColor);
@@ -285,11 +286,11 @@ const StepOneContainerPhoto = ({ onBack, onNavigateToStepTwo }) => {
                 
                 // Google Vision API call
                 fetch(`${BACKEND_URL}/api/vision/google-vision`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({ base64Image }),
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ base64Image }),
                 }).then(res => res.json()).catch(err => ({
                     success: false,
                     error: `Google Vision API Error: ${err.message}`,
@@ -440,7 +441,7 @@ const StepOneContainerPhoto = ({ onBack, onNavigateToStepTwo }) => {
 
                 {/* Title */}
                 <Text style={cn(`text-lg font-bold ${isDark ? 'text-gray-100' : 'text-gray-800'} flex-1`)}>
-                    Container Photo
+                    Container Back Wall
                 </Text>
 
                 {/* Theme Switcher */}
@@ -509,53 +510,68 @@ const StepOneContainerPhoto = ({ onBack, onNavigateToStepTwo }) => {
                                         const result = await response.json();
                                         console.log('📊 Database response:', result);
                                         
-                                        if (result.success && result.exists) {
-                                            // Container found in database, use database data
-                                            const containerData = {
-                                                containerNumber: containerNumber,
-                                                isoCode: '45G1', // Default ISO code
-                                                containerColor: 'Black',
-                                                colorHex: '#000000',
-                                                tripSegmentNumber: result.containerData?.tripSegmentNumber || 'N/A',
-                                                // Add other database fields as needed
-                                                ...result.containerData
-                                            };
-                                            
-                                            console.log('✅ Using database data:', containerData);
-                                            
-                                            if (onNavigateToStepTwo) {
-                                                onNavigateToStepTwo(containerData);
-                                            }
-                                        } else {
-                                            // Container not found, use default data
-                                            console.log('⚠️ Container not found in database, using default data');
-                                            const containerData = {
-                                                containerNumber: containerNumber,
-                                                isoCode: '45G1',
-                                                containerColor: 'Black',
-                                                colorHex: '#000000',
-                                                tripSegmentNumber: 'N/A'
-                                            };
-                                            
-                                            if (onNavigateToStepTwo) {
-                                                onNavigateToStepTwo(containerData);
-                                            }
-                                        }
-                                    } catch (error) {
-                                        console.error('❌ Error fetching container data:', error);
+                                        // Set test image (placeholder)
+                                        setImage('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgdmlld0JveD0iMCAwIDIwMCAyMDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIyMDAiIGhlaWdodD0iMjAwIiBmaWxsPSIjRjVGOUZCIi8+Cjx0ZXh0IHg9IjEwMCIgeT0iMTAwIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMTQiIGZpbGw9IiM2QjcyODAiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGR5PSIuM2VtIj5UZXN0IERhdGE8L3RleHQ+Cjx0ZXh0IHg9IjEwMCIgeT0iMTIwIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMTIiIGZpbGw9IiM2QjcyODAiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGR5PSIuM2VtIj5Db250YWluZXIgUGhvdG88L3RleHQ+Cjwvc3ZnPgo=');
                                         
-                                        // Fallback to default data on error
-                                        const containerData = {
+                                        // Set test data
+                                        const testData = {
+                                            containerNumber: containerNumber,
+                                            isoCode: '45G1',
+                                            containerColor: 'Black',
+                                            colorHex: '#000000',
+                                            tripSegmentNumber: result.success && result.exists ? result.containerData?.tripSegmentNumber || 'ST25-00024' : 'ST25-00024'
+                                        };
+                                        
+                                        console.log('✅ Using test data:', testData);
+                                        
+                                        // Populate the extracted data
+                                        setExtractedData({
+                                            containerNumber: testData.containerNumber,
+                                            isoCode: testData.isoCode
+                                        });
+                                        
+                                        // Populate individual character arrays
+                                        const containerChars = testData.containerNumber.padEnd(11, ' ').split('').slice(0, 11);
+                                        const isoChars = testData.isoCode.padEnd(4, ' ').split('').slice(0, 4);
+                                        setContainerNumber(containerChars);
+                                        setIsoCode(isoChars);
+                                        
+                                        // Store test data for later use
+                                        setComparisonResults({
+                                            parkrow: { containerNumber: testData.containerNumber, isoCode: testData.isoCode },
+                                            googleVision: { containerNumber: testData.containerNumber, isoCode: testData.isoCode },
+                                            processingTime: 0.1
+                                        });
+                                        
+                                    } catch (error) {
+                                        console.error('❌ Error setting up test data:', error);
+                                        
+                                        // Fallback test data
+                                        setImage('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgdmlld0JveD0iMCAwIDIwMCAyMDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIyMDAiIGhlaWdodD0iMjAwIiBmaWxsPSIjRjVGOUZCIi8+Cjx0ZXh0IHg9IjEwMCIgeT0iMTAwIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMTQiIGZpbGw9IiM2QjcyODAiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGR5PSIuM2VtIj5UZXN0IERhdGE8L3RleHQ+Cjx0ZXh0IHg9IjEwMCIgeT0iMTIwIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMTIiIGZpbGw9IiM2QjcyODAiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGR5PSIuM2VtIj5Db250YWluZXIgUGhvdG88L3RleHQ+Cjwvc3ZnPgo=');
+                                        
+                                        const fallbackData = {
                                             containerNumber: 'BSIU2253788',
                                             isoCode: '45G1',
                                             containerColor: 'Black',
                                             colorHex: '#000000',
-                                            tripSegmentNumber: 'N/A'
+                                            tripSegmentNumber: 'ST25-00024'
                                         };
                                         
-                                        if (onNavigateToStepTwo) {
-                                            onNavigateToStepTwo(containerData);
-                                        }
+                                        setExtractedData({
+                                            containerNumber: fallbackData.containerNumber,
+                                            isoCode: fallbackData.isoCode
+                                        });
+                                        
+                                        const containerChars = fallbackData.containerNumber.padEnd(11, ' ').split('').slice(0, 11);
+                                        const isoChars = fallbackData.isoCode.padEnd(4, ' ').split('').slice(0, 4);
+                                        setContainerNumber(containerChars);
+                                        setIsoCode(isoChars);
+                                        
+                                        setComparisonResults({
+                                            parkrow: { containerNumber: fallbackData.containerNumber, isoCode: fallbackData.isoCode },
+                                            googleVision: { containerNumber: fallbackData.containerNumber, isoCode: fallbackData.isoCode },
+                                            processingTime: 0.1
+                                        });
                                     }
                                 }}
                                 style={cn('mt-4 rounded-lg overflow-hidden')}
@@ -666,12 +682,12 @@ const StepOneContainerPhoto = ({ onBack, onNavigateToStepTwo }) => {
                 <KeyboardAvoidingView 
                     style={cn('flex-1')}
                     behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-                    keyboardVerticalOffset={Platform.OS === 'ios' ? 100 : 20}
+                    keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
                 >
                     <ScrollView 
                         style={cn('flex-1')} 
+                        contentContainerStyle={{ flexGrow: 1 }}
                         keyboardShouldPersistTaps="handled"
-                        contentContainerStyle={{ paddingBottom: 400 }}
                         showsVerticalScrollIndicator={false}
                     >
                         <View style={cn('p-6')}>
@@ -789,7 +805,7 @@ const StepOneContainerPhoto = ({ onBack, onNavigateToStepTwo }) => {
                                 </View>
                             )}
 
-                            {/* Check Container Number Button */}
+                            {/* Next Button */}
                             <View style={cn('mt-4')}>
                                 <TouchableOpacity
                                     onPress={validateContainerNumber}
@@ -803,7 +819,7 @@ const StepOneContainerPhoto = ({ onBack, onNavigateToStepTwo }) => {
                                         style={cn('p-4 items-center')}
                                     >
                                         <Text style={cn('text-white font-bold')}>
-                                            {isProcessing ? 'Processing...' : 'Check Container Number'}
+                                            {isProcessing ? 'Processing...' : 'Next'}
                                         </Text>
                                     </LinearGradient>
                                 </TouchableOpacity>

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, Alert, Animated } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, Alert, Animated, Modal } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -8,8 +8,11 @@ import { cn } from '../../lib/tw';
 import { useTheme } from '../../contexts/ThemeContext';
 import { Sun, Moon, ArrowLeft } from 'lucide-react-native';
 
-const StepTwoContainerDetails = ({ onBack, containerData, onNavigateToStepThree }) => {
+const StepTwoContainerDetails = ({ onBack, containerData, onNavigateToStepThree, onNavigateToDamagePhotos }) => {
     const { isDark, toggleTheme } = useTheme();
+    
+    // State for back wall damage modal
+    const [showBackWallModal, setShowBackWallModal] = useState(false);
     
     // Animation values for theme switcher
     const themeIconRotation = useRef(new Animated.Value(0)).current;
@@ -45,7 +48,6 @@ const StepTwoContainerDetails = ({ onBack, containerData, onNavigateToStepThree 
     const [containerColor, setContainerColor] = useState('Silver');
     const [containerType, setContainerType] = useState('Dry Container');
     const [containerSize, setContainerSize] = useState('45ft');
-    const [containerLoadStatus, setContainerLoadStatus] = useState('Empty');
     
     // Color options for SelectList
     const colorOptions = [
@@ -149,10 +151,17 @@ const StepTwoContainerDetails = ({ onBack, containerData, onNavigateToStepThree 
     
     const handleNext = () => {
         // Validate required fields
-        if (!containerColor || !containerType || !containerSize || !containerLoadStatus) {
+        if (!containerColor || !containerType || !containerSize) {
             Alert.alert('Missing Information', 'Please fill in all required fields.');
             return;
         }
+        
+        // Show back wall damage modal
+        setShowBackWallModal(true);
+    };
+    
+    const handleBackWallResponse = (isDamaged) => {
+        setShowBackWallModal(false);
         
         // Prepare container data for next step
         const containerDetailsData = {
@@ -160,12 +169,20 @@ const StepTwoContainerDetails = ({ onBack, containerData, onNavigateToStepThree 
             containerColor,
             containerType,
             containerSize,
-            containerLoadStatus
+            backWallDamaged: isDamaged
         };
         
-        // Navigate to Driver Details screen
-        if (onNavigateToStepThree) {
-            onNavigateToStepThree(containerDetailsData);
+        // Navigate based on damage status
+        if (isDamaged) {
+            // Navigate to Damage Photos screen
+            if (onNavigateToDamagePhotos) {
+                onNavigateToDamagePhotos(containerDetailsData);
+            }
+        } else {
+            // Navigate to Trailer Photo screen
+            if (onNavigateToStepThree) {
+                onNavigateToStepThree(containerDetailsData);
+            }
         }
     };
     
@@ -322,61 +339,6 @@ const StepTwoContainerDetails = ({ onBack, containerData, onNavigateToStepThree 
                                 <Text style={cn(`${isDark ? 'text-white' : 'text-black'}`)}>{containerSize}</Text>
                             </View>
                         </View>
-
-                        {/* Container Load Status */}
-                        <View style={cn('mb-8')}>
-                            <Text style={cn(`text-sm font-semibold mb-2 ${isDark ? 'text-white' : 'text-black'}`)}>
-                                Container Load Status <Text style={cn('text-red-500')}>*</Text>
-                            </Text>
-                            <View style={cn('flex-row')}>
-                                <TouchableOpacity
-                                    onPress={() => setContainerLoadStatus('Empty')}
-                                    style={cn('flex-1 rounded-l-lg overflow-hidden')}
-                                >
-                                    {containerLoadStatus === 'Empty' ? (
-                                        <LinearGradient
-                                            colors={['#000000', '#F59E0B']}
-                                            start={{ x: 0, y: 0 }}
-                                            end={{ x: 1, y: 0 }}
-                                            style={cn('p-3 items-center')}
-                                        >
-                                            <Text style={cn('text-white font-semibold text-center')}>
-                                                Empty
-                                            </Text>
-                                        </LinearGradient>
-                                    ) : (
-                                        <View style={cn(`p-3 items-center ${isDark ? 'bg-gray-700' : 'bg-white'} border ${isDark ? 'border-gray-600' : 'border-gray-300'}`)}>
-                                            <Text style={cn(`font-semibold text-center ${isDark ? 'text-white' : 'text-black'}`)}>
-                                                Empty
-                                            </Text>
-                                        </View>
-                                    )}
-                                </TouchableOpacity>
-                                <TouchableOpacity
-                                    onPress={() => setContainerLoadStatus('Not Empty')}
-                                    style={cn('flex-1 rounded-r-lg overflow-hidden')}
-                                >
-                                    {containerLoadStatus === 'Not Empty' ? (
-                                        <LinearGradient
-                                            colors={['#F59E0B', '#000000']}
-                                            start={{ x: 0, y: 0 }}
-                                            end={{ x: 1, y: 0 }}
-                                            style={cn('p-3 items-center')}
-                                        >
-                                            <Text style={cn('text-white font-semibold text-center')}>
-                                                Not Empty
-                                            </Text>
-                                        </LinearGradient>
-                                    ) : (
-                                        <View style={cn(`p-3 items-center ${isDark ? 'bg-gray-700' : 'bg-white'} border ${isDark ? 'border-gray-600' : 'border-gray-300'}`)}>
-                                            <Text style={cn(`font-semibold text-center ${isDark ? 'text-white' : 'text-black'}`)}>
-                                                Not Empty
-                                            </Text>
-                                        </View>
-                                    )}
-                                </TouchableOpacity>
-                            </View>
-                        </View>
                     </ScrollView>
 
                     {/* Navigation Buttons */}
@@ -412,6 +374,64 @@ const StepTwoContainerDetails = ({ onBack, containerData, onNavigateToStepThree 
                     </View>
                 </View>
             </View>
+            
+            {/* Back Wall Damage Modal */}
+            <Modal
+                visible={showBackWallModal}
+                transparent={true}
+                animationType="fade"
+                onRequestClose={() => setShowBackWallModal(false)}
+            >
+                <View style={cn('flex-1 justify-center items-center bg-black/50')}>
+                    <View style={cn(`${isDark ? 'bg-gray-800' : 'bg-white'} rounded-3xl mx-8 p-6`)}>
+                        
+                        {/* Question Text */}
+                        <View style={cn('mb-6')}>
+                            <Text style={cn(`text-xl font-bold text-center ${isDark ? 'text-white' : 'text-black'} mb-2`)}>
+                                Damage Check
+                            </Text>
+                            <Text style={cn(`text-lg font-semibold text-center ${isDark ? 'text-gray-300' : 'text-gray-600'}`)}>
+                                Is the Back Wall damaged?
+                            </Text>
+                        </View>
+                        
+                        {/* Yes/No Buttons */}
+                        <View style={cn('flex-row gap-3')}>
+                            <TouchableOpacity
+                                onPress={() => handleBackWallResponse(true)}
+                                style={cn('flex-1 rounded-xl overflow-hidden')}
+                            >
+                                <LinearGradient
+                                    colors={['#EF4444', '#DC2626']}
+                                    start={{ x: 0, y: 0 }}
+                                    end={{ x: 1, y: 0 }}
+                                    style={cn('py-4 items-center')}
+                                >
+                                    <Text style={cn('text-white font-bold text-lg')}>
+                                        Yes
+                                    </Text>
+                                </LinearGradient>
+                            </TouchableOpacity>
+                            
+                            <TouchableOpacity
+                                onPress={() => handleBackWallResponse(false)}
+                                style={cn('flex-1 rounded-xl overflow-hidden')}
+                            >
+                                <LinearGradient
+                                    colors={['#10B981', '#059669']}
+                                    start={{ x: 0, y: 0 }}
+                                    end={{ x: 1, y: 0 }}
+                                    style={cn('py-4 items-center')}
+                                >
+                                    <Text style={cn('text-white font-bold text-lg')}>
+                                        No
+                                    </Text>
+                                </LinearGradient>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                </View>
+            </Modal>
         </SafeAreaView>
     );
 };

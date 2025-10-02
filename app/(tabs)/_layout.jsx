@@ -10,6 +10,7 @@ import Dashboard from './dashboard';
 import Profile from './profile';
 import StepOneContainerPhoto from './stepOneContainerPhoto';
 import StepTwoContainerDetails from './stepTwoContainerDetails';
+import StepOneDamagePhotos from './stepOneDamagePhotos';
 import StepThreeTrailerPhoto from './stepThreeTrailerPhoto';
 import StepFourRightSidePhoto from './stepFourRightSidePhoto';
 
@@ -18,6 +19,7 @@ export default function TabLayout() {
     const { isAuthenticated, loading } = useAuth();
     const [activeTab, setActiveTab] = useState('dashboard');
     const [containerData, setContainerData] = useState(null);
+    const [damagePhotosData, setDamagePhotosData] = useState(null);
     const [trailerData, setTrailerData] = useState(null);
     const [rightSidePhotoData, setRightSidePhotoData] = useState(null);
     const [driverData, setDriverData] = useState(null);
@@ -41,7 +43,6 @@ export default function TabLayout() {
 
     const renderTabIcon = (icon, title, tabKey) => {
         const isActive = activeTab === tabKey || (tabKey === 'dashboard' && activeTab === 'stepOneContainerPhoto');
-        const color = isActive ? '#F59E0B' : (isDark ? '#9CA3AF' : '#6B7280');
 
         return (
             <TouchableOpacity
@@ -51,10 +52,10 @@ export default function TabLayout() {
                 <View style={cn('items-center justify-center')}>
                     {isActive ? (
                         <LinearGradient
-                            colors={['#F59E0B', '#92400E']}
+                            colors={['#000000', '#F59E0B']}
                             start={{ x: 0, y: 0 }}
                             end={{ x: 1, y: 0 }}
-                            style={cn('w-10 h-10 rounded-xl items-center justify-center')}
+                            style={cn('w-24 h-12 rounded-xl items-center justify-center')}
                         >
                             {icon}
                         </LinearGradient>
@@ -94,8 +95,17 @@ export default function TabLayout() {
         setActiveTab('stepThreeTrailerPhoto');
     };
 
+    const navigateToDamagePhotos = (data) => {
+        setDamagePhotosData(data);
+        setActiveTab('stepOneDamagePhotos');
+    };
+
     const navigateBackToStepTwo = () => {
         setActiveTab('stepTwoContainerDetails');
+    };
+
+    const navigateBackToDamagePhotos = () => {
+        setActiveTab('stepOneDamagePhotos');
     };
 
     const navigateToStepFour = (data) => {
@@ -125,9 +135,11 @@ export default function TabLayout() {
             case 'stepOneContainerPhoto':
                 return <StepOneContainerPhoto onBack={navigateBackToDashboard} onNavigateToStepTwo={navigateToStepTwo} />;
             case 'stepTwoContainerDetails':
-                return <StepTwoContainerDetails onBack={navigateBackToStepOne} containerData={containerData} onNavigateToStepThree={navigateToStepThree} />;
+                return <StepTwoContainerDetails onBack={navigateBackToStepOne} containerData={containerData} onNavigateToStepThree={navigateToStepThree} onNavigateToDamagePhotos={navigateToDamagePhotos} />;
+            case 'stepOneDamagePhotos':
+                return <StepOneDamagePhotos onBack={navigateBackToStepTwo} containerData={damagePhotosData} onNavigateToStepThree={navigateToStepThree} />;
             case 'stepThreeTrailerPhoto':
-                return <StepThreeTrailerPhoto onBack={navigateBackToStepTwo} containerData={trailerData} onNavigateToStepFour={navigateToStepFour} />;
+                return <StepThreeTrailerPhoto onBack={navigateBackToDamagePhotos} containerData={trailerData} onNavigateToStepFour={navigateToStepFour} />;
             case 'stepFourRightSidePhoto':
                 return <StepFourRightSidePhoto onBack={navigateBackToStepThree} containerData={containerData} trailerData={trailerData} onNavigateToStepFive={navigateToStepFive} />;
             default:
@@ -142,8 +154,8 @@ export default function TabLayout() {
                 {renderContent()}
             </View>
 
-            {/* Tab Bar - Hidden for container photo, details, trailer photo, and right side photo screens */}
-            {activeTab !== 'stepOneContainerPhoto' && activeTab !== 'stepTwoContainerDetails' && activeTab !== 'stepThreeTrailerPhoto' && activeTab !== 'stepFourRightSidePhoto' && (
+            {/* Tab Bar - Hidden for container photo, details, damage photos, trailer photo, and right side photo screens */}
+            {activeTab !== 'stepOneContainerPhoto' && activeTab !== 'stepTwoContainerDetails' && activeTab !== 'stepOneDamagePhotos' && activeTab !== 'stepThreeTrailerPhoto' && activeTab !== 'stepFourRightSidePhoto' && (
                 <View style={cn(`border-t ${isDark ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-white'} shadow-lg`)}>
                     <View style={cn('flex-row h-24 px-5')}>
                         {renderTabIcon(
