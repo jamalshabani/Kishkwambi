@@ -8,7 +8,7 @@ import { cn } from '../../lib/tw';
 import { useTheme } from '../../contexts/ThemeContext';
 import Button from '../../components/common/Button';
 import { API_CONFIG } from '../../lib/config';
-import { Camera as CameraIcon, Image as ImageIcon, Sun, Moon, ArrowLeft, RotateCcw, Eye, X } from 'lucide-react-native';
+import { Camera as CameraIcon, Sun, Moon, ArrowLeft, Eye, X } from 'lucide-react-native';
 
 const StepOneContainerPhoto = ({ onBack, onNavigateToStepTwo }) => {
     const { isDark, toggleTheme } = useTheme();
@@ -64,9 +64,6 @@ const StepOneContainerPhoto = ({ onBack, onNavigateToStepTwo }) => {
         toggleTheme();
     };
 
-    const toggleCameraFacing = () => {
-        setFacing(current => (current === 'back' ? 'front' : 'back'));
-    };
 
     const takePicture = async () => {
         if (cameraRef.current) {
@@ -126,9 +123,6 @@ const StepOneContainerPhoto = ({ onBack, onNavigateToStepTwo }) => {
         }
     };
 
-    const pickImage = async () => {
-       
-    };
 
     // Function to select the best results based on confidence scores
     const selectBestResults = (parkrowData, googleVisionData) => {
@@ -656,29 +650,13 @@ const StepOneContainerPhoto = ({ onBack, onNavigateToStepTwo }) => {
                     
                     {/* Camera Controls Overlay */}
                     <View style={cn('absolute bottom-0 left-0 right-0 bg-black/50 pb-8 pt-4')}>
-                        <View style={cn('flex-row items-center justify-between px-8')}>
-                            {/* Gallery Button */}
-                            <TouchableOpacity
-                                onPress={pickImage}
-                                style={cn('w-12 h-12 rounded-lg bg-white/20 items-center justify-center')}
-                            >
-                                <ImageIcon size={24} color="white" />
-                            </TouchableOpacity>
-                            
+                        <View style={cn('flex-row items-center justify-center px-8')}>
                             {/* Capture Button */}
                             <TouchableOpacity
                                 onPress={takePicture}
                                 style={cn('w-20 h-20 rounded-full bg-white border-4 border-white/30 items-center justify-center')}
                             >
                                 <View style={cn('w-16 h-16 rounded-full bg-white')} />
-                            </TouchableOpacity>
-                            
-                            {/* Camera Toggle Button */}
-                            <TouchableOpacity
-                                onPress={toggleCameraFacing}
-                                style={cn('w-12 h-12 rounded-lg bg-white/20 items-center justify-center')}
-                            >
-                                <RotateCcw size={24} color="white" />
                             </TouchableOpacity>
                         </View>
                     </View>

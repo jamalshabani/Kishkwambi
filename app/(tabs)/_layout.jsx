@@ -11,6 +11,7 @@ import Profile from './profile';
 import StepOneContainerPhoto from './stepOneContainerPhoto';
 import StepTwoContainerDetails from './stepTwoContainerDetails';
 import StepThreeTrailerPhoto from './stepThreeTrailerPhoto';
+import StepFourRightSidePhoto from './stepFourRightSidePhoto';
 
 export default function TabLayout() {
     const { isDark } = useTheme();
@@ -18,6 +19,7 @@ export default function TabLayout() {
     const [activeTab, setActiveTab] = useState('dashboard');
     const [containerData, setContainerData] = useState(null);
     const [trailerData, setTrailerData] = useState(null);
+    const [rightSidePhotoData, setRightSidePhotoData] = useState(null);
     const [driverData, setDriverData] = useState(null);
 
     // Redirect to login if not authenticated
@@ -97,11 +99,20 @@ export default function TabLayout() {
     };
 
     const navigateToStepFour = (data) => {
-        // TODO: Add driver details screen later
-        console.log('Navigate to driver details:', data);
+        setRightSidePhotoData(data);
+        setActiveTab('stepFourRightSidePhoto');
     };
 
     const navigateBackToStepThree = () => {
+        setActiveTab('stepThreeTrailerPhoto');
+    };
+
+    const navigateToStepFive = (data) => {
+        // TODO: Add next screen later
+        console.log('Navigate to step five:', data);
+    };
+
+    const navigateBackToStepFour = () => {
         setActiveTab('stepThreeTrailerPhoto');
     };
 
@@ -117,6 +128,8 @@ export default function TabLayout() {
                 return <StepTwoContainerDetails onBack={navigateBackToStepOne} containerData={containerData} onNavigateToStepThree={navigateToStepThree} />;
             case 'stepThreeTrailerPhoto':
                 return <StepThreeTrailerPhoto onBack={navigateBackToStepTwo} containerData={trailerData} onNavigateToStepFour={navigateToStepFour} />;
+            case 'stepFourRightSidePhoto':
+                return <StepFourRightSidePhoto onBack={navigateBackToStepThree} containerData={containerData} trailerData={trailerData} onNavigateToStepFive={navigateToStepFive} />;
             default:
                 return <Dashboard onTakePhoto={navigateToStepOne} />;
         }
@@ -129,8 +142,8 @@ export default function TabLayout() {
                 {renderContent()}
             </View>
 
-            {/* Tab Bar - Hidden for container photo, details, and trailer photo screens */}
-            {activeTab !== 'stepOneContainerPhoto' && activeTab !== 'stepTwoContainerDetails' && activeTab !== 'stepThreeTrailerPhoto' && (
+            {/* Tab Bar - Hidden for container photo, details, trailer photo, and right side photo screens */}
+            {activeTab !== 'stepOneContainerPhoto' && activeTab !== 'stepTwoContainerDetails' && activeTab !== 'stepThreeTrailerPhoto' && activeTab !== 'stepFourRightSidePhoto' && (
                 <View style={cn(`border-t ${isDark ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-white'} shadow-lg`)}>
                     <View style={cn('flex-row h-24 px-5')}>
                         {renderTabIcon(

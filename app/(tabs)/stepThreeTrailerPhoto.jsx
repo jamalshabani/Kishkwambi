@@ -7,7 +7,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import * as ImagePicker from 'expo-image-picker';
 import { cn } from '../../lib/tw';
 import { useTheme } from '../../contexts/ThemeContext';
-import { Sun, Moon, RotateCcw, Eye, X, ImageIcon } from 'lucide-react-native';
+import { Sun, Moon, Eye, X, ImageIcon, ArrowLeft } from 'lucide-react-native';
 
 const StepThreeTrailerPhoto = ({ onBack, containerData, onNavigateToStepFour }) => {
     const { isDark, toggleTheme } = useTheme();
@@ -150,9 +150,6 @@ const StepThreeTrailerPhoto = ({ onBack, containerData, onNavigateToStepFour }) 
         setLicencePlate(Array(7).fill(''));
     };
 
-    const toggleCameraFacing = () => {
-        setFacing(current => (current === 'back' ? 'front' : 'back'));
-    };
 
     const pickImage = async () => {
         try {
@@ -235,6 +232,14 @@ const StepThreeTrailerPhoto = ({ onBack, containerData, onNavigateToStepFour }) 
 
             {/* Header */}
             <View style={cn(`${isDark ? 'bg-gray-900' : 'bg-white/10'} px-6 py-4 border-b ${isDark ? 'border-gray-700' : 'border-gray-300'} flex-row items-center justify-between shadow-sm`)}>
+                {/* Back Button */}
+                <TouchableOpacity 
+                    onPress={onBack}
+                    style={cn('mr-4 p-2')}
+                >
+                    <ArrowLeft size={24} color={isDark ? '#F59E0B' : '#1F2937'} />
+                </TouchableOpacity>
+
                 {/* Title */}
                 <Text style={cn(`text-lg font-bold ${isDark ? 'text-gray-100' : 'text-gray-800'} flex-1`)}>
                     Trailer Photo
@@ -279,13 +284,61 @@ const StepThreeTrailerPhoto = ({ onBack, containerData, onNavigateToStepFour }) 
 
                     {/* Container Guide Overlay */}
                     <View style={cn('absolute inset-0 justify-center items-center')}>
-                        {/* Instruction Text */}
-                        <View style={cn('absolute top-4 left-4 right-4 items-center')}>
-                            <View style={cn('bg-black/70 px-6 py-3 rounded-lg')}>
-                                <Text style={cn('text-white text-center text-lg font-semibold')}>
-                                    Make sure the trailer licence plate is clearly visible
-                                </Text>
+                        {/* Container Number and Trip Segment Display */}
+                        <View style={cn('absolute top-2 left-4 right-4')}>
+                            <View style={cn(`p-4 rounded-lg ${isDark ? 'bg-gray-700 border-gray-600' : 'bg-gray-50 border-gray-200'} border`)}>
+                                <View style={cn('flex-row items-center justify-between')}>
+                                    <View style={cn('flex-1')}>
+                                        <Text style={cn(`text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-600'} mb-1`)}>
+                                            Container Number
+                                        </Text>
+                                        <Text style={cn(`text-lg font-bold ${isDark ? 'text-white' : 'text-black'}`)}>
+                                            {containerData?.containerNumber || 'N/A'}
+                                        </Text>
+                                    </View>
+                                    <View style={cn('flex-1 ml-4')}>
+                                        <Text style={cn(`text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-600'} mb-1`)}>
+                                            Trip Segment
+                                        </Text>
+                                        <Text style={cn(`text-lg font-semibold ${isDark ? 'text-white' : 'text-black'}`)}>
+                                            {containerData?.tripSegmentNumber || 'N/A'}
+                                        </Text>
+                                    </View>
+                                </View>
                             </View>
+                        </View>
+
+
+                        {/* Skip Photo Button */}
+                        <View style={cn('absolute top-36 left-4 right-4 items-center')}>
+                            <TouchableOpacity
+                                onPress={() => {
+                                    // Set test licence plate data
+                                    const testPlate = 'T123ABC';
+                                    const plateArray = testPlate.split('');
+                                    const newLicencePlate = Array(7).fill('');
+                                    
+                                    for (let i = 0; i < Math.min(plateArray.length, 7); i++) {
+                                        newLicencePlate[i] = plateArray[i];
+                                    }
+                                    
+                                    setLicencePlate(newLicencePlate);
+                                    setImage('test-image'); // Set a placeholder image
+                                    console.log('📸 Skipped photo - Using test data:', testPlate);
+                                }}
+                                style={cn('rounded-lg overflow-hidden')}
+                            >
+                                <LinearGradient
+                                    colors={['#F59E0B', '#000000']}
+                                    start={{ x: 0, y: 0 }}
+                                    end={{ x: 1, y: 0 }}
+                                    style={cn('px-6 py-3')}
+                                >
+                                    <Text style={cn('text-white font-bold text-center')}>
+                                        Skip Photo - Use Test Data
+                                    </Text>
+                                </LinearGradient>
+                            </TouchableOpacity>
                         </View>
 
                         {/* Container Guide Frame */}
@@ -386,13 +439,6 @@ const StepThreeTrailerPhoto = ({ onBack, containerData, onNavigateToStepFour }) 
                                 )}
                             </TouchableOpacity>
 
-                            {/* Camera Toggle Button */}
-                            <TouchableOpacity
-                                onPress={toggleCameraFacing}
-                                style={cn('w-12 h-12 rounded-lg bg-white/20 items-center justify-center')}
-                            >
-                                <RotateCcw size={24} color="white" />
-                            </TouchableOpacity>
                         </View>
                     </View>
                 </View>
@@ -403,14 +449,38 @@ const StepThreeTrailerPhoto = ({ onBack, containerData, onNavigateToStepFour }) 
                     behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
                     keyboardVerticalOffset={Platform.OS === 'ios' ? 100 : 20}
                 >
-                    <ScrollView
+                    <View
                         style={cn('flex-1')}
                         keyboardShouldPersistTaps="handled"
                         contentContainerStyle={{ paddingBottom: 400 }}
                         showsVerticalScrollIndicator={false}
                     >
+                        
                         <View style={cn('p-6')}>
+                            {/* Container Number and Trip Segment Display */}
+                            <View style={cn(`mb-6 p-4 rounded-lg ${isDark ? 'bg-gray-700 border-gray-600' : 'bg-gray-50 border-gray-200'} border`)}>
+                                <View style={cn('flex-row items-center justify-between')}>
+                                    <View style={cn('flex-1')}>
+                                        <Text style={cn(`text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-600'} mb-1`)}>
+                                            Container Number
+                                        </Text>
+                                        <Text style={cn(`text-lg font-bold ${isDark ? 'text-white' : 'text-black'}`)}>
+                                            {containerData?.containerNumber || 'N/A'}
+                                        </Text>
+                                    </View>
+                                    <View style={cn('flex-1 ml-4')}>
+                                        <Text style={cn(`text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-600'} mb-1`)}>
+                                            Trip Segment
+                                        </Text>
+                                        <Text style={cn(`text-lg font-semibold ${isDark ? 'text-white' : 'text-black'}`)}>
+                                            {containerData?.tripSegmentNumber || 'N/A'}
+                                        </Text>
+                                    </View>
+                                </View>
+                            </View>
+
                             <View style={cn(`${isDark ? 'bg-gray-800' : 'bg-white'} rounded-lg shadow-lg p-4 mb-6`)}>
+                                
                                 <View style={cn('mb-2 flex items-center justify-center')}>
                                     <View style={cn('relative')}>
                                         <Image source={{ uri: `data:image/jpeg;base64,${image}` }} style={cn('w-[200px] h-[200px] rounded-lg')} />
@@ -524,7 +594,7 @@ const StepThreeTrailerPhoto = ({ onBack, containerData, onNavigateToStepFour }) 
 
                         </View>
 
-                    </ScrollView>
+                    </View>
 
 
                 </KeyboardAvoidingView>
