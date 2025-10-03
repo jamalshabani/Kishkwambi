@@ -19,10 +19,21 @@ const tripSegmentSchema = new Schema({
         required: true
     },
 
-    containerPhotos: {
-        type: [String],
-        required: false
-    },
+    containerPhotos: [{
+        containerPhotoLocation: {
+            type: String,
+            required: true
+        },
+        containerPhotoPath: {
+            type: String,
+            required: true
+        },
+        containerPhotoSize: {
+            type: Number,
+            required: false,
+            default: 0
+        }
+    }],
 
     outwardContainerPhotos: {
         type: [String],
@@ -241,10 +252,21 @@ const tripSegmentSchema = new Schema({
         required: false
     },
 
-    damagePhotos: {
-        type: [String],
-        required: false
-    },
+    damagePhotos: [{
+        damageLocation: {
+            type: String,
+            required: true
+        },
+        damagePhotoPath: {
+            type: String,
+            required: true
+        },
+        damagePhotoSize: {
+            type: Number,
+            required: false,
+            default: 0
+        }
+    }],
 
     damageReportPath: {
         type: String,

@@ -78,11 +78,7 @@ const Dashboard = ({ onTakePhoto }) => {
                 <Animated.View
                     style={{
                         transform: [
-                            { scale: themeButtonScale },
-                            { rotate: themeIconRotation.interpolate({
-                                inputRange: [0, 360],
-                                outputRange: ['0deg', '360deg']
-                            })}
+                            { scale: themeButtonScale }
                         ]
                     }}
                 >

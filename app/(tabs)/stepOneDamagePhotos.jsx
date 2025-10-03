@@ -7,7 +7,8 @@ import { LinearGradient } from 'expo-linear-gradient';
 import * as ImagePicker from 'expo-image-picker';
 import { cn } from '../../lib/tw';
 import { useTheme } from '../../contexts/ThemeContext';
-import { Sun, Moon, Eye, X, ImageIcon, ArrowLeft, Camera } from 'lucide-react-native';
+import { API_CONFIG } from '../../lib/config';
+import { Sun, Moon, Eye, X, ArrowLeft, Camera } from 'lucide-react-native';
 
 const StepOneDamagePhotos = ({ onBack, containerData, onNavigateToStepThree }) => {
     const { isDark, toggleTheme } = useTheme();
@@ -17,7 +18,9 @@ const StepOneDamagePhotos = ({ onBack, containerData, onNavigateToStepThree }) =
     const [selectedImageIndex, setSelectedImageIndex] = useState(0);
     const [isProcessing, setIsProcessing] = useState(false);
     const [facing, setFacing] = useState('back');
+    const [showCamera, setShowCamera] = useState(false);
     const cameraRef = useRef(null);
+    const [damageData, setDamageData] = useState(null);
 
     // Animation values for theme switcher
     const themeIconRotation = useRef(new Animated.Value(0)).current;
@@ -49,7 +52,63 @@ const StepOneDamagePhotos = ({ onBack, containerData, onNavigateToStepThree }) =
         toggleTheme();
     };
 
-    const takePicture = async () => {
+    // Function to upload damage photos to S3
+    const uploadDamagePhotosToS3 = async (photos, tripSegmentNumber) => {
+        try {
+            console.log('📸 Uploading damage photos to S3...');
+
+            const BACKEND_URL = API_CONFIG.getBackendUrl();
+
+            // Create FormData for file upload
+            const formData = new FormData();
+
+            // Add all damage photos
+            photos.forEach((photo, index) => {
+                formData.append('photos', {
+                    uri: photo.uri,
+                    type: 'image/jpeg',
+                    name: `damage_${index + 1}.jpg`
+                });
+            });
+
+            // Add metadata
+            formData.append('tripSegmentNumber', tripSegmentNumber);
+            formData.append('containerNumber', containerData?.containerNumber || '');
+            formData.append('damageLocation', 'Back Wall'); // Set damage location to Back Wall
+
+            console.log('📸 Uploading to:', `${BACKEND_URL}/api/upload/s3-damage-photos`);
+            console.log('📸 Trip segment:', tripSegmentNumber);
+            console.log('📸 Photo count:', photos.length);
+
+            const response = await fetch(`${BACKEND_URL}/api/upload/s3-damage-photos`, {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'Content-Type': 'multipart/form-data',
+                },
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                console.log('✅ Damage photos uploaded successfully to S3:', result.damagePhotos);
+                return { success: true, damagePhotos: result.damagePhotos };
+            } else {
+                console.error('❌ Failed to upload damage photos to S3:', result.error);
+                return { success: false, error: result.error };
+            }
+
+        } catch (error) {
+            console.error('❌ Error uploading damage photos to S3:', error);
+            return { success: false, error: error.message };
+        }
+    };
+
+    const takePicture = () => {
+        setShowCamera(true);
+    };
+
+    const capturePhoto = async () => {
         if (!cameraRef.current) return;
 
         try {
@@ -65,9 +124,10 @@ const StepOneDamagePhotos = ({ onBack, containerData, onNavigateToStepThree }) =
                     base64: photo.base64,
                     timestamp: new Date().toISOString()
                 };
-                
+
                 setDamagePhotos(prev => [...prev, newPhoto]);
                 console.log('📸 Damage photo taken successfully');
+                setShowCamera(false);
             }
         } catch (error) {
             console.error('❌ Error taking damage photo:', error);
@@ -81,48 +141,46 @@ const StepOneDamagePhotos = ({ onBack, containerData, onNavigateToStepThree }) =
         setDamagePhotos(prev => prev.filter(photo => photo.id !== photoId));
     };
 
-    const pickImage = async () => {
-        try {
-            const result = await ImagePicker.launchImageLibraryAsync({
-                mediaTypes: ImagePicker.MediaTypeOptions.Images,
-                allowsEditing: true,
-                aspect: [1, 1],
-                quality: 0.8,
-                base64: true,
-            });
 
-            if (!result.canceled && result.assets[0]) {
-                const newPhoto = {
-                    id: Date.now(),
-                    base64: result.assets[0].base64,
-                    timestamp: new Date().toISOString()
-                };
-                
-                setDamagePhotos(prev => [...prev, newPhoto]);
-                console.log('📷 Damage image selected from gallery');
-            }
-        } catch (error) {
-            console.error('❌ Error picking image:', error);
-            Alert.alert('Error', 'Failed to select image. Please try again.');
-        }
-    };
-
-    const handleNext = () => {
+    const handleNext = async () => {
         if (damagePhotos.length === 0) {
             Alert.alert('Missing Photos', 'Please take at least one damage photo before proceeding.');
             return;
         }
 
-        // Prepare damage data for next step
-        const damageData = {
-            ...containerData,
-            damagePhotos: damagePhotos,
-            damageCount: damagePhotos.length
-        };
+        setIsProcessing(true);
 
-        // Navigate to Trailer Photo screen
-        if (onNavigateToStepThree) {
-            onNavigateToStepThree(damageData);
+        try {
+            // Upload damage photos to S3
+            const uploadResult = await uploadDamagePhotosToS3(damagePhotos, containerData?.tripSegmentNumber);
+
+            if (uploadResult.success) {
+                console.log('✅ Damage photos uploaded to S3 successfully');
+
+                // Prepare damage data for next step with damage photo objects
+                const damageData = {
+                    ...containerData,
+                    damagePhotos: uploadResult.damagePhotos, // Use damage photo objects from S3
+                    damageCount: damagePhotos.length,
+                    localDamagePhotos: damagePhotos // Keep local photos for reference
+                };
+                
+                // Save damage data to state for navigation
+                setDamageData(damageData);
+
+                // Navigate to Trailer Photo screen
+                if (onNavigateToStepThree) {
+                    onNavigateToStepThree(damageData);
+                }
+            } else {
+                Alert.alert('Upload Failed', `Failed to upload damage photos: ${uploadResult.error}`);
+                console.error('❌ S3 upload failed:', uploadResult.error);
+            }
+        } catch (error) {
+            Alert.alert('Upload Error', 'An error occurred while uploading damage photos. Please try again.');
+            console.error('❌ Error in handleNext:', error);
+        } finally {
+            setIsProcessing(false);
         }
     };
 
@@ -172,7 +230,7 @@ const StepOneDamagePhotos = ({ onBack, containerData, onNavigateToStepThree }) =
             {/* Header */}
             <View style={cn(`${isDark ? 'bg-gray-900' : 'bg-white/10'} px-6 py-4 border-b ${isDark ? 'border-gray-700' : 'border-gray-300'} flex-row items-center justify-between shadow-sm`)}>
                 {/* Back Button */}
-                <TouchableOpacity 
+                <TouchableOpacity
                     onPress={onBack}
                     style={cn('mr-4 p-2')}
                 >
@@ -181,20 +239,22 @@ const StepOneDamagePhotos = ({ onBack, containerData, onNavigateToStepThree }) =
 
                 {/* Title */}
                 <Text style={cn(`text-lg font-bold ${isDark ? 'text-gray-100' : 'text-gray-800'} flex-1`)}>
-                    Damage Photos
+                    Back Wall Damage
                 </Text>
+
+                {/* Go to Step 4 Button */}
+                <TouchableOpacity
+                    onPress={() => onNavigateToStepThree && onNavigateToStepThree(damageData)}
+                    style={cn('mr-3 px-3 py-2 rounded-lg bg-blue-500')}
+                >
+                    <Text style={cn('text-white font-semibold text-sm')}>Go to Step 4</Text>
+                </TouchableOpacity>
 
                 {/* Theme Switcher */}
                 <Animated.View
                     style={{
                         transform: [
-                            { scale: themeButtonScale },
-                            {
-                                rotate: themeIconRotation.interpolate({
-                                    inputRange: [0, 360],
-                                    outputRange: ['0deg', '360deg']
-                                })
-                            }
+                            { scale: themeButtonScale }
                         ]
                     }}
                 >
@@ -211,148 +271,174 @@ const StepOneDamagePhotos = ({ onBack, containerData, onNavigateToStepThree }) =
                 </Animated.View>
             </View>
 
-            <ScrollView style={cn('flex-1')} showsVerticalScrollIndicator={false}>
-                <View style={cn('p-6')}>
-                    {/* Container Number and Trip Segment Display */}
-                    <View style={cn(`mb-6 p-4 rounded-lg ${isDark ? 'bg-gray-700 border-gray-600' : 'bg-gray-50 border-gray-200'} border`)}>
-                        <View style={cn('flex-row items-center justify-between')}>
-                            <View style={cn('flex-1')}>
-                                <Text style={cn(`text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-600'} mb-1`)}>
-                                    Container Number
-                                </Text>
-                                <Text style={cn(`text-lg font-bold ${isDark ? 'text-white' : 'text-black'}`)}>
-                                    {containerData?.containerNumber || 'N/A'}
-                                </Text>
-                            </View>
-                            <View style={cn('flex-1 ml-4')}>
-                                <Text style={cn(`text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-600'} mb-1`)}>
-                                    Trip Segment
-                                </Text>
-                                <Text style={cn(`text-lg font-semibold ${isDark ? 'text-white' : 'text-black'}`)}>
-                                    {containerData?.tripSegmentNumber || 'N/A'}
-                                </Text>
-                            </View>
-                        </View>
-                    </View>
+            {!showCamera ? (
 
-                    {/* Damage Photos Section */}
-                    <View style={cn(`${isDark ? 'bg-gray-800' : 'bg-white'} rounded-lg shadow-lg p-4 mb-6`)}>
-                        <Text style={cn(`text-lg font-bold mb-4 ${isDark ? 'text-white' : 'text-black'}`)}>
-                            Back Wall Damage Photos
-                        </Text>
-                        
-                        <Text style={cn(`text-sm mb-4 ${isDark ? 'text-gray-300' : 'text-gray-600'}`)}>
-                            Take photos of the damaged areas on the back wall. You can take multiple photos from different angles.
-                        </Text>
-
-                        {/* Photos Grid */}
-                        {damagePhotos.length > 0 && (
-                            <View style={cn('mb-4')}>
-                                <Text style={cn(`text-sm font-semibold mb-2 ${isDark ? 'text-gray-300' : 'text-gray-600'}`)}>
-                                    Photos Taken ({damagePhotos.length})
-                                </Text>
-                                <View style={cn('flex-row flex-wrap gap-2')}>
-                                    {damagePhotos.map((photo, index) => (
-                                        <View key={photo.id} style={cn('relative')}>
-                                            <TouchableOpacity
-                                                onPress={() => openZoomModal(index)}
-                                                style={cn('relative')}
-                                            >
-                                                <Image 
-                                                    source={{ uri: `data:image/jpeg;base64,${photo.base64}` }} 
-                                                    style={cn('w-20 h-20 rounded-lg')} 
-                                                />
-                                                <View style={cn('absolute inset-0 bg-black/30 rounded-lg items-center justify-center')}>
-                                                    <Eye size={16} color="white" />
-                                                </View>
-                                            </TouchableOpacity>
-                                            <TouchableOpacity
-                                                onPress={() => removePhoto(photo.id)}
-                                                style={cn('absolute -top-2 -right-2 bg-red-500 rounded-full w-6 h-6 items-center justify-center')}
-                                            >
-                                                <X size={12} color="white" />
-                                            </TouchableOpacity>
-                                        </View>
-                                    ))}
+                <ScrollView style={cn('flex-1')} showsVerticalScrollIndicator={false}>
+                    <View style={cn('p-6')}>
+                        {/* Container Number and Trip Segment Display */}
+                        <View style={cn(`mb-6 p-4 rounded-lg ${isDark ? 'bg-gray-700 border-gray-600' : 'bg-gray-50 border-gray-200'} border`)}>
+                            <View style={cn('flex-row items-center justify-between')}>
+                                <View style={cn('flex-1')}>
+                                    <Text style={cn(`text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-600'} mb-1`)}>
+                                        Container Number
+                                    </Text>
+                                    <Text style={cn(`text-lg font-bold ${isDark ? 'text-white' : 'text-black'}`)}>
+                                        {containerData?.containerNumber || 'N/A'}
+                                    </Text>
+                                </View>
+                                <View style={cn('flex-1 ml-4')}>
+                                    <Text style={cn(`text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-600'} mb-1`)}>
+                                        Trip Segment
+                                    </Text>
+                                    <Text style={cn(`text-lg font-semibold ${isDark ? 'text-white' : 'text-black'}`)}>
+                                        {containerData?.tripSegmentNumber || 'N/A'}
+                                    </Text>
                                 </View>
                             </View>
-                        )}
+                        </View>
+
+                        {/* Damage Photos Section */}
+                        <View style={cn(`${isDark ? 'bg-gray-800' : 'bg-white'} rounded-lg shadow-lg p-4 mb-6`)}>
+                            <Text style={cn(`text-lg font-bold mb-4 ${isDark ? 'text-white' : 'text-black'}`)}>
+                                Back Wall Damage Photos
+                            </Text>
+
+
+                            {/* Photos Grid */}
+                            {damagePhotos.length > 0 && (
+                                <View style={cn('mb-4')}>
+                                    <Text style={cn(`text-sm font-semibold mb-2 ${isDark ? 'text-gray-300' : 'text-gray-600'}`)}>
+                                        Photos Taken ({damagePhotos.length})
+                                    </Text>
+                                    <View style={cn('flex-row flex-wrap gap-2')}>
+                                        {damagePhotos.map((photo, index) => (
+                                            <View key={photo.id} style={cn('relative')}>
+                                                <TouchableOpacity
+                                                    onPress={() => openZoomModal(index)}
+                                                    style={cn('relative')}
+                                                >
+                                                    <Image
+                                                        source={{ uri: `data:image/jpeg;base64,${photo.base64}` }}
+                                                        style={cn('w-20 h-20 rounded-lg')}
+                                                    />
+                                                    <View style={cn('absolute inset-0 bg-black/30 rounded-lg items-center justify-center')}>
+                                                        <Eye size={16} color="white" />
+                                                    </View>
+                                                </TouchableOpacity>
+                                                <TouchableOpacity
+                                                    onPress={() => removePhoto(photo.id)}
+                                                    style={cn('absolute -top-2 -right-2 bg-red-500 rounded-full w-6 h-6 items-center justify-center')}
+                                                >
+                                                    <X size={12} color="white" />
+                                                </TouchableOpacity>
+                                            </View>
+                                        ))}
+                                    </View>
+                                </View>
+                            )}
+
+                            {/* Camera Controls */}
+                            <View style={cn('flex-row items-center justify-center')}>
+                                {/* Camera Button */}
+                                <TouchableOpacity
+                                    onPress={takePicture}
+                                    disabled={isProcessing}
+                                    style={cn('w-full rounded-lg overflow-hidden')}
+                                >
+                                    <LinearGradient
+                                        colors={isProcessing ? ['#9CA3AF', '#6B7280'] : ['#F59E0B', '#000000']}
+                                        start={{ x: 0, y: 0 }}
+                                        end={{ x: 1, y: 0 }}
+                                        style={cn('p-4 items-center')}
+                                    >
+                                        {isProcessing ? (
+                                            <ActivityIndicator size="small" color="white" />
+                                        ) : (
+                                            <>
+                                                <Text style={cn('text-white font-semibold text-base')}>Take Damage Photo</Text>
+                                            </>
+                                        )}
+                                    </LinearGradient>
+                                </TouchableOpacity>
+
+                            </View>
+                            {/* Navigation Button */}
+                            <View style={cn('flex-row justify-center mt-4')}>
+                                <TouchableOpacity
+                                    onPress={handleNext}
+                                    disabled={isProcessing || damagePhotos.length === 0}
+                                    style={cn(`w-full rounded-lg overflow-hidden ${(isProcessing || damagePhotos.length === 0) ? 'opacity-50' : ''}`)}
+                                >
+                                    <LinearGradient
+                                        colors={(isProcessing || damagePhotos.length === 0) ? ['#9CA3AF', '#6B7280'] : ['#F59E0B', '#000000']}
+                                        start={{ x: 0, y: 0 }}
+                                        end={{ x: 1, y: 0 }}
+                                        style={cn('p-4 items-center')}
+                                    >
+                                        {isProcessing ? (
+                                            <View style={cn('flex-row items-center')}>
+                                                <ActivityIndicator size="small" color="white" style={cn('mr-2')} />
+                                                <Text style={cn('text-white font-bold')}>Uploading...</Text>
+                                            </View>
+                                        ) : damagePhotos.length === 0 ? (
+                                            <Text style={cn('text-white font-bold')}>Take at least one photo to continue</Text>
+                                        ) : (
+                                            <Text style={cn('text-white font-bold')}>Next</Text>
+                                        )}
+                                    </LinearGradient>
+                                </TouchableOpacity>
+                            </View>
+                        </View>
+
+
+                    </View>
+                </ScrollView>
+            ) : (
+                // Full Screen Camera View
+                <View style={cn('flex-1')}>
+                    <CameraView
+                        ref={cameraRef}
+                        style={cn('flex-1')}
+                        facing={facing}
+                        ratio="1:1"
+                    />
+
+                    {/* Damage Guide Overlay */}
+                    <View style={cn('absolute inset-0 justify-center items-center')}>
+                        {/* Instruction Text */}
+                        <View style={cn('absolute top-4 left-4 right-4 items-center')}>
+                            <View style={cn('bg-black/70 px-6 py-3 rounded-lg')}>
+                                <Text style={cn('text-white text-center text-lg font-semibold')}>
+                                    Take clear photos of the damage
+                                </Text>
+                            </View>
+                        </View>
 
                         {/* Camera Controls */}
-                        <View style={cn('flex-row items-center justify-between')}>
-                            {/* Gallery Button */}
+                        <View style={cn('absolute bottom-8 left-0 right-0 items-center')}>
                             <TouchableOpacity
-                                onPress={pickImage}
-                                style={cn('flex-1 mr-2 rounded-lg overflow-hidden')}
+                                onPress={capturePhoto}
+                                disabled={isProcessing}
+                                style={cn(`w-20 h-20 rounded-full bg-white border-4 border-white/30 items-center justify-center ${isProcessing ? 'opacity-50' : ''}`)}
                             >
-                                <LinearGradient
-                                    colors={['#6B7280', '#4B5563']}
-                                    start={{ x: 0, y: 0 }}
-                                    end={{ x: 1, y: 0 }}
-                                    style={cn('p-3 items-center')}
-                                >
-                                    <ImageIcon size={20} color="white" />
-                                    <Text style={cn('text-white font-semibold text-sm mt-1')}>Gallery</Text>
-                                </LinearGradient>
+                                {isProcessing ? (
+                                    <ActivityIndicator size="small" color="#6B7280" />
+                                ) : (
+                                    <View style={cn('w-16 h-16 rounded-full bg-white')} />
+                                )}
                             </TouchableOpacity>
 
-                            {/* Camera Button */}
+                            {/* Close Camera Button */}
                             <TouchableOpacity
-                                onPress={takePicture}
-                                disabled={isProcessing}
-                                style={cn('flex-1 ml-2 rounded-lg overflow-hidden')}
+                                onPress={() => setShowCamera(false)}
+                                style={cn('mt-4 bg-black/50 px-6 py-3 rounded-lg')}
                             >
-                                <LinearGradient
-                                    colors={isProcessing ? ['#9CA3AF', '#6B7280'] : ['#F59E0B', '#000000']}
-                                    start={{ x: 0, y: 0 }}
-                                    end={{ x: 1, y: 0 }}
-                                    style={cn('p-3 items-center')}
-                                >
-                                    {isProcessing ? (
-                                        <ActivityIndicator size="small" color="white" />
-                                    ) : (
-                                        <>
-                                            <Camera size={20} color="white" />
-                                            <Text style={cn('text-white font-semibold text-sm mt-1')}>Take Photo</Text>
-                                        </>
-                                    )}
-                                </LinearGradient>
+                                <Text style={cn('text-white font-semibold')}>Close Camera</Text>
                             </TouchableOpacity>
                         </View>
                     </View>
-
-                    {/* Navigation Buttons */}
-                    <View style={cn('flex-row justify-between')}>
-                        <TouchableOpacity
-                            onPress={onBack}
-                            style={cn('flex-1 mr-2 rounded-lg overflow-hidden')}
-                        >
-                            <LinearGradient
-                                colors={['#000000', '#F59E0B']}
-                                start={{ x: 0, y: 0 }}
-                                end={{ x: 1, y: 0 }}
-                                style={cn('p-4 items-center')}
-                            >
-                                <Text style={cn('text-white font-bold')}>Previous</Text>
-                            </LinearGradient>
-                        </TouchableOpacity>
-
-                        <TouchableOpacity
-                            onPress={handleNext}
-                            style={cn('flex-1 ml-2 rounded-lg overflow-hidden')}
-                        >
-                            <LinearGradient
-                                colors={['#F59E0B', '#000000']}
-                                start={{ x: 0, y: 0 }}
-                                end={{ x: 1, y: 0 }}
-                                style={cn('p-4 items-center')}
-                            >
-                                <Text style={cn('text-white font-bold')}>Next</Text>
-                            </LinearGradient>
-                        </TouchableOpacity>
-                    </View>
                 </View>
-            </ScrollView>
+            )}
 
             {/* Zoom Modal */}
             <Modal
@@ -378,6 +464,7 @@ const StepOneDamagePhotos = ({ onBack, containerData, onNavigateToStepThree }) =
                     />
                 </View>
             </Modal>
+
         </SafeAreaView>
     );
 };

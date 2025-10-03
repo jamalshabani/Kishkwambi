@@ -8,6 +8,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { cn } from '../../lib/tw';
 import { useTheme } from '../../contexts/ThemeContext';
 import { Sun, Moon, Eye, X, ImageIcon, ArrowLeft } from 'lucide-react-native';
+import { API_CONFIG } from '../../lib/config';
 
 const StepThreeTrailerPhoto = ({ onBack, containerData, onNavigateToStepFour }) => {
     const { isDark, toggleTheme } = useTheme();
@@ -21,6 +22,7 @@ const StepThreeTrailerPhoto = ({ onBack, containerData, onNavigateToStepFour }) 
     const [isProcessing, setIsProcessing] = useState(false);
     const [isRecognizingPlate, setIsRecognizingPlate] = useState(false);
     const [facing, setFacing] = useState('back');
+    const [trailerData, setTrailerData] = useState(null);
     const cameraRef = useRef(null);
     const licencePlateRefs = useRef([]);
 
@@ -171,7 +173,54 @@ const StepThreeTrailerPhoto = ({ onBack, containerData, onNavigateToStepFour }) 
         }
     };
 
-    const handleNext = () => {
+    const uploadTrailerPhotoToS3 = async (imageBase64, tripSegmentNumber) => {
+        try {
+            console.log('📸 Uploading trailer photo to S3...');
+            
+            const BACKEND_URL = API_CONFIG.getBackendUrl();
+            
+            // Create FormData for file upload
+            const formData = new FormData();
+            
+            // Add the image file
+            formData.append('photo', {
+                uri: `data:image/jpeg;base64,${imageBase64}`,
+                type: 'image/jpeg',
+                name: 'trailer_photo.jpg'
+            });
+            
+            // Add metadata
+            formData.append('tripSegmentNumber', tripSegmentNumber);
+            formData.append('photoType', 'trailer');
+            
+            console.log('📸 Uploading to:', `${BACKEND_URL}/api/upload/s3-trailer-photo`);
+            console.log('📸 Trip segment:', tripSegmentNumber);
+            
+            const uploadResponse = await fetch(`${BACKEND_URL}/api/upload/s3-trailer-photo`, {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'Content-Type': 'multipart/form-data',
+                },
+            });
+            
+            const result = await uploadResponse.json();
+            
+            if (result.success) {
+                console.log('✅ Trailer photo uploaded successfully to S3:', result.trailerPhoto);
+                return { success: true, trailerPhoto: result.trailerPhoto };
+            } else {
+                console.error('❌ Failed to upload trailer photo to S3:', result.error);
+                return { success: false, error: result.error };
+            }
+            
+        } catch (error) {
+            console.error('❌ Error uploading trailer photo to S3:', error);
+            return { success: false, error: error.message };
+        }
+    };
+
+    const handleNext = async () => {
         const licencePlateText = licencePlate.join('').trim();
 
         if (!licencePlateText || licencePlateText.length === 0) {
@@ -179,16 +228,43 @@ const StepThreeTrailerPhoto = ({ onBack, containerData, onNavigateToStepFour }) 
             return;
         }
 
-        // Prepare trailer data for next step
-        const trailerData = {
-            ...containerData,
-            trailerNumber: licencePlateText,
-            trailerPhoto: image
-        };
+        if (!image) {
+            Alert.alert('Missing Photo', 'Please take a trailer photo before proceeding.');
+            return;
+        }
 
-        // Navigate to next step
-        if (onNavigateToStepFour) {
-            onNavigateToStepFour(trailerData);
+        setIsProcessing(true);
+
+        try {
+            // Upload trailer photo to S3
+            const uploadResult = await uploadTrailerPhotoToS3(image, containerData?.tripSegmentNumber);
+            
+            if (uploadResult.success) {
+                console.log('✅ Trailer photo uploaded to S3 successfully');
+                
+                // Prepare trailer data for next step with S3 reference
+                const trailerData = {
+                    ...containerData,
+                    trailerNumber: licencePlateText,
+                    trailerPhoto: uploadResult.trailerPhoto // Use S3 reference instead of base64
+                };
+                
+                // Save trailer data to state for navigation
+                setTrailerData(trailerData);
+
+                // Navigate to next step
+                if (onNavigateToStepFour) {
+                    onNavigateToStepFour(trailerData);
+                }
+            } else {
+                Alert.alert('Upload Failed', `Failed to upload trailer photo: ${uploadResult.error}`);
+                console.error('❌ S3 upload failed:', uploadResult.error);
+            }
+        } catch (error) {
+            Alert.alert('Upload Error', 'An error occurred while uploading trailer photo. Please try again.');
+            console.error('❌ Error in handleNext:', error);
+        } finally {
+            setIsProcessing(false);
         }
     };
 
@@ -245,17 +321,19 @@ const StepThreeTrailerPhoto = ({ onBack, containerData, onNavigateToStepFour }) 
                     Trailer Photo
                 </Text>
 
+                {/* Go to Step 5 Button */}
+                <TouchableOpacity
+                    onPress={() => onNavigateToStepFour && onNavigateToStepFour(trailerData)}
+                    style={cn('mr-3 px-3 py-2 rounded-lg bg-blue-500')}
+                >
+                    <Text style={cn('text-white font-semibold text-sm')}>Go to Step 5</Text>
+                </TouchableOpacity>
+
                 {/* Theme Switcher */}
                 <Animated.View
                     style={{
                         transform: [
-                            { scale: themeButtonScale },
-                            {
-                                rotate: themeIconRotation.interpolate({
-                                    inputRange: [0, 360],
-                                    outputRange: ['0deg', '360deg']
-                                })
-                            }
+                            { scale: themeButtonScale }
                         ]
                     }}
                 >
@@ -417,14 +495,7 @@ const StepThreeTrailerPhoto = ({ onBack, containerData, onNavigateToStepFour }) 
 
                     {/* Camera Controls Overlay */}
                     <View style={cn('absolute bottom-0 left-0 right-0 bg-black/50 pb-8 pt-4')}>
-                        <View style={cn('flex-row items-center justify-between px-8')}>
-                            {/* Gallery Button */}
-                            <TouchableOpacity
-                                onPress={pickImage}
-                                style={cn('w-12 h-12 rounded-lg bg-white/20 items-center justify-center')}
-                            >
-                                <ImageIcon size={24} color="white" />
-                            </TouchableOpacity>
+                        <View style={cn('flex-row items-center justify-center px-8')}>
 
                             {/* Capture Button */}
                             <TouchableOpacity
@@ -559,22 +630,7 @@ const StepThreeTrailerPhoto = ({ onBack, containerData, onNavigateToStepFour }) 
                                     )}
                                 </View>
                                 {/* Navigation Buttons */}
-                                <View style={cn('flex-row justify-between mt-4 px-4 pb-6')}>
-                                    <TouchableOpacity
-                                        onPress={onBack}
-                                        disabled={isRecognizingPlate}
-                                        style={cn(`flex-1 mr-2 rounded-lg overflow-hidden ${isRecognizingPlate ? 'opacity-50' : ''}`)}
-                                    >
-                                        <LinearGradient
-                                            colors={isRecognizingPlate ? ['#9CA3AF', '#6B7280'] : ['#000000', '#F59E0B']}
-                                            start={{ x: 0, y: 0 }}
-                                            end={{ x: 1, y: 0 }}
-                                            style={cn('p-4 items-center')}
-                                        >
-                                            <Text style={cn('text-white font-bold')}>Previous</Text>
-                                        </LinearGradient>
-                                    </TouchableOpacity>
-
+                                <View style={cn('flex-row justify-between mt-4 pb-6')}>
                                     <TouchableOpacity
                                         onPress={handleNext}
                                         disabled={isRecognizingPlate}

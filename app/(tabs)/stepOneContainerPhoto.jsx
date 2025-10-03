@@ -27,6 +27,7 @@ const StepOneContainerPhoto = ({ onBack, onNavigateToStepTwo }) => {
         containerNumber: '',
         isoCode: '',
     });
+    const [containerData, setContainerData] = useState(null);
     const [comparisonResults, setComparisonResults] = useState({
         parkrow: { containerNumber: '', isoCode: '' },
         googleVision: { containerNumber: '', isoCode: '' },
@@ -153,6 +154,71 @@ const StepOneContainerPhoto = ({ onBack, onNavigateToStepTwo }) => {
             console.error('Require image Base64 conversion error:', error);
             // Return empty string if conversion fails
             return '';
+        }
+    };
+
+    // Function to upload container photo to S3
+    const uploadContainerPhoto = async (imageSource, tripSegmentNumber) => {
+        try {
+            console.log('📸 Uploading container photo to S3...');
+            
+            const BACKEND_URL = API_CONFIG.getBackendUrl();
+            
+            // Handle different image source types
+            let imageUri;
+            if (typeof imageSource === 'string') {
+                // It's already a URI string
+                imageUri = imageSource;
+            } else if (imageSource && imageSource.uri) {
+                // It's a require object with uri property
+                imageUri = imageSource.uri;
+            } else {
+                console.error('❌ Invalid image source type:', typeof imageSource);
+                return { success: false, error: 'Invalid image source' };
+            }
+            
+            console.log('📸 Image URI:', imageUri);
+            
+            // Create FormData for file upload
+            const formData = new FormData();
+            
+            // Add the image file
+            formData.append('photos', {
+                uri: imageUri,
+                type: 'image/jpeg',
+                name: 'container_photo.jpg'
+            });
+            
+            // Add metadata
+            formData.append('tripSegmentNumber', tripSegmentNumber);
+            formData.append('containerNumber', extractedData.containerNumber || '');
+            formData.append('photoType', 'container');
+            formData.append('containerPhotoLocation', 'Container Back Wall');
+            
+            console.log('📸 Uploading to:', `${BACKEND_URL}/api/upload/s3-container-photos`);
+            console.log('📸 Trip segment:', tripSegmentNumber);
+            
+            const response = await fetch(`${BACKEND_URL}/api/upload/s3-container-photos`, {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'Content-Type': 'multipart/form-data',
+                },
+            });
+            
+            const result = await response.json();
+            
+            if (result.success) {
+                console.log('✅ Container photo uploaded successfully to S3:', result.containerPhotos);
+            } else {
+                console.error('❌ Failed to upload container photo to S3:', result.error);
+            }
+            
+            return result;
+            
+        } catch (error) {
+            console.error('❌ Error uploading container photo to S3:', error);
+            return { success: false, error: error.message };
         }
     };
 
@@ -298,6 +364,9 @@ const StepOneContainerPhoto = ({ onBack, onNavigateToStepTwo }) => {
                         tripSegmentNumber: validationResponse.containerData?.tripSegmentNumber || 'N/A'
                     };
                     
+                    // Save container data to state for navigation
+                    setContainerData(containerData);
+                    
                     console.log('🎨 Detected color:', containerData.containerColor);
                     console.log('🎨 Color hex:', containerData.colorHex);
                     
@@ -346,6 +415,9 @@ const StepOneContainerPhoto = ({ onBack, onNavigateToStepTwo }) => {
                         
                         if (updateResult.success) {
                             console.log('✅ Container information updated successfully');
+                            
+                            // Upload the container photo to shared storage
+                            await uploadContainerPhoto(image, containerData.tripSegmentNumber);
                         } else {
                             console.warn('⚠️ Failed to update container information:', updateResult.error);
                         }
@@ -570,15 +642,19 @@ const StepOneContainerPhoto = ({ onBack, onNavigateToStepTwo }) => {
                     Container Back Wall
                 </Text>
 
+                {/* Go to Step 2 Button */}
+                <TouchableOpacity
+                    onPress={() => onNavigateToStepTwo && onNavigateToStepTwo(containerData)}
+                    style={cn('mr-3 px-3 py-2 rounded-lg bg-blue-500')}
+                >
+                    <Text style={cn('text-white font-semibold text-sm')}>Go to Step 2</Text>
+                </TouchableOpacity>
+
                 {/* Theme Switcher */}
                 <Animated.View
                     style={{
                         transform: [
-                            { scale: themeButtonScale },
-                            { rotate: themeIconRotation.interpolate({
-                                inputRange: [0, 360],
-                                outputRange: ['0deg', '360deg']
-                            })}
+                            { scale: themeButtonScale }
                         ]
                     }}
                 >

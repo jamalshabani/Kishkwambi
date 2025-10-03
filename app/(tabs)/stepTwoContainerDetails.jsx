@@ -7,12 +7,14 @@ import { SelectList } from 'react-native-dropdown-select-list';
 import { cn } from '../../lib/tw';
 import { useTheme } from '../../contexts/ThemeContext';
 import { Sun, Moon, ArrowLeft } from 'lucide-react-native';
+import { API_CONFIG } from '../../lib/config';
 
 const StepTwoContainerDetails = ({ onBack, containerData, onNavigateToStepThree, onNavigateToDamagePhotos }) => {
     const { isDark, toggleTheme } = useTheme();
     
     // State for back wall damage modal
     const [showBackWallModal, setShowBackWallModal] = useState(false);
+    const [containerDetailsData, setContainerDetailsData] = useState(null);
     
     // Animation values for theme switcher
     const themeIconRotation = useRef(new Animated.Value(0)).current;
@@ -160,8 +162,41 @@ const StepTwoContainerDetails = ({ onBack, containerData, onNavigateToStepThree,
         setShowBackWallModal(true);
     };
     
-    const handleBackWallResponse = (isDamaged) => {
+    const handleBackWallResponse = async (isDamaged) => {
         setShowBackWallModal(false);
+        
+        // If damaged, update database with damage status
+        if (isDamaged) {
+            try {
+                console.log('🔧 Updating damage status in database...');
+                
+                const BACKEND_URL = API_CONFIG.getBackendUrl();
+                
+                const response = await fetch(`${BACKEND_URL}/api/update-damage-status`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        tripSegmentNumber: containerData?.tripSegmentNumber,
+                        hasDamages: 'Yes',
+                        damageLocation: 'Back Wall'
+                    }),
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    console.log('✅ Damage status updated successfully:', result);
+                } else {
+                    console.error('❌ Failed to update damage status:', result.error);
+                    // Continue with navigation even if database update fails
+                }
+            } catch (error) {
+                console.error('❌ Error updating damage status:', error);
+                // Continue with navigation even if database update fails
+            }
+        }
         
         // Prepare container data for next step
         const containerDetailsData = {
@@ -171,6 +206,9 @@ const StepTwoContainerDetails = ({ onBack, containerData, onNavigateToStepThree,
             containerSize,
             backWallDamaged: isDamaged
         };
+        
+        // Save container details data to state for navigation
+        setContainerDetailsData(containerDetailsData);
         
         // Navigate based on damage status
         if (isDamaged) {
@@ -209,15 +247,19 @@ const StepTwoContainerDetails = ({ onBack, containerData, onNavigateToStepThree,
                     Container Details
                 </Text>
 
+                {/* Go to Step 3 Button */}
+                <TouchableOpacity
+                    onPress={() => onNavigateToStepThree && onNavigateToStepThree(containerDetailsData)}
+                    style={cn('mr-3 px-3 py-2 rounded-lg bg-blue-500')}
+                >
+                    <Text style={cn('text-white font-semibold text-sm')}>Go to Step 3</Text>
+                </TouchableOpacity>
+
                 {/* Theme Switcher */}
                 <Animated.View
                     style={{
                         transform: [
-                            { scale: themeButtonScale },
-                            { rotate: themeIconRotation.interpolate({
-                                inputRange: [0, 360],
-                                outputRange: ['0deg', '360deg']
-                            })}
+                            { scale: themeButtonScale }
                         ]
                     }}
                 >

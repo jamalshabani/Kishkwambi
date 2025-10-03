@@ -13,6 +13,11 @@ import StepTwoContainerDetails from './stepTwoContainerDetails';
 import StepOneDamagePhotos from './stepOneDamagePhotos';
 import StepThreeTrailerPhoto from './stepThreeTrailerPhoto';
 import StepFourRightSidePhoto from './stepFourRightSidePhoto';
+import StepFiveFrontWallPhoto from './stepFiveFrontWallPhoto';
+import StepSixTruckPhoto from './stepSixTruckPhoto';
+import StepSevenLeftSidePhoto from './stepSevenLeftSidePhoto';
+import StepEightInsidePhoto from './stepEightInsidePhoto';
+import StepNineDriverDetails from './stepNineDriverDetails';
 
 export default function TabLayout() {
     const { isDark } = useTheme();
@@ -22,6 +27,10 @@ export default function TabLayout() {
     const [damagePhotosData, setDamagePhotosData] = useState(null);
     const [trailerData, setTrailerData] = useState(null);
     const [rightSidePhotoData, setRightSidePhotoData] = useState(null);
+    const [frontWallPhotoData, setFrontWallPhotoData] = useState(null);
+    const [truckPhotoData, setTruckPhotoData] = useState(null);
+    const [leftSidePhotoData, setLeftSidePhotoData] = useState(null);
+    const [insidePhotoData, setInsidePhotoData] = useState(null);
     const [driverData, setDriverData] = useState(null);
 
     // Redirect to login if not authenticated
@@ -118,12 +127,64 @@ export default function TabLayout() {
     };
 
     const navigateToStepFive = (data) => {
-        // TODO: Add next screen later
-        console.log('Navigate to step five:', data);
+        setFrontWallPhotoData(data);
+        setActiveTab('stepFiveFrontWallPhoto');
     };
 
     const navigateBackToStepFour = () => {
-        setActiveTab('stepThreeTrailerPhoto');
+        setActiveTab('stepFourRightSidePhoto');
+    };
+
+    const navigateToStepSix = (data) => {
+        setTruckPhotoData(data);
+        setActiveTab('stepSixTruckPhoto');
+    };
+
+    const navigateBackToStepFive = () => {
+        setActiveTab('stepFiveFrontWallPhoto');
+    };
+
+    const navigateToStepSeven = (data) => {
+        setLeftSidePhotoData(data);
+        setActiveTab('stepSevenLeftSidePhoto');
+    };
+
+    const navigateBackToStepSix = () => {
+        setActiveTab('stepSixTruckPhoto');
+    };
+
+    const navigateToStepEight = (data) => {
+        setInsidePhotoData(data);
+        setActiveTab('stepEightInsidePhoto');
+    };
+
+    const navigateBackToStepSeven = () => {
+        setActiveTab('stepSevenLeftSidePhoto');
+    };
+
+    const navigateToStepNine = (data) => {
+        setDriverData(data);
+        setActiveTab('stepNineDriverDetails');
+    };
+
+    const navigateBackToStepEight = () => {
+        setActiveTab('stepEightInsidePhoto');
+    };
+
+    const navigateToComplete = (data) => {
+        // Handle completion - could show summary or redirect to dashboard
+        console.log('Inspection completed:', data);
+        setActiveTab('dashboard');
+        // Reset all data
+        setContainerData(null);
+        setDamagePhotosData(null);
+        setTrailerData(null);
+        setRightSidePhotoData(null);
+        setFrontWallPhotoData(null);
+        setTruckPhotoData(null);
+        setLeftSidePhotoData(null);
+        setInsidePhotoData(null);
+        setDriverData(null);
     };
 
     const renderContent = () => {
@@ -142,6 +203,16 @@ export default function TabLayout() {
                 return <StepThreeTrailerPhoto onBack={navigateBackToDamagePhotos} containerData={trailerData} onNavigateToStepFour={navigateToStepFour} />;
             case 'stepFourRightSidePhoto':
                 return <StepFourRightSidePhoto onBack={navigateBackToStepThree} containerData={containerData} trailerData={trailerData} onNavigateToStepFive={navigateToStepFive} />;
+            case 'stepFiveFrontWallPhoto':
+                return <StepFiveFrontWallPhoto onBack={navigateBackToStepFour} containerData={frontWallPhotoData} onNavigateToStepSix={navigateToStepSix} />;
+            case 'stepSixTruckPhoto':
+                return <StepSixTruckPhoto onBack={navigateBackToStepFive} containerData={truckPhotoData} onNavigateToStepSeven={navigateToStepSeven} />;
+            case 'stepSevenLeftSidePhoto':
+                return <StepSevenLeftSidePhoto onBack={navigateBackToStepSix} containerData={leftSidePhotoData} onNavigateToStepEight={navigateToStepEight} />;
+            case 'stepEightInsidePhoto':
+                return <StepEightInsidePhoto onBack={navigateBackToStepSeven} containerData={insidePhotoData} onNavigateToStepNine={navigateToStepNine} />;
+            case 'stepNineDriverDetails':
+                return <StepNineDriverDetails onBack={navigateBackToStepEight} containerData={driverData} onComplete={navigateToComplete} />;
             default:
                 return <Dashboard onTakePhoto={navigateToStepOne} />;
         }
@@ -154,8 +225,8 @@ export default function TabLayout() {
                 {renderContent()}
             </View>
 
-            {/* Tab Bar - Hidden for container photo, details, damage photos, trailer photo, and right side photo screens */}
-            {activeTab !== 'stepOneContainerPhoto' && activeTab !== 'stepTwoContainerDetails' && activeTab !== 'stepOneDamagePhotos' && activeTab !== 'stepThreeTrailerPhoto' && activeTab !== 'stepFourRightSidePhoto' && (
+            {/* Tab Bar - Hidden for all step screens */}
+            {!activeTab.startsWith('step') && (
                 <View style={cn(`border-t ${isDark ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-white'} shadow-lg`)}>
                     <View style={cn('flex-row h-24 px-5')}>
                         {renderTabIcon(
