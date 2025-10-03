@@ -95,7 +95,7 @@ const StepThreeTrailerPhoto = ({ onBack, containerData, onNavigateToStepFour }) 
             setIsRecognizingPlate(true);
             console.log('🚗 Calling PlateRecognizer API...');
 
-            const BACKEND_URL = 'http://192.168.1.144:3001'; // Update with your backend URL
+            const BACKEND_URL = 'http://192.168.12.134:3001'; // Update with your backend URL
 
             const response = await fetch(`${BACKEND_URL}/api/plate-recognizer/recognize`, {
                 method: 'POST',

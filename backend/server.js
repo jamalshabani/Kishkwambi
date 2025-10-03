@@ -614,6 +614,117 @@ app.post('/api/validate-container', async (req, res) => {
     }
 });
 
+// Update container information endpoint
+app.post('/api/update-container-info', async (req, res) => {
+    try {
+        const { 
+            containerNumber, 
+            isoCode, 
+            containerType, 
+            containerColor, 
+            containerColorCode, 
+            containerSize, 
+            inspectorName, 
+            inspectionDate 
+        } = req.body;
+        
+        console.log('📝 Received container update request:', {
+            containerNumber,
+            isoCode,
+            containerType,
+            containerColor,
+            containerColorCode,
+            containerSize,
+            inspectorName,
+            inspectionDate
+        });
+
+        if (!containerNumber) {
+            return res.status(400).json({
+                success: false,
+                error: 'Container number is required'
+            });
+        }
+
+        if (!db) {
+            throw new Error('Database not connected');
+        }
+
+        const collection = db.collection('tripsegments'); // Use same collection as validate-container
+        const trimmedContainerNumber = containerNumber.trim();
+        
+        // Try exact match first, then without spaces (same logic as validate-container)
+        let updateResult = await collection.updateOne(
+            { containerNumber: trimmedContainerNumber },
+            {
+                $set: {
+                    isoCode: isoCode || null,
+                    containerType: containerType || null,
+                    containerColor: containerColor || null,
+                    containerColorCode: containerColorCode || null,
+                    containerSize: containerSize || null,
+                    inspectorName: inspectorName || null,
+                    inspectionDate: inspectionDate || new Date().toISOString(),
+                    lastUpdated: new Date().toISOString()
+                }
+            },
+            { upsert: false } // Don't create if doesn't exist
+        );
+
+        // If not found with exact match, try without spaces (common OCR issue)
+        if (updateResult.matchedCount === 0) {
+            const containerWithoutSpaces = trimmedContainerNumber.replace(/\s/g, '');
+            updateResult = await collection.updateOne(
+                { containerNumber: containerWithoutSpaces },
+                {
+                    $set: {
+                        isoCode: isoCode || null,
+                        containerType: containerType || null,
+                        containerColor: containerColor || null,
+                        containerColorCode: containerColorCode || null,
+                        containerSize: containerSize || null,
+                        inspectorName: inspectorName || null,
+                        inspectionDate: inspectionDate || new Date().toISOString(),
+                        lastUpdated: new Date().toISOString()
+                    }
+                },
+                { upsert: false } // Don't create if doesn't exist
+            );
+        }
+
+        if (updateResult.matchedCount === 0) {
+            console.log(`❌ Container number ${containerNumber} not found for update`);
+            return res.status(404).json({
+                success: false,
+                error: `Container number ${containerNumber} not found in database`
+            });
+        }
+
+        if (updateResult.modifiedCount > 0) {
+            console.log(`✅ Container number ${containerNumber} updated successfully`);
+            res.json({
+                success: true,
+                message: `Container number ${containerNumber} updated successfully`,
+                modifiedCount: updateResult.modifiedCount
+            });
+        } else {
+            console.log(`ℹ️ Container number ${containerNumber} found but no changes made`);
+            res.json({
+                success: true,
+                message: `Container number ${containerNumber} found but no changes were made`,
+                modifiedCount: updateResult.modifiedCount
+            });
+        }
+
+    } catch (error) {
+        console.error('Container update error:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message || 'Failed to update container information'
+        });
+    }
+});
+
 // Google Vision AI endpoint for OCR comparison
 app.post('/api/vision/google-vision', async (req, res) => {
     try {

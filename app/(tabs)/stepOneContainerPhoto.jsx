@@ -6,14 +6,20 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 import { LinearGradient } from 'expo-linear-gradient';
 import { cn } from '../../lib/tw';
 import { useTheme } from '../../contexts/ThemeContext';
+import { useAuth } from '../../contexts/AuthContext';
 import Button from '../../components/common/Button';
 import { API_CONFIG } from '../../lib/config';
 import { Camera as CameraIcon, Sun, Moon, ArrowLeft, Eye, X } from 'lucide-react-native';
 
 const StepOneContainerPhoto = ({ onBack, onNavigateToStepTwo }) => {
     const { isDark, toggleTheme } = useTheme();
+    const { user } = useAuth();
     const [permission, requestPermission] = useCameraPermissions();
     const [image, setImage] = useState(null);
+    const [imageBase64, setImageBase64] = useState(null);
+    const [showErrorModal, setShowErrorModal] = useState(false);
+    const [errorMessage, setErrorMessage] = useState('');
+    const [errorContainerNumber, setErrorContainerNumber] = useState('');
     const [showZoomModal, setShowZoomModal] = useState(false);
     const [containerNumber, setContainerNumber] = useState(Array(11).fill(''));
     const [isoCode, setIsoCode] = useState(Array(4).fill(''));
@@ -80,6 +86,7 @@ const StepOneContainerPhoto = ({ onBack, onNavigateToStepTwo }) => {
                 
                 // Process the cropped image
                 const croppedBase64 = await convertImageToBase64(croppedImage);
+                setImageBase64(croppedBase64);
                 await processImageWithVisionAI(croppedBase64);
             } catch (error) {
                 Alert.alert('Error', 'Failed to take picture');
@@ -123,6 +130,71 @@ const StepOneContainerPhoto = ({ onBack, onNavigateToStepTwo }) => {
         }
     };
 
+    // Function to convert require image to base64
+    const convertRequireImageToBase64 = async (imageSource) => {
+        try {
+            // For React Native, use the Image.resolveAssetSource method
+            const asset = Image.resolveAssetSource(imageSource);
+            if (asset && asset.uri) {
+                const response = await fetch(asset.uri);
+                const blob = await response.blob();
+                return new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onloadend = () => {
+                        const base64 = reader.result.split(',')[1];
+                        resolve(base64);
+                    };
+                    reader.onerror = reject;
+                    reader.readAsDataURL(blob);
+                });
+            }
+            return '';
+        } catch (error) {
+            console.error('Require image Base64 conversion error:', error);
+            // Return empty string if conversion fails
+            return '';
+        }
+    };
+
+    // Helper function to determine container type from ISO code
+    const getContainerTypeFromIsoCode = (isoCode) => {
+        const typeMap = {
+            '20G0': 'Dry Container',
+            '20G1': 'Dry Container',
+            '40G0': 'Dry Container',
+            '40G1': 'Dry Container',
+            '45G0': 'Dry Container',
+            '45G1': 'Dry Container',
+            '20R0': 'Refrigerated Container',
+            '20R1': 'Refrigerated Container',
+            '40R0': 'Refrigerated Container',
+            '40R1': 'Refrigerated Container',
+            '45R0': 'Refrigerated Container',
+            '45R1': 'Refrigerated Container',
+            '20T0': 'Tank Container',
+            '20T1': 'Tank Container',
+            '40T0': 'Tank Container',
+            '40T1': 'Tank Container',
+            '20P0': 'Flat Rack Container',
+            '20P1': 'Flat Rack Container',
+            '40P0': 'Flat Rack Container',
+            '40P1': 'Flat Rack Container',
+            '20U0': 'Open Top Container',
+            '20U1': 'Open Top Container',
+            '40U0': 'Open Top Container',
+            '40U1': 'Open Top Container',
+        };
+        return typeMap[isoCode] || 'Unknown Container Type';
+    };
+
+    // Helper function to determine container size from ISO code
+    const getContainerSizeFromIsoCode = (isoCode) => {
+        if (isoCode.startsWith('2')) return '20ft';
+        if (isoCode.startsWith('4')) return '40ft';
+        if (isoCode.startsWith('5')) return '45ft';
+        if (isoCode.startsWith('M')) return '48ft';
+        return 'Unknown Size';
+    };
 
     // Function to select the best results based on confidence scores
     const selectBestResults = (parkrowData, googleVisionData) => {
@@ -169,14 +241,11 @@ const StepOneContainerPhoto = ({ onBack, onNavigateToStepTwo }) => {
     };
 
     // Function to validate container number against database and detect color
-    const validateContainerNumber = async () => {
+    const validateContainerNumber = async (useTestData = false) => {
+        console.log('🔍 validateContainerNumber called with useTestData:', useTestData);
         // Use the manually corrected container number from input fields
         const correctedContainerNumber = containerNumber.join('').trim();
         
-        if (!correctedContainerNumber || correctedContainerNumber.length === 0) {
-            Alert.alert('No Container Number', 'Please take a photo first to extract the container number or enter it manually.');
-            return;
-        }
 
         try {
             const BACKEND_URL = API_CONFIG.getBackendUrl();
@@ -197,28 +266,28 @@ const StepOneContainerPhoto = ({ onBack, onNavigateToStepTwo }) => {
                     error: `Validation Error: ${err.message}`
                 })),
                 
-                // Color detection (only if we have an image)
-                image ? fetch(`${BACKEND_URL}/api/vision/google-vision-color`, {
+                // Color detection (only if we have an image and not using test data)
+                !useTestData && imageBase64 ? fetch(`${BACKEND_URL}/api/vision/google-vision-color`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                     },
-                    body: JSON.stringify({ base64Image: image }),
+                    body: JSON.stringify({ base64Image: imageBase64 }),
                 }).then(res => res.json()).catch(err => ({
                     success: false,
                     error: `Color Detection Error: ${err.message}`,
                     data: { containerColor: '', colorHex: '' }
                 })) : Promise.resolve({
-                    success: false,
-                    error: 'No image available for color detection',
-                    data: { containerColor: '', colorHex: '' }
+                    success: useTestData,
+                    error: useTestData ? 'Using test data color' : 'No image available for color detection',
+                    data: useTestData ? { containerColor: 'Black', colorHex: '#000000' } : { containerColor: '', colorHex: '' }
                 })
             ]);
-
-            console.log('🔍 Validation result:', validationResponse);
-            console.log('🎨 Color detection result:', colorResponse);
+            
+            console.log('🔍 Full validation response:', JSON.stringify(validationResponse, null, 2));
             
             if (validationResponse.success) {
+                console.log('🔍 Container exists check:', validationResponse.exists);
                 if (validationResponse.exists) {
                     // Prepare container data with color information using corrected container number
                     const containerData = {
@@ -232,32 +301,89 @@ const StepOneContainerPhoto = ({ onBack, onNavigateToStepTwo }) => {
                     console.log('🎨 Detected color:', containerData.containerColor);
                     console.log('🎨 Color hex:', containerData.colorHex);
                     
+                    // Update container information in database before navigating
+                    try {
+                        console.log('📝 Updating container information in database...');
+                        
+                        // Determine container type based on ISO code
+                        const containerType = getContainerTypeFromIsoCode(containerData.isoCode);
+                        
+                        // Get current user's full name from auth context
+                        const inspectorName = user?.firstName && user?.lastName 
+                            ? `${user.firstName} ${user.lastName}`
+                            : user?.name || 'Unknown Inspector';
+                        
+                        // Get current date
+                        const inspectionDate = new Date().toISOString();
+                        
+                        // Determine container size based on ISO code
+                        const containerSize = getContainerSizeFromIsoCode(containerData.isoCode);
+                        
+                        const updateData = {
+                            containerNumber: correctedContainerNumber,
+                            isoCode: containerData.isoCode,
+                            containerType: containerType,
+                            containerColor: containerData.containerColor,
+                            containerColorCode: containerData.colorHex,
+                            containerSize: containerSize,
+                            inspectorName: inspectorName,
+                            inspectionDate: inspectionDate
+                        };
+                        
+                        console.log('📝 Update data:', updateData);
+                        
+                        // Call API to update container information
+                        const updateResponse = await fetch(`${BACKEND_URL}/api/update-container-info`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify(updateData),
+                        });
+                        
+                        const updateResult = await updateResponse.json();
+                        console.log('📝 Update response:', updateResult);
+                        
+                        if (updateResult.success) {
+                            console.log('✅ Container information updated successfully');
+                        } else {
+                            console.warn('⚠️ Failed to update container information:', updateResult.error);
+                        }
+                        
+                    } catch (error) {
+                        console.error('Error updating container information:', error);
+                    }
+                    
                     // Navigate to step two with container data including color
                     if (onNavigateToStepTwo) {
                         onNavigateToStepTwo(containerData);
                     }
                 } else {
+                    console.log('🔍 Container does not exist - showing alert');
+                    console.log('🔍 About to show alert');
+                    setErrorMessage('does not exists');
+                    setErrorContainerNumber(correctedContainerNumber);
+                    setShowErrorModal(true);
+                }
+            } else {
+                if (!useTestData) {
                     setContainerModalData({
                         type: 'error',
-                        message: validationResponse.message
+                        message: validationResponse.error || 'Failed to validate container number'
                     });
                     setShowContainerModal(true);
                 }
-            } else {
-                setContainerModalData({
-                    type: 'error',
-                    message: validationResponse.error || 'Failed to validate container number'
-                });
-                setShowContainerModal(true);
             }
             
         } catch (error) {
             console.error('Container validation error:', error);
-            setContainerModalData({
-                type: 'error',
-                message: 'Failed to validate container number. Please check your connection.'
-            });
-            setShowContainerModal(true);
+            if (!useTestData) {
+                setContainerModalData({
+                    type: 'error',
+                    message: 'Failed to validate container number. Please check your connection.'
+                });
+                setShowContainerModal(true);
+            }
         }
     };
 
@@ -485,7 +611,7 @@ const StepOneContainerPhoto = ({ onBack, onNavigateToStepTwo }) => {
                         <View style={cn('absolute top-4 left-4 right-4 items-center')}>
                             <View style={cn('bg-black/70 px-6 py-3 rounded-lg')}>
                                 <Text style={cn('text-white text-center text-lg font-semibold')}>
-                                    Make sure the container number is clearly visible
+                                    Make sure the Container Number is clearly visible
                                 </Text>
                             </View>
                             
@@ -510,8 +636,9 @@ const StepOneContainerPhoto = ({ onBack, onNavigateToStepTwo }) => {
                                         const result = await response.json();
                                         console.log('📊 Database response:', result);
                                         
-                                        // Set test image (placeholder)
-                                        setImage('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgdmlld0JveD0iMCAwIDIwMCAyMDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIyMDAiIGhlaWdodD0iMjAwIiBmaWxsPSIjRjVGOUZCIi8+Cjx0ZXh0IHg9IjEwMCIgeT0iMTAwIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMTQiIGZpbGw9IiM2QjcyODAiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGR5PSIuM2VtIj5UZXN0IERhdGE8L3RleHQ+Cjx0ZXh0IHg9IjEwMCIgeT0iMTIwIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMTIiIGZpbGw9IiM2QjcyODAiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGR5PSIuM2VtIj5Db250YWluZXIgUGhvdG88L3RleHQ+Cjwvc3ZnPgo=');
+                                        // Set test image
+                                        const testImageSource = require('../../assets/container/container1.jpg');
+                                        setImage(testImageSource);
                                         
                                         // Set test data
                                         const testData = {
@@ -527,7 +654,9 @@ const StepOneContainerPhoto = ({ onBack, onNavigateToStepTwo }) => {
                                         // Populate the extracted data
                                         setExtractedData({
                                             containerNumber: testData.containerNumber,
-                                            isoCode: testData.isoCode
+                                            isoCode: testData.isoCode,
+                                            containerColor: testData.containerColor,
+                                            colorHex: testData.colorHex
                                         });
                                         
                                         // Populate individual character arrays
@@ -542,6 +671,8 @@ const StepOneContainerPhoto = ({ onBack, onNavigateToStepTwo }) => {
                                             googleVision: { containerNumber: testData.containerNumber, isoCode: testData.isoCode },
                                             processingTime: 0.1
                                         });
+                                        
+                                        // Test data is now set up - the preview screen will show with test data
                                         
                                     } catch (error) {
                                         console.error('❌ Error setting up test data:', error);
@@ -572,6 +703,8 @@ const StepOneContainerPhoto = ({ onBack, onNavigateToStepTwo }) => {
                                             googleVision: { containerNumber: fallbackData.containerNumber, isoCode: fallbackData.isoCode },
                                             processingTime: 0.1
                                         });
+                                        
+                                        // Fallback test data is now set up - the preview screen will show with test data
                                     }
                                 }}
                                 style={cn('mt-4 rounded-lg overflow-hidden')}
@@ -694,7 +827,10 @@ const StepOneContainerPhoto = ({ onBack, onNavigateToStepTwo }) => {
                         <View style={cn(`${isDark ? 'bg-gray-800' : 'bg-white'} rounded-lg shadow-lg p-4 mb-6`)}>
                             <View style={cn('mb-2 flex items-center justify-center')}>
                                 <View style={cn('relative')}>
-                                    <Image source={{ uri: image }} style={cn('w-[200px] h-[200px] rounded-lg')} />
+                                    <Image 
+                                        source={typeof image === 'string' ? { uri: image } : image} 
+                                        style={cn('w-[200px] h-[200px] rounded-lg')} 
+                                    />
                                     {/* Eye Icon Overlay */}
                                     <TouchableOpacity
                                         onPress={() => setShowZoomModal(true)}
@@ -849,10 +985,51 @@ const StepOneContainerPhoto = ({ onBack, onNavigateToStepTwo }) => {
 
                     {/* Full Size Image */}
                     <Image 
-                        source={{ uri: image }} 
+                        source={typeof image === 'string' ? { uri: image } : image} 
                         style={cn('w-full h-full')}
                         resizeMode="contain"
                     />
+                </View>
+            </Modal>
+
+            {/* Custom Error Modal */}
+            <Modal
+                visible={showErrorModal}
+                transparent={true}
+                animationType="fade"
+                onRequestClose={() => setShowErrorModal(false)}
+            >
+                <View style={cn('flex-1 bg-black/50 items-center justify-center px-6')}>
+                    <View style={cn('bg-white rounded-2xl p-8 items-center max-w-sm w-full relative')}>
+                        {/* Red Error Icon */}
+                        <View style={cn('absolute -top-8 w-16 h-16 bg-red-500 rounded-full items-center justify-center shadow-lg')}>
+                            <Text style={cn('text-white text-2xl font-bold')}>✕</Text>
+                        </View>
+                        
+                        {/* Error Message */}
+                        <Text style={cn('text-black text-lg font-semibold text-center mt-4 mb-2')}>
+                            Container Number{' '}
+                            <Text style={cn('text-red-500 font-bold')}>
+                                {errorContainerNumber}
+                            </Text>
+                            {' '}{errorMessage}
+                        </Text>
+                        
+                        {/* Additional Message */}
+                        <Text style={cn('text-gray-600 text-sm text-center mb-6 font-semibold')}>
+                            Verify if the Container Number is correct
+                        </Text>
+                        
+                        {/* OK Button */}
+                        <TouchableOpacity
+                            onPress={() => setShowErrorModal(false)}
+                            style={cn('bg-red-500 px-8 py-3 rounded-lg w-full')}
+                        >
+                            <Text style={cn('text-white text-lg font-semibold text-center')}>
+                                OK
+                            </Text>
+                        </TouchableOpacity>
+                    </View>
                 </View>
             </Modal>
 

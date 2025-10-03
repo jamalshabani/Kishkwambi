@@ -64,12 +64,22 @@ const tripSegmentSchema = new Schema({
         required: false
     },
 
+    isoCode: {
+        type: String,
+        required: false
+    },
+
     containerType: {
         type: String,
         required: false
     },
 
     containerColor: {
+        type: String,
+        required: false
+    },
+
+    containerColorCode: {
         type: String,
         required: false
     },
