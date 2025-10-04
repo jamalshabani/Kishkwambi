@@ -14,21 +14,26 @@ const StepNineDriverDetails = ({ onBack, containerData, onComplete }) => {
     const [permission, requestPermission] = useCameraPermissions();
     const [image, setImage] = useState(null);
     const [showZoomModal, setShowZoomModal] = useState(false);
+    const [showCamera, setShowCamera] = useState(false);
+    const [showForm, setShowForm] = useState(false);
     const [isProcessing, setIsProcessing] = useState(false);
     const [isRecognizing, setIsRecognizing] = useState(false);
-    const [facing, setFacing] = useState('front');
+    const [isExtracting, setIsExtracting] = useState(false);
+    const [facing, setFacing] = useState('back');
     const [driverData, setDriverData] = useState(null);
     const cameraRef = useRef(null);
 
     // Driver details state
     const [driverDetails, setDriverDetails] = useState({
-        fullName: '',
-        idNumber: '',
+        firstName: '',
+        lastName: '',
         phoneNumber: '',
-        email: '',
         licenseNumber: '',
-        licenseExpiry: ''
+        transporterName: 'Local Transporter'
     });
+
+    // Focus states for gradient borders
+    const [focusedField, setFocusedField] = useState(null);
 
     // Animation values for theme switcher
     const themeIconRotation = useRef(new Animated.Value(0)).current;
@@ -60,6 +65,17 @@ const StepNineDriverDetails = ({ onBack, containerData, onComplete }) => {
         toggleTheme();
     };
 
+    const openCamera = () => {
+        setShowCamera(true);
+        setShowForm(false);
+    };
+
+    const openForm = () => {
+        setShowForm(true);
+        setShowCamera(false);
+    };
+
+
     const takePicture = async () => {
         if (!cameraRef.current) return;
 
@@ -72,16 +88,24 @@ const StepNineDriverDetails = ({ onBack, containerData, onComplete }) => {
 
             if (photo?.uri) {
                 setImage(photo.base64);
+                setShowCamera(false);
                 console.log('📸 Driver license photo taken successfully');
 
+                // Show extraction loading
+                setIsExtracting(true);
+                
                 // Call Vision AI to extract driver details
                 await extractDriverDetails(photo.base64);
+                
+                // Automatically show the form with extracted data
+                setShowForm(true);
             }
         } catch (error) {
             console.error('❌ Error taking driver license photo:', error);
             Alert.alert('Error', 'Failed to take photo. Please try again.');
         } finally {
             setIsProcessing(false);
+            setIsExtracting(false);
         }
     };
 
@@ -105,18 +129,32 @@ const StepNineDriverDetails = ({ onBack, containerData, onComplete }) => {
 
             if (result.success && result.data) {
                 const extractedData = result.data;
+                
+                // Helper function to capitalize first letter of each word
+                const capitalizeWords = (text) => {
+                    if (!text) return '';
+                    return text.toLowerCase()
+                        .split(' ')
+                        .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+                        .join(' ');
+                };
+                
                 setDriverDetails(prev => ({
                     ...prev,
-                    fullName: extractedData.fullName || prev.fullName,
-                    idNumber: extractedData.idNumber || prev.idNumber,
+                    firstName: capitalizeWords(extractedData.firstName || extractedData.fullName?.split(' ')[0] || prev.firstName),
+                    lastName: capitalizeWords(extractedData.lastName || extractedData.fullName?.split(' ').slice(1).join(' ') || prev.lastName),
                     phoneNumber: extractedData.phoneNumber || prev.phoneNumber,
-                    email: extractedData.email || prev.email,
                     licenseNumber: extractedData.licenseNumber || prev.licenseNumber,
-                    licenseExpiry: extractedData.licenseExpiry || prev.licenseExpiry
+                    transporterName: capitalizeWords(extractedData.transporterName || prev.transporterName)
                 }));
-                console.log('✅ Driver details extracted successfully');
+                console.log('✅ Driver details extracted and formatted successfully');
             } else {
                 console.log('⚠️ No driver details extracted, manual input required');
+                Alert.alert(
+                    'Manual Input Required',
+                    'Unable to extract driver details from the photo. Please enter the information manually.',
+                    [{ text: 'OK' }]
+                );
             }
         } catch (error) {
             console.error('❌ Error extracting driver details:', error);
@@ -173,12 +211,71 @@ const StepNineDriverDetails = ({ onBack, containerData, onComplete }) => {
         }
     };
 
+    const saveDriverDetailsToDatabase = async (tripSegmentNumber, driverDetails, driverPhotoUrl) => {
+        try {
+            console.log('💾 Saving driver details to database...');
+            
+            const BACKEND_URL = API_CONFIG.getBackendUrl();
+            
+            const updateData = {
+                tripSegmentNumber: tripSegmentNumber,
+                transporterName: "Local Transporter",
+                driverFirstName: driverDetails.firstName,
+                driverLastName: driverDetails.lastName,
+                driverLicenceNumber: driverDetails.licenseNumber,
+                driverPhoneNumber: driverDetails.phoneNumber,
+                containerStatus: "Arrived"
+            };
+
+            // Add driver photo if available
+            if (driverPhotoUrl) {
+                updateData.driverPhoto = driverPhotoUrl;
+            }
+
+            console.log('📊 Update data:', updateData);
+
+            const response = await fetch(`${BACKEND_URL}/api/trip-segments/update-driver-details`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(updateData),
+            });
+
+            const result = await response.json();
+            console.log('📊 Database update response:', result);
+
+            if (result.success) {
+                console.log('✅ Driver details saved to database successfully');
+                return { success: true };
+            } else {
+                console.error('❌ Failed to save driver details to database:', result.error);
+                return { success: false, error: result.error };
+            }
+
+        } catch (error) {
+            console.error('❌ Error saving driver details to database:', error);
+            return { success: false, error: error.message };
+        }
+    };
+
     const handleComplete = async () => {
         // Validate required fields
-        if (!driverDetails.fullName || !driverDetails.licenseNumber) {
-            Alert.alert('Missing Information', 'Please enter driver name and license number.');
+        if (!driverDetails.firstName || !driverDetails.lastName || !driverDetails.phoneNumber || 
+            !driverDetails.licenseNumber) {
+            Alert.alert('Missing Information', 'Please fill in all required fields.');
             return;
         }
+
+        // Validate trip segment number
+        if (!containerData?.tripSegmentNumber) {
+            Alert.alert('Missing Trip Segment', 'Trip segment information is missing. Please go back and try again.');
+            console.error('❌ Missing tripSegmentNumber:', containerData);
+            return;
+        }
+
+        console.log('📊 Container data:', containerData);
+        console.log('📊 Trip segment number:', containerData?.tripSegmentNumber);
 
         setIsProcessing(true);
 
@@ -195,6 +292,14 @@ const StepNineDriverDetails = ({ onBack, containerData, onComplete }) => {
                 }
             }
 
+            // Save driver details to database
+            const saveResult = await saveDriverDetailsToDatabase(containerData?.tripSegmentNumber, driverDetails, driverPhotoUrl);
+            
+            if (!saveResult.success) {
+                Alert.alert('Database Error', 'Failed to save driver details. Please try again.');
+                return;
+            }
+
             // Prepare complete data
             const completeData = {
                 ...containerData,
@@ -207,7 +312,7 @@ const StepNineDriverDetails = ({ onBack, containerData, onComplete }) => {
             // Save driver data to state for navigation
             setDriverData(completeData);
 
-            console.log('✅ Driver details completed successfully');
+            console.log('✅ Driver details completed and saved to database successfully');
             
             // Navigate to completion
             if (onComplete) {
@@ -259,7 +364,7 @@ const StepNineDriverDetails = ({ onBack, containerData, onComplete }) => {
     }
 
     return (
-        <SafeAreaView style={cn(`flex-1 ${isDark ? 'bg-gray-900' : 'bg-gray-100'}`)}>
+        <SafeAreaView style={cn(`flex-1 ${isDark ? 'bg-gray-900' : 'bg-gray-100'}`)} edges={['top']}>
             <StatusBar style={isDark ? "light" : "dark"} />
             
             {/* Header */}
@@ -277,13 +382,6 @@ const StepNineDriverDetails = ({ onBack, containerData, onComplete }) => {
                     Driver Details
                 </Text>
 
-                {/* Complete Inspection Button */}
-                <TouchableOpacity
-                    onPress={() => onComplete && onComplete(driverData)}
-                    style={cn('mr-3 px-3 py-2 rounded-lg bg-green-500')}
-                >
-                    <Text style={cn('text-white font-semibold text-sm')}>Complete</Text>
-                </TouchableOpacity>
 
                 {/* Theme Switcher */}
                 <Animated.View
@@ -302,62 +400,246 @@ const StepNineDriverDetails = ({ onBack, containerData, onComplete }) => {
                 </Animated.View>
             </View>
 
-            <KeyboardAvoidingView 
-                style={cn('flex-1')} 
-                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-            >
-                <ScrollView style={cn('flex-1')} showsVerticalScrollIndicator={false}>
-                    <View style={cn('p-6')}>
+            {!showCamera && !showForm ? (
+                // Initial Selection Screen
+                <View style={cn('flex-1 items-center px-6 pt-4')}>
+                    {/* Container Number and Trip Segment Display */}
+                    <View style={cn(`mb-8 p-4 rounded-lg ${isDark ? 'bg-gray-700 border-gray-600' : 'bg-gray-50 border-gray-200'} border w-full`)}>
+                        <View style={cn('flex-row items-center justify-between')}>
+                            <View style={cn('flex-1')}>
+                                <Text style={cn(`text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-600'} mb-1`)}>
+                                    Container Number
+                                </Text>
+                                <Text style={cn(`text-lg font-bold ${isDark ? 'text-white' : 'text-black'}`)}>
+                                    {containerData?.containerNumber || 'N/A'}
+                                </Text>
+                            </View>
+                            <View style={cn('flex-1 ml-4')}>
+                                <Text style={cn(`text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-600'} mb-1`)}>
+                                    Trip Segment
+                                </Text>
+                                <Text style={cn(`text-lg font-semibold ${isDark ? 'text-white' : 'text-black'}`)}>
+                                    {containerData?.tripSegmentNumber || 'N/A'}
+                                </Text>
+                            </View>
+                        </View>
+                    </View>
+
+                    {/* Selection Buttons */}
+                    <View style={cn('w-full')}>
+                        {/* Take Driver License Photo Button */}
+                        <TouchableOpacity
+                            onPress={openCamera}
+                            disabled={isProcessing}
+                            style={cn(`w-full rounded-lg overflow-hidden mb-4 ${isProcessing ? 'opacity-50' : ''}`)}
+                        >
+                            <LinearGradient
+                                colors={['#F59E0B', '#000000']}
+                                start={{ x: 0, y: 0 }}
+                                end={{ x: 1, y: 0 }}
+                                style={cn('p-6 items-center')}
+                            >
+                                <Camera size={32} color="white" style={cn('mb-2')} />
+                                <Text style={cn('text-white font-bold text-lg')}>Take Driver Licence Photo</Text>
+                                <Text style={cn('text-white/80 text-sm mt-1')}>
+                                    AI will extract details automatically
+                                </Text>
+                            </LinearGradient>
+                        </TouchableOpacity>
+
+                        {/* OR Divider */}
+                        <View style={cn('flex-row items-center my-6')}>
+                            <View style={cn(`flex-1 h-px ${isDark ? 'bg-gray-600' : 'bg-gray-300'}`)} />
+                            <Text style={cn(`px-4 ${isDark ? 'text-gray-400' : 'text-gray-500'} font-medium`)}>OR</Text>
+                            <View style={cn(`flex-1 h-px ${isDark ? 'bg-gray-600' : 'bg-gray-300'}`)} />
+                        </View>
+
+                        {/* Enter Driver Details Button */}
+                        <TouchableOpacity
+                            onPress={openForm}
+                            disabled={isProcessing}
+                            style={cn(`w-full rounded-lg overflow-hidden ${isProcessing ? 'opacity-50' : ''}`)}
+                        >
+                            <LinearGradient
+                                colors={['#000000', '#F59E0B']}
+                                start={{ x: 0, y: 0 }}
+                                end={{ x: 1, y: 0 }}
+                                style={cn('p-6 items-center')}
+                            >
+                                <User size={32} color="white" style={cn('mb-2')} />
+                                <Text style={cn('text-white font-bold text-lg')}>Enter Driver Details</Text>
+                                <Text style={cn('text-white/80 text-sm mt-1')}>
+                                    Fill in driver information manually
+                                </Text>
+                            </LinearGradient>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            ) : showCamera ? (
+                // Full Screen Camera View
+                <View style={cn('flex-1')}>
+                    <CameraView
+                        ref={cameraRef}
+                        style={cn('flex-1')}
+                        facing={facing}
+                        ratio="1:1"
+                    />
+
+                    {/* Driver License Guide Overlay */}
+                    <View style={cn('absolute inset-0 justify-center items-center')}>
                         {/* Container Number and Trip Segment Display */}
-                        <View style={cn(`mb-6 p-4 rounded-lg ${isDark ? 'bg-gray-700 border-gray-600' : 'bg-gray-50 border-gray-200'} border`)}>
-                            <View style={cn('flex-row items-center justify-between')}>
-                                <View style={cn('flex-1')}>
-                                    <Text style={cn(`text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-600'} mb-1`)}>
-                                        Container Number
-                                    </Text>
-                                    <Text style={cn(`text-lg font-bold ${isDark ? 'text-white' : 'text-black'}`)}>
-                                        {containerData?.containerNumber || 'N/A'}
-                                    </Text>
-                                </View>
-                                <View style={cn('flex-1 ml-4')}>
-                                    <Text style={cn(`text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-600'} mb-1`)}>
-                                        Trip Segment
-                                    </Text>
-                                    <Text style={cn(`text-lg font-semibold ${isDark ? 'text-white' : 'text-black'}`)}>
-                                        {containerData?.tripSegmentNumber || 'N/A'}
-                                    </Text>
+                        <View style={cn('absolute top-2 left-4 right-4')}>
+                            <View style={cn(`p-4 rounded-lg ${isDark ? 'bg-gray-700 border-gray-600' : 'bg-gray-50 border-gray-200'} border`)}>
+                                <View style={cn('flex-row items-center justify-between')}>
+                                    <View style={cn('flex-1')}>
+                                        <Text style={cn(`text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-600'} mb-1`)}>
+                                            Container Number
+                                        </Text>
+                                        <Text style={cn(`text-lg font-bold ${isDark ? 'text-white' : 'text-black'}`)}>
+                                            {containerData?.containerNumber || 'N/A'}
+                                        </Text>
+                                    </View>
+                                    <View style={cn('flex-1 ml-4')}>
+                                        <Text style={cn(`text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-600'} mb-1`)}>
+                                            Trip Segment
+                                        </Text>
+                                        <Text style={cn(`text-lg font-semibold ${isDark ? 'text-white' : 'text-black'}`)}>
+                                            {containerData?.tripSegmentNumber || 'N/A'}
+                                        </Text>
+                                    </View>
                                 </View>
                             </View>
                         </View>
 
-                        {/* Driver Photo Section */}
-                        <View style={cn(`${isDark ? 'bg-gray-800' : 'bg-white'} rounded-lg shadow-lg p-4 mb-6`)}>
-                            <Text style={cn(`text-lg font-bold mb-4 ${isDark ? 'text-white' : 'text-black'}`)}>
-                                Driver License Photo
-                            </Text>
+                        {/* Driver License Guide Frame */}
+                        <View style={cn('relative')}>
+                            {/* Driver License Rectangle Outline - 85.60mm x 54.00mm */}
+                            <View
+                                style={[
+                                    cn('border-2 border-green-500 bg-green-500/10'),
+                                    {
+                                        width: 323, // 85.60mm * 3.78px/mm
+                                        height: 204, // 54.00mm * 3.78px/mm
+                                        borderRadius: 8,
+                                    }
+                                ]}
+                            />
                             
-                            {!image ? (
-                                <TouchableOpacity
-                                    onPress={takePicture}
-                                    disabled={isProcessing}
-                                    style={cn(`w-full h-48 rounded-lg border-2 border-dashed ${isDark ? 'border-gray-600' : 'border-gray-300'} items-center justify-center ${isProcessing ? 'opacity-50' : ''}`)}
-                                >
-                                    {isProcessing ? (
-                                        <ActivityIndicator size="large" color="#6B7280" />
-                                    ) : (
-                                        <>
-                                            <Camera size={48} color={isDark ? '#9CA3AF' : '#6B7280'} />
-                                            <Text style={cn(`text-lg font-semibold mt-2 ${isDark ? 'text-gray-300' : 'text-gray-600'}`)}>
-                                                Take Driver License Photo
-                                            </Text>
-                                            <Text style={cn(`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`)}>
-                                                AI will extract details automatically
-                                            </Text>
-                                        </>
-                                    )}
-                                </TouchableOpacity>
-                            ) : (
-                                <View>
+                            {/* Corner Indicators */}
+                            {/* Top Left */}
+                            <View
+                                style={[
+                                    cn('absolute -top-2 -left-2'),
+                                    {
+                                        width: 20,
+                                        height: 20,
+                                        borderTopWidth: 3,
+                                        borderLeftWidth: 3,
+                                        borderTopColor: '#10b981',
+                                        borderLeftColor: '#10b981',
+                                    }
+                                ]}
+                            />
+                            {/* Top Right */}
+                            <View
+                                style={[
+                                    cn('absolute -top-2 -right-2'),
+                                    {
+                                        width: 20,
+                                        height: 20,
+                                        borderTopWidth: 3,
+                                        borderRightWidth: 3,
+                                        borderTopColor: '#10b981',
+                                        borderRightColor: '#10b981',
+                                    }
+                                ]}
+                            />
+                            {/* Bottom Left */}
+                            <View
+                                style={[
+                                    cn('absolute -bottom-2 -left-2'),
+                                    {
+                                        width: 20,
+                                        height: 20,
+                                        borderBottomWidth: 3,
+                                        borderLeftWidth: 3,
+                                        borderBottomColor: '#10b981',
+                                        borderLeftColor: '#10b981',
+                                    }
+                                ]}
+                            />
+                            {/* Bottom Right */}
+                            <View
+                                style={[
+                                    cn('absolute -bottom-2 -right-2'),
+                                    {
+                                        width: 20,
+                                        height: 20,
+                                        borderBottomWidth: 3,
+                                        borderRightWidth: 3,
+                                        borderBottomColor: '#10b981',
+                                        borderRightColor: '#10b981',
+                                    }
+                                ]}
+                            />
+                        </View>
+                    </View>
+
+                    {/* Camera Controls Overlay */}
+                    <View style={cn('absolute bottom-0 left-0 right-0 bg-black/50 pb-8 pt-4')}>
+                        <View style={cn('flex-row items-center justify-center px-8')}>
+                            {/* Capture Button */}
+                            <TouchableOpacity
+                                onPress={takePicture}
+                                disabled={isProcessing}
+                                style={cn('w-20 h-20 rounded-full bg-white border-4 border-white/30 items-center justify-center')}
+                            >
+                                {isProcessing ? (
+                                    <ActivityIndicator size="small" color="#000" />
+                                ) : (
+                                    <View style={cn('w-16 h-16 rounded-full bg-white')} />
+                                )}
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                </View>
+            ) : (
+                // Form View
+                <KeyboardAvoidingView 
+                    style={cn('flex-1')} 
+                    behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                >
+                    <ScrollView style={cn('flex-1')} showsVerticalScrollIndicator={false}>
+                        <View style={cn('p-6')}>
+                            {/* Container Number and Trip Segment Display */}
+                            <View style={cn(`mb-6 p-4 rounded-lg ${isDark ? 'bg-gray-700 border-gray-600' : 'bg-gray-50 border-gray-200'} border`)}>
+                                <View style={cn('flex-row items-center justify-between')}>
+                                    <View style={cn('flex-1')}>
+                                        <Text style={cn(`text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-600'} mb-1`)}>
+                                            Container Number
+                                        </Text>
+                                        <Text style={cn(`text-lg font-bold ${isDark ? 'text-white' : 'text-black'}`)}>
+                                            {containerData?.containerNumber || 'N/A'}
+                                        </Text>
+                                    </View>
+                                    <View style={cn('flex-1 ml-4')}>
+                                        <Text style={cn(`text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-600'} mb-1`)}>
+                                            Trip Segment
+                                        </Text>
+                                        <Text style={cn(`text-lg font-semibold ${isDark ? 'text-white' : 'text-black'}`)}>
+                                            {containerData?.tripSegmentNumber || 'N/A'}
+                                        </Text>
+                                    </View>
+                                </View>
+                            </View>
+
+                            {/* Driver Photo Section (if taken) */}
+                            {image && (
+                                <View style={cn(`${isDark ? 'bg-gray-800' : 'bg-white'} rounded-lg shadow-lg p-4 mb-6`)}>
+                                    <Text style={cn(`text-lg font-bold mb-4 ${isDark ? 'text-white' : 'text-black'}`)}>
+                                        Driver License Photo
+                                    </Text>
+                                    
                                     <TouchableOpacity
                                         onPress={() => setShowZoomModal(true)}
                                         style={cn('relative')}
@@ -376,170 +658,188 @@ const StepNineDriverDetails = ({ onBack, containerData, onComplete }) => {
                                             onPress={() => setImage(null)}
                                             style={cn('flex-1 bg-red-500 px-4 py-2 rounded-lg items-center')}
                                         >
-                                            <Text style={cn('text-white font-semibold')}>Retake</Text>
+                                            <Text style={cn('text-white font-semibold')}>Remove Photo</Text>
                                         </TouchableOpacity>
                                         <TouchableOpacity
-                                            onPress={takePicture}
-                                            disabled={isProcessing}
-                                            style={cn(`flex-1 bg-blue-500 px-4 py-2 rounded-lg items-center ${isProcessing ? 'opacity-50' : ''}`)}
+                                            onPress={openCamera}
+                                            style={cn('flex-1 bg-blue-500 px-4 py-2 rounded-lg items-center')}
                                         >
-                                            <Text style={cn('text-white font-semibold')}>Retake</Text>
+                                            <Text style={cn('text-white font-semibold')}>Retake Photo</Text>
                                         </TouchableOpacity>
                                     </View>
+
+                                    {isRecognizing && (
+                                        <View style={cn('mt-4 p-3 bg-blue-100 rounded-lg')}>
+                                            <View style={cn('flex-row items-center')}>
+                                                <ActivityIndicator size="small" color="#3B82F6" style={cn('mr-2')} />
+                                                <Text style={cn('text-blue-800 font-medium')}>
+                                                    Extracting driver details...
+                                                </Text>
+                                            </View>
+                                        </View>
+                                    )}
                                 </View>
                             )}
 
-                            {isRecognizing && (
-                                <View style={cn('mt-4 p-3 bg-blue-100 rounded-lg')}>
-                                    <View style={cn('flex-row items-center')}>
-                                        <ActivityIndicator size="small" color="#3B82F6" style={cn('mr-2')} />
-                                        <Text style={cn('text-blue-800 font-medium')}>
-                                            Extracting driver details...
-                                        </Text>
+                            {/* Driver Details Form */}
+                            <View style={cn(`${isDark ? 'bg-gray-800' : 'bg-white'} rounded-lg shadow-lg p-4 mb-6`)}>
+                                <Text style={cn(`text-lg font-bold mb-4 ${isDark ? 'text-white' : 'text-black'}`)}>
+                                    Driver Information
+                                </Text>
+
+                                {/* Driver First Name */}
+                                <View style={cn('mb-4')}>
+                                    <Text style={cn(`text-sm font-medium mb-2 ${isDark ? 'text-gray-300' : 'text-gray-600'}`)}>
+                                        Driver First Name <Text style={cn('text-red-500')}>*</Text>
+                                    </Text>
+                                    <View style={cn('rounded-lg overflow-hidden')}>
+                                        <LinearGradient
+                                            colors={focusedField === 'firstName' ? ['#000000', '#F59E0B'] : ['transparent', 'transparent']}
+                                            start={{ x: 0, y: 0 }}
+                                            end={{ x: 1, y: 0 }}
+                                            style={cn('p-[2px] rounded-lg')}
+                                        >
+                                            <TextInput
+                                                style={cn(`px-3 py-3 rounded-lg ${isDark ? 'bg-gray-700 text-white' : 'bg-gray-50 text-black'} ${focusedField === 'firstName' ? '' : 'border'} ${focusedField === 'firstName' ? '' : (isDark ? 'border-gray-600' : 'border-gray-300')}`)}
+                                                placeholder="Enter driver first name"
+                                                placeholderTextColor={isDark ? '#9CA3AF' : '#6B7280'}
+                                                value={driverDetails.firstName}
+                                                onChangeText={(value) => handleInputChange('firstName', value)}
+                                                onFocus={() => setFocusedField('firstName')}
+                                                onBlur={() => setFocusedField(null)}
+                                            />
+                                        </LinearGradient>
                                     </View>
                                 </View>
-                            )}
-                        </View>
 
-                        {/* Driver Details Form */}
-                        <View style={cn(`${isDark ? 'bg-gray-800' : 'bg-white'} rounded-lg shadow-lg p-4 mb-6`)}>
-                            <Text style={cn(`text-lg font-bold mb-4 ${isDark ? 'text-white' : 'text-black'}`)}>
-                                Driver Information
-                            </Text>
-
-                            {/* Full Name */}
-                            <View style={cn('mb-4')}>
-                                <Text style={cn(`text-sm font-medium mb-2 ${isDark ? 'text-gray-300' : 'text-gray-600'}`)}>
-                                    Full Name *
-                                </Text>
-                                <View style={cn(`flex-row items-center px-3 py-3 rounded-lg border ${isDark ? 'bg-gray-700 border-gray-600' : 'bg-gray-50 border-gray-300'}`)}>
-                                    <User size={20} color={isDark ? '#9CA3AF' : '#6B7280'} style={cn('mr-3')} />
-                                    <TextInput
-                                        style={cn(`flex-1 ${isDark ? 'text-white' : 'text-black'}`)}
-                                        placeholder="Enter full name"
-                                        placeholderTextColor={isDark ? '#9CA3AF' : '#6B7280'}
-                                        value={driverDetails.fullName}
-                                        onChangeText={(value) => handleInputChange('fullName', value)}
-                                    />
+                                {/* Driver Last Name */}
+                                <View style={cn('mb-4')}>
+                                    <Text style={cn(`text-sm font-medium mb-2 ${isDark ? 'text-gray-300' : 'text-gray-600'}`)}>
+                                        Driver Last Name <Text style={cn('text-red-500')}>*</Text>
+                                    </Text>
+                                    <View style={cn('rounded-lg overflow-hidden')}>
+                                        <LinearGradient
+                                            colors={focusedField === 'lastName' ? ['#000000', '#F59E0B'] : ['transparent', 'transparent']}
+                                            start={{ x: 0, y: 0 }}
+                                            end={{ x: 1, y: 0 }}
+                                            style={cn('p-[2px] rounded-lg')}
+                                        >
+                                            <TextInput
+                                                style={cn(`px-3 py-3 rounded-lg ${isDark ? 'bg-gray-700 text-white' : 'bg-gray-50 text-black'} ${focusedField === 'lastName' ? '' : 'border'} ${focusedField === 'lastName' ? '' : (isDark ? 'border-gray-600' : 'border-gray-300')}`)}
+                                                placeholder="Enter driver last name"
+                                                placeholderTextColor={isDark ? '#9CA3AF' : '#6B7280'}
+                                                value={driverDetails.lastName}
+                                                onChangeText={(value) => handleInputChange('lastName', value)}
+                                                onFocus={() => setFocusedField('lastName')}
+                                                onBlur={() => setFocusedField(null)}
+                                            />
+                                        </LinearGradient>
+                                    </View>
                                 </View>
-                            </View>
 
-                            {/* ID Number */}
-                            <View style={cn('mb-4')}>
-                                <Text style={cn(`text-sm font-medium mb-2 ${isDark ? 'text-gray-300' : 'text-gray-600'}`)}>
-                                    ID Number
-                                </Text>
-                                <View style={cn(`flex-row items-center px-3 py-3 rounded-lg border ${isDark ? 'bg-gray-700 border-gray-600' : 'bg-gray-50 border-gray-300'}`)}>
-                                    <CreditCard size={20} color={isDark ? '#9CA3AF' : '#6B7280'} style={cn('mr-3')} />
-                                    <TextInput
-                                        style={cn(`flex-1 ${isDark ? 'text-white' : 'text-black'}`)}
-                                        placeholder="Enter ID number"
-                                        placeholderTextColor={isDark ? '#9CA3AF' : '#6B7280'}
-                                        value={driverDetails.idNumber}
-                                        onChangeText={(value) => handleInputChange('idNumber', value)}
-                                    />
+
+                                {/* Driver License Number */}
+                                <View style={cn('mb-4')}>
+                                    <Text style={cn(`text-sm font-medium mb-2 ${isDark ? 'text-gray-300' : 'text-gray-600'}`)}>
+                                        Driver License Number <Text style={cn('text-red-500')}>*</Text>
+                                    </Text>
+                                    <View style={cn('rounded-lg overflow-hidden')}>
+                                        <LinearGradient
+                                            colors={focusedField === 'licenseNumber' ? ['#000000', '#F59E0B'] : ['transparent', 'transparent']}
+                                            start={{ x: 0, y: 0 }}
+                                            end={{ x: 1, y: 0 }}
+                                            style={cn('p-[2px] rounded-lg')}
+                                        >
+                                            <TextInput
+                                                style={cn(`px-3 py-3 rounded-lg ${isDark ? 'bg-gray-700 text-white' : 'bg-gray-50 text-black'} ${focusedField === 'licenseNumber' ? '' : 'border'} ${focusedField === 'licenseNumber' ? '' : (isDark ? 'border-gray-600' : 'border-gray-300')}`)}
+                                                placeholder="Enter driver license number"
+                                                placeholderTextColor={isDark ? '#9CA3AF' : '#6B7280'}
+                                                value={driverDetails.licenseNumber}
+                                                onChangeText={(value) => handleInputChange('licenseNumber', value)}
+                                                keyboardType="phone-pad"
+                                                onFocus={() => setFocusedField('licenseNumber')}
+                                                onBlur={() => setFocusedField(null)}
+                                            />
+                                        </LinearGradient>
+                                    </View>
                                 </View>
-                            </View>
 
-                            {/* Phone Number */}
-                            <View style={cn('mb-4')}>
-                                <Text style={cn(`text-sm font-medium mb-2 ${isDark ? 'text-gray-300' : 'text-gray-600'}`)}>
-                                    Phone Number
-                                </Text>
-                                <View style={cn(`flex-row items-center px-3 py-3 rounded-lg border ${isDark ? 'bg-gray-700 border-gray-600' : 'bg-gray-50 border-gray-300'}`)}>
-                                    <Phone size={20} color={isDark ? '#9CA3AF' : '#6B7280'} style={cn('mr-3')} />
-                                    <TextInput
-                                        style={cn(`flex-1 ${isDark ? 'text-white' : 'text-black'}`)}
-                                        placeholder="Enter phone number"
-                                        placeholderTextColor={isDark ? '#9CA3AF' : '#6B7280'}
-                                        value={driverDetails.phoneNumber}
-                                        onChangeText={(value) => handleInputChange('phoneNumber', value)}
-                                        keyboardType="phone-pad"
-                                    />
+                                {/* Driver Phone Number */}
+                                <View style={cn('mb-4')}>
+                                    <Text style={cn(`text-sm font-medium mb-2 ${isDark ? 'text-gray-300' : 'text-gray-600'}`)}>
+                                        Driver Phone Number <Text style={cn('text-red-500')}>*</Text>
+                                    </Text>
+                                    <View style={cn('rounded-lg overflow-hidden')}>
+                                        <LinearGradient
+                                            colors={focusedField === 'phoneNumber' ? ['#000000', '#F59E0B'] : ['transparent', 'transparent']}
+                                            start={{ x: 0, y: 0 }}
+                                            end={{ x: 1, y: 0 }}
+                                            style={cn('p-[2px] rounded-lg')}
+                                        >
+                                            <TextInput
+                                                style={cn(`px-3 py-3 rounded-lg ${isDark ? 'bg-gray-700 text-white' : 'bg-gray-50 text-black'} ${focusedField === 'phoneNumber' ? '' : 'border'} ${focusedField === 'phoneNumber' ? '' : (isDark ? 'border-gray-600' : 'border-gray-300')}`)}
+                                                placeholder="Enter driver phone number"
+                                                placeholderTextColor={isDark ? '#9CA3AF' : '#6B7280'}
+                                                value={driverDetails.phoneNumber}
+                                                onChangeText={(value) => handleInputChange('phoneNumber', value)}
+                                                keyboardType="phone-pad"
+                                                onFocus={() => setFocusedField('phoneNumber')}
+                                                onBlur={() => setFocusedField(null)}
+                                            />
+                                        </LinearGradient>
+                                    </View>
                                 </View>
-                            </View>
 
-                            {/* Email */}
-                            <View style={cn('mb-4')}>
-                                <Text style={cn(`text-sm font-medium mb-2 ${isDark ? 'text-gray-300' : 'text-gray-600'}`)}>
-                                    Email
-                                </Text>
-                                <View style={cn(`flex-row items-center px-3 py-3 rounded-lg border ${isDark ? 'bg-gray-700 border-gray-600' : 'bg-gray-50 border-gray-300'}`)}>
-                                    <Mail size={20} color={isDark ? '#9CA3AF' : '#6B7280'} style={cn('mr-3')} />
-                                    <TextInput
-                                        style={cn(`flex-1 ${isDark ? 'text-white' : 'text-black'}`)}
-                                        placeholder="Enter email address"
-                                        placeholderTextColor={isDark ? '#9CA3AF' : '#6B7280'}
-                                        value={driverDetails.email}
-                                        onChangeText={(value) => handleInputChange('email', value)}
-                                        keyboardType="email-address"
-                                        autoCapitalize="none"
-                                    />
-                                </View>
-                            </View>
 
-                            {/* License Number */}
-                            <View style={cn('mb-4')}>
-                                <Text style={cn(`text-sm font-medium mb-2 ${isDark ? 'text-gray-300' : 'text-gray-600'}`)}>
-                                    License Number *
-                                </Text>
-                                <View style={cn(`flex-row items-center px-3 py-3 rounded-lg border ${isDark ? 'bg-gray-700 border-gray-600' : 'bg-gray-50 border-gray-300'}`)}>
-                                    <CreditCard size={20} color={isDark ? '#9CA3AF' : '#6B7280'} style={cn('mr-3')} />
-                                    <TextInput
-                                        style={cn(`flex-1 ${isDark ? 'text-white' : 'text-black'}`)}
-                                        placeholder="Enter license number"
-                                        placeholderTextColor={isDark ? '#9CA3AF' : '#6B7280'}
-                                        value={driverDetails.licenseNumber}
-                                        onChangeText={(value) => handleInputChange('licenseNumber', value)}
-                                    />
-                                </View>
-                            </View>
-
-                            {/* License Expiry */}
-                            <View style={cn('mb-4')}>
-                                <Text style={cn(`text-sm font-medium mb-2 ${isDark ? 'text-gray-300' : 'text-gray-600'}`)}>
-                                    License Expiry
-                                </Text>
-                                <View style={cn(`flex-row items-center px-3 py-3 rounded-lg border ${isDark ? 'bg-gray-700 border-gray-600' : 'bg-gray-50 border-gray-300'}`)}>
-                                    <CreditCard size={20} color={isDark ? '#9CA3AF' : '#6B7280'} style={cn('mr-3')} />
-                                    <TextInput
-                                        style={cn(`flex-1 ${isDark ? 'text-white' : 'text-black'}`)}
-                                        placeholder="YYYY-MM-DD"
-                                        placeholderTextColor={isDark ? '#9CA3AF' : '#6B7280'}
-                                        value={driverDetails.licenseExpiry}
-                                        onChangeText={(value) => handleInputChange('licenseExpiry', value)}
-                                    />
-                                </View>
-                            </View>
-                        </View>
-
-                        {/* Complete Button */}
-                        <View style={cn('flex-row justify-between mt-4 pb-6')}>
-                            <TouchableOpacity
-                                onPress={handleComplete}
-                                disabled={isProcessing || !driverDetails.fullName || !driverDetails.licenseNumber}
-                                style={cn(`flex-1 rounded-lg overflow-hidden ${(isProcessing || !driverDetails.fullName || !driverDetails.licenseNumber) ? 'opacity-50' : ''}`)}
-                            >
-                                <LinearGradient
-                                    colors={(isProcessing || !driverDetails.fullName || !driverDetails.licenseNumber) ? ['#9CA3AF', '#6B7280'] : ['#10B981', '#059669']}
-                                    start={{ x: 0, y: 0 }}
-                                    end={{ x: 1, y: 0 }}
-                                    style={cn('p-4 items-center')}
+                                                            {/* Action Buttons */}
+                            <View style={cn('flex-row gap-4 mb-6')}>
+                                <TouchableOpacity
+                                    onPress={() => setShowForm(false)}
+                                    style={cn('flex-1 rounded-lg overflow-hidden')}
                                 >
-                                    {isProcessing ? (
-                                        <View style={cn('flex-row items-center')}>
-                                            <ActivityIndicator size="small" color="white" style={cn('mr-2')} />
-                                            <Text style={cn('text-white font-bold')}>Processing...</Text>
-                                        </View>
-                                    ) : (
-                                        <Text style={cn('text-white font-bold')}>Complete Inspection</Text>
-                                    )}
-                                </LinearGradient>
-                            </TouchableOpacity>
+                                    <LinearGradient
+                                        colors={['#000000', '#F59E0B']}
+                                        start={{ x: 0, y: 0 }}
+                                        end={{ x: 1, y: 0 }}
+                                        style={cn('px-4 py-4 items-center')}
+                                    >
+                                        <Text style={cn('text-white font-bold')}>Previous</Text>
+                                    </LinearGradient>
+                                </TouchableOpacity>
+                                
+                                <TouchableOpacity
+                                    onPress={handleComplete}
+                                    disabled={isProcessing || !driverDetails.firstName || !driverDetails.lastName || 
+                                             !driverDetails.phoneNumber || !driverDetails.licenseNumber}
+                                    style={cn(`flex-1 rounded-lg overflow-hidden ${(isProcessing || !driverDetails.firstName || !driverDetails.lastName || 
+                                             !driverDetails.phoneNumber || !driverDetails.licenseNumber) ? 'opacity-50' : ''}`)}
+                                >
+                                    <LinearGradient
+                                        colors={(isProcessing || !driverDetails.firstName || !driverDetails.lastName || 
+                                                !driverDetails.phoneNumber || !driverDetails.licenseNumber) ? 
+                                                ['#9CA3AF', '#6B7280'] : ['#F59E0B', '#000000']}
+                                        start={{ x: 0, y: 0 }}
+                                        end={{ x: 1, y: 0 }}
+                                        style={cn('p-4 items-center')}
+                                    >
+                                        {isProcessing ? (
+                                            <View style={cn('flex-row items-center')}>
+                                                <ActivityIndicator size="small" color="white" style={cn('mr-2')} />
+                                                <Text style={cn('text-white font-bold')}>Submitting...</Text>
+                                            </View>
+                                        ) : (
+                                            <Text style={cn('text-white font-bold')}>Submit</Text>
+                                        )}
+                                    </LinearGradient>
+                                </TouchableOpacity>
+                            </View>
+                            </View>
+
+
                         </View>
-                    </View>
-                </ScrollView>
-            </KeyboardAvoidingView>
+                    </ScrollView>
+                </KeyboardAvoidingView>
+            )}
 
             {/* Zoom Modal */}
             <Modal
@@ -562,6 +862,27 @@ const StepNineDriverDetails = ({ onBack, containerData, onComplete }) => {
                     />
                 </View>
             </Modal>
+
+            {/* Extraction Loading Overlay */}
+            {isExtracting && (
+                <Modal
+                    visible={isExtracting}
+                    transparent={true}
+                    animationType="fade"
+                >
+                    <View style={cn('flex-1 bg-black/80 items-center justify-center')}>
+                        <View style={cn('bg-white rounded-lg p-8 items-center mx-8')}>
+                            <ActivityIndicator size="large" color="#F59E0B" style={cn('mb-4')} />
+                            <Text style={cn('text-lg font-bold text-gray-800 mb-2')}>
+                                Processing Photo
+                            </Text>
+                            <Text style={cn('text-sm text-gray-600 text-center')}>
+                                Extracting driver details from license...
+                            </Text>
+                        </View>
+                    </View>
+                </Modal>
+            )}
         </SafeAreaView>
     );
 };

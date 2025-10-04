@@ -1,73 +1,62 @@
 import React, { useState, useRef } from 'react';
-import { View, Text, TouchableOpacity, Alert, Image, ScrollView, Animated, Modal, ActivityIndicator } from 'react-native';
+import { View, Text, TouchableOpacity, Alert, Image, ScrollView, ActivityIndicator, Modal } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { LinearGradient } from 'expo-linear-gradient';
 import { cn } from '../../lib/tw';
 import { useTheme } from '../../contexts/ThemeContext';
-import { Sun, Moon, Eye, X, ArrowLeft } from 'lucide-react-native';
 import { API_CONFIG } from '../../lib/config';
+import { Moon, Sun, Camera, ArrowLeft, Eye, X } from 'lucide-react-native';
 
-const StepSevenLeftSidePhoto = ({ onBack, containerData, onNavigateToStepEight }) => {
+const StepSevenLeftSidePhoto = ({ containerData, truckData, onBack, onNavigateToStepEight, onNavigateToDamagePhotos }) => {
     const { isDark, toggleTheme } = useTheme();
-    const [permission, requestPermission] = useCameraPermissions();
+    const [facing, setFacing] = useState('back');
     const [image, setImage] = useState(null);
     const [showZoomModal, setShowZoomModal] = useState(false);
-    const [isProcessing, setIsProcessing] = useState(false);
-    const [facing, setFacing] = useState('back');
     const [leftSidePhotoData, setLeftSidePhotoData] = useState(null);
+    const [isProcessing, setIsProcessing] = useState(false);
+    const [showDamageModal, setShowDamageModal] = useState(false);
     const cameraRef = useRef(null);
 
-    // Animation values for theme switcher
-    const themeIconRotation = useRef(new Animated.Value(0)).current;
-    const themeButtonScale = useRef(new Animated.Value(1)).current;
+    const [permission, requestPermission] = useCameraPermissions();
 
-    const handleThemeToggle = () => {
-        // Scale down animation
-        Animated.sequence([
-            Animated.timing(themeButtonScale, {
-                toValue: 0.8,
-                duration: 100,
-                useNativeDriver: true,
-            }),
-            Animated.timing(themeButtonScale, {
-                toValue: 1,
-                duration: 100,
-                useNativeDriver: true,
-            })
-        ]).start();
+    if (!permission) {
+        // Camera permissions are still loading
+        return <View />;
+    }
 
-        // Rotation animation
-        Animated.timing(themeIconRotation, {
-            toValue: themeIconRotation._value + 180,
-            duration: 300,
-            useNativeDriver: true,
-        }).start();
-
-        // Toggle theme
-        toggleTheme();
-    };
+    if (!permission.granted) {
+        // Camera permissions are not granted yet
+        return (
+            <View style={cn('flex-1 justify-center items-center')}>
+                <Text style={cn('text-center mb-4')}>We need your permission to show the camera</Text>
+                <TouchableOpacity onPress={requestPermission} style={cn('bg-blue-500 px-4 py-2 rounded')}>
+                    <Text style={cn('text-white')}>Grant Permission</Text>
+                </TouchableOpacity>
+            </View>
+        );
+    }
 
     const takePicture = async () => {
-        if (!cameraRef.current) return;
-
-        try {
-            setIsProcessing(true);
-            const photo = await cameraRef.current.takePictureAsync({
-                quality: 0.8,
-                base64: true,
-            });
-
-            if (photo?.uri) {
-                setImage(photo.base64);
-                console.log('📸 Left side photo taken successfully');
+        if (cameraRef.current) {
+            try {
+                setIsProcessing(true);
+                const photo = await cameraRef.current.takePictureAsync({
+                    quality: 0.8,
+                    base64: true,
+                });
+                
+                if (photo?.uri) {
+                    setImage(photo.base64);
+                    console.log('📸 Left side photo taken successfully');
+                }
+            } catch (error) {
+                console.error('❌ Error taking left side photo:', error);
+                Alert.alert('Error', 'Failed to take photo. Please try again.');
+            } finally {
+                setIsProcessing(false);
             }
-        } catch (error) {
-            console.error('❌ Error taking left side photo:', error);
-            Alert.alert('Error', 'Failed to take photo. Please try again.');
-        } finally {
-            setIsProcessing(false);
         }
     };
 
@@ -118,118 +107,118 @@ const StepSevenLeftSidePhoto = ({ onBack, containerData, onNavigateToStepEight }
         }
     };
 
-    const handleNext = async () => {
+    const handleNext = () => {
         if (!image) {
-            Alert.alert('Missing Photo', 'Please take a left side photo before proceeding.');
+            Alert.alert('Missing Information', 'Please take a photo of the container left side.');
             return;
         }
 
-        setIsProcessing(true);
+        // Show damage check modal
+        setShowDamageModal(true);
+    };
 
-        try {
-            // Upload left side photo to S3
-            const uploadResult = await uploadLeftSidePhotoToS3(image, containerData?.tripSegmentNumber);
-            
-            if (uploadResult.success) {
-                console.log('✅ Left side photo uploaded to S3 successfully');
+    const handleDamageResponse = async (isDamaged) => {
+        setShowDamageModal(false);
+        
+        if (isDamaged) {
+            // Update hasDamages in database to "Yes"
+            try {
+                console.log('🔧 Updating damage status in database...');
                 
-                // Prepare left side data for next step with S3 reference
-                const leftSideData = {
+                const BACKEND_URL = API_CONFIG.getBackendUrl();
+                
+                // Update damage status to "Yes"
+                const updateResponse = await fetch(`${BACKEND_URL}/api/update-damage-status`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        tripSegmentNumber: containerData?.tripSegmentNumber,
+                        hasDamages: 'Yes',
+                        damageLocation: 'Left Side'
+                    }),
+                });
+                
+                const updateResult = await updateResponse.json();
+                
+                if (updateResult.success) {
+                    console.log('✅ Damage status updated successfully:', updateResult);
+                } else {
+                    console.error('❌ Failed to update damage status:', updateResult.error);
+                }
+                
+                // Navigate to damage photos screen
+                const leftSidePhotoData = {
                     ...containerData,
-                    leftSidePhoto: uploadResult.leftSidePhoto // Use S3 reference instead of base64
+                    ...truckData,
+                    leftSidePhoto: image,
+                    hasLeftSideDamage: 'Yes'
                 };
                 
-                // Save left side photo data to state for navigation
-                setLeftSidePhotoData(leftSideData);
-
-                // Navigate to next step
-                if (onNavigateToStepEight) {
-                    onNavigateToStepEight(leftSideData);
+                setLeftSidePhotoData(leftSidePhotoData);
+                
+                // Navigate to damage photos screen instead of next step
+                if (onNavigateToDamagePhotos) {
+                    onNavigateToDamagePhotos(leftSidePhotoData);
+                } else if (onNavigateToStepEight) {
+                    onNavigateToStepEight(leftSidePhotoData);
                 }
-            } else {
-                Alert.alert('Upload Failed', `Failed to upload left side photo: ${uploadResult.error}`);
-                console.error('❌ S3 upload failed:', uploadResult.error);
+                
+            } catch (error) {
+                console.error('❌ Error updating damage status:', error);
+                Alert.alert('Error', 'Failed to update damage status. Please try again.');
             }
-        } catch (error) {
-            Alert.alert('Upload Error', 'An error occurred while uploading left side photo. Please try again.');
-            console.error('❌ Error in handleNext:', error);
-        } finally {
-            setIsProcessing(false);
+        } else {
+            // No damage - proceed normally
+            const leftSidePhotoData = {
+                ...containerData,
+                ...truckData,
+                leftSidePhoto: image,
+                hasLeftSideDamage: 'No'
+            };
+            
+            setLeftSidePhotoData(leftSidePhotoData);
+
+            // Navigate to next step
+            if (onNavigateToStepEight) {
+                onNavigateToStepEight(leftSidePhotoData);
+            }
         }
     };
 
-    if (!permission) {
-        return (
-            <SafeAreaView style={cn(`flex-1 ${isDark ? 'bg-gray-900' : 'bg-gray-100'}`)}>
-                <StatusBar style={isDark ? "light" : "dark"} />
-                <View style={cn('flex-1 justify-center items-center')}>
-                    <Text style={cn('text-lg text-gray-600 mb-4')}>Requesting camera permission...</Text>
-                </View>
-            </SafeAreaView>
-        );
-    }
-
-    if (!permission.granted) {
-        return (
-            <SafeAreaView style={cn(`flex-1 ${isDark ? 'bg-gray-900' : 'bg-gray-100'}`)}>
-                <StatusBar style={isDark ? "light" : "dark"} />
-                <View style={cn('flex-1 justify-center items-center px-6')}>
-                    <Text style={cn(`text-lg text-center mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`)}>
-                        Camera permission is required to take photos
-                    </Text>
-                    <TouchableOpacity
-                        onPress={requestPermission}
-                        style={cn('bg-blue-500 px-6 py-3 rounded-lg')}
-                    >
-                        <Text style={cn('text-white font-semibold')}>Grant Permission</Text>
-                    </TouchableOpacity>
-                </View>
-            </SafeAreaView>
-        );
-    }
 
     return (
-        <SafeAreaView style={cn(`flex-1 ${isDark ? 'bg-gray-900' : 'bg-gray-100'}`)}>
+        <SafeAreaView style={cn(`flex-1 ${isDark ? 'bg-gray-900' : 'bg-gray-50'}`)} edges={['top']}>
             <StatusBar style={isDark ? "light" : "dark"} />
             
             {/* Header */}
-            <View style={cn(`${isDark ? 'bg-gray-900' : 'bg-white/10'} px-6 py-4 border-b ${isDark ? 'border-gray-700' : 'border-gray-300'} flex-row items-center shadow-sm`)}>
-                {/* Back Button */}
-                <TouchableOpacity 
-                    onPress={onBack}
-                    style={cn('mr-4 p-2')}
-                >
-                    <ArrowLeft size={24} color={isDark ? "#9CA3AF" : "#6B7280"} />
-                </TouchableOpacity>
-
-                {/* Title */}
-                <Text style={cn(`text-lg font-bold ${isDark ? 'text-gray-100' : 'text-gray-800'} flex-1`)}>
-                    Left Side Photo
-                </Text>
-
-                {/* Go to Step 9 Button */}
+            <View style={cn(`flex-row items-center justify-between px-4 py-3 ${isDark ? 'bg-gray-900' : 'bg-white/10'} border-b ${isDark ? 'border-gray-700' : 'border-gray-200'}`)}>
+                <View style={cn('flex-row items-center')}>
+                    {/* Back Button */}
+                    <TouchableOpacity 
+                        onPress={onBack}
+                        style={cn('mr-4 p-2')}
+                    >
+                        <ArrowLeft size={24} color={isDark ? '#F59E0B' : '#1F2937'} />
+                    </TouchableOpacity>
+                    
+                    <Text style={cn(`text-xl font-bold ${isDark ? 'text-white' : 'text-black'}`)}>
+                        Left Side Photo
+                    </Text>
+                </View>
+                
+                {/* Go to Step 8 Button */}
                 <TouchableOpacity
                     onPress={() => onNavigateToStepEight && onNavigateToStepEight(leftSidePhotoData)}
                     style={cn('mr-3 px-3 py-2 rounded-lg bg-blue-500')}
                 >
-                    <Text style={cn('text-white font-semibold text-sm')}>Go to Step 9</Text>
+                    <Text style={cn('text-white font-semibold text-sm')}>Go to Step 8</Text>
                 </TouchableOpacity>
-
-                {/* Theme Switcher */}
-                <Animated.View
-                    style={{
-                        transform: [
-                            { scale: themeButtonScale }
-                        ]
-                    }}
-                >
-                    <TouchableOpacity 
-                        onPress={handleThemeToggle}
-                        style={cn('p-2')}
-                    >
-                        {isDark ? <Sun size={20} color="#9CA3AF" /> : <Moon size={20} color="#6B7280" />}
-                    </TouchableOpacity>
-                </Animated.View>
+                
+                <TouchableOpacity onPress={toggleTheme} style={cn('p-2')}>
+                    {isDark ? <Sun size={24} color="#F59E0B" /> : <Moon size={24} color="#1F2937" />}
+                </TouchableOpacity>
             </View>
 
             {!image ? (
@@ -430,7 +419,7 @@ const StepSevenLeftSidePhoto = ({ onBack, containerData, onNavigateToStepEight }
                                     {isProcessing ? (
                                         <View style={cn('flex-row items-center')}>
                                             <ActivityIndicator size="small" color="white" style={cn('mr-2')} />
-                                            <Text style={cn('text-white font-bold')}>Uploading...</Text>
+                                            <Text style={cn('text-white font-bold')}>Processing...</Text>
                                         </View>
                                     ) : (
                                         <Text style={cn('text-white font-bold')}>Next</Text>
@@ -449,18 +438,83 @@ const StepSevenLeftSidePhoto = ({ onBack, containerData, onNavigateToStepEight }
                 animationType="fade"
                 onRequestClose={() => setShowZoomModal(false)}
             >
-                <View style={cn('flex-1 bg-black items-center justify-center')}>
-                    <TouchableOpacity
-                        onPress={() => setShowZoomModal(false)}
-                        style={cn('absolute top-12 right-6 z-10')}
-                    >
-                        <X size={32} color="white" />
-                    </TouchableOpacity>
-                    <Image 
-                        source={{ uri: `data:image/jpeg;base64,${image}` }} 
-                        style={cn('w-full h-full')} 
-                        resizeMode="contain"
-                    />
+                <View style={cn('flex-1 bg-black')}>
+                    <SafeAreaView style={cn('flex-1')}>
+                        <View style={cn('flex-row justify-between items-center p-4')}>
+                            <Text style={cn('text-white text-lg font-bold')}>Photo Preview</Text>
+                            <TouchableOpacity
+                                onPress={() => setShowZoomModal(false)}
+                                style={cn('bg-black/50 rounded-full p-2')}
+                            >
+                                <X size={24} color="white" />
+                            </TouchableOpacity>
+                        </View>
+                        <View style={cn('flex-1 justify-center items-center')}>
+                            <Image
+                                source={{ uri: `data:image/jpeg;base64,${image}` }}
+                                style={cn('w-full h-3/4')}
+                                resizeMode="contain"
+                            />
+                        </View>
+                    </SafeAreaView>
+                </View>
+            </Modal>
+
+            {/* Damage Check Modal */}
+            <Modal
+                visible={showDamageModal}
+                transparent={true}
+                animationType="fade"
+                onRequestClose={() => setShowDamageModal(false)}
+            >
+                <View style={cn('flex-1 justify-center items-center bg-black/50')}>
+                    <View style={cn(`${isDark ? 'bg-gray-800' : 'bg-white'} rounded-3xl mx-8 p-6`)}>
+                        
+                        {/* Question Text */}
+                        <View style={cn('mb-6')}>
+                            <Text style={cn(`text-xl font-bold text-center ${isDark ? 'text-white' : 'text-black'} mb-2`)}>
+                                Damage Check
+                            </Text>
+                            <Text style={cn(`text-lg font-semibold text-center ${isDark ? 'text-gray-300' : 'text-gray-600'}`)}>
+                                Is the Left Side damaged?
+                            </Text>
+                        </View>
+                        
+                        {/* Yes/No Buttons */}
+                        <View style={cn('flex-row gap-3')}>
+                            <TouchableOpacity
+                                onPress={() => handleDamageResponse(true)}
+                                style={cn('flex-1 rounded-xl overflow-hidden')}
+                            >
+                                <LinearGradient
+                                    colors={['#EF4444', '#DC2626']}
+                                    start={{ x: 0, y: 0 }}
+                                    end={{ x: 1, y: 0 }}
+                                    style={cn('py-4 items-center')}
+                                >
+                                    <Text style={cn('text-white font-bold text-lg')}>
+                                        Yes
+                                    </Text>
+                                </LinearGradient>
+                            </TouchableOpacity>
+                            
+                            <TouchableOpacity
+                                onPress={() => handleDamageResponse(false)}
+                                style={cn('flex-1 rounded-xl overflow-hidden')}
+                            >
+                                <LinearGradient
+                                    colors={['#10B981', '#059669']}
+                                    start={{ x: 0, y: 0 }}
+                                    end={{ x: 1, y: 0 }}
+                                    style={cn('py-4 items-center')}
+                                >
+                                    <Text style={cn('text-white font-bold text-lg')}>
+                                        No
+                                    </Text>
+                                </LinearGradient>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
                 </View>
             </Modal>
         </SafeAreaView>

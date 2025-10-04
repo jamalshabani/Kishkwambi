@@ -9,7 +9,7 @@ import { useTheme } from '../../contexts/ThemeContext';
 import { Sun, Moon, Eye, X, ArrowLeft } from 'lucide-react-native';
 import { API_CONFIG } from '../../lib/config';
 
-const StepEightInsidePhoto = ({ onBack, containerData, onNavigateToStepNine }) => {
+const StepEightInsidePhoto = ({ onBack, containerData, onNavigateToStepNine, onNavigateToDamagePhotos }) => {
     const { isDark, toggleTheme } = useTheme();
     const [permission, requestPermission] = useCameraPermissions();
     const [image, setImage] = useState(null);
@@ -17,6 +17,8 @@ const StepEightInsidePhoto = ({ onBack, containerData, onNavigateToStepNine }) =
     const [isProcessing, setIsProcessing] = useState(false);
     const [facing, setFacing] = useState('back');
     const [insidePhotoData, setInsidePhotoData] = useState(null);
+    const [showLoadStatusModal, setShowLoadStatusModal] = useState(false);
+    const [showDamageModal, setShowDamageModal] = useState(false);
     const cameraRef = useRef(null);
 
     // Animation values for theme switcher
@@ -118,43 +120,146 @@ const StepEightInsidePhoto = ({ onBack, containerData, onNavigateToStepNine }) =
         }
     };
 
-    const handleNext = async () => {
+    const handleNext = () => {
         if (!image) {
-            Alert.alert('Missing Photo', 'Please take an inside photo before proceeding.');
+            Alert.alert('Missing Information', 'Please take a photo of the container inside.');
             return;
         }
 
-        setIsProcessing(true);
+        // Show container load status modal
+        setShowLoadStatusModal(true);
+    };
 
+    const handleLoadStatusResponse = async (isEmpty) => {
+        setShowLoadStatusModal(false);
+        
         try {
-            // Upload inside photo to S3
-            const uploadResult = await uploadInsidePhotoToS3(image, containerData?.tripSegmentNumber);
+            console.log('🔧 Updating container load status in database...');
             
-            if (uploadResult.success) {
-                console.log('✅ Inside photo uploaded to S3 successfully');
-                
-                // Prepare inside data for next step with S3 reference
-                const insideData = {
-                    ...containerData,
-                    insidePhoto: uploadResult.insidePhoto // Use S3 reference instead of base64
-                };
-                
-                // Save inside photo data to state for navigation
-                setInsidePhotoData(insideData);
-
-                // Navigate to next step
-                if (onNavigateToStepNine) {
-                    onNavigateToStepNine(insideData);
-                }
+            const BACKEND_URL = API_CONFIG.getBackendUrl();
+            
+            // Update container load status
+            const updateResponse = await fetch(`${BACKEND_URL}/api/update-container-load-status`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    tripSegmentNumber: containerData?.tripSegmentNumber,
+                    containerLoadStatus: isEmpty ? 'Empty' : 'Not Empty'
+                }),
+            });
+            
+            const updateResult = await updateResponse.json();
+            
+            if (updateResult.success) {
+                console.log('✅ Container load status updated successfully:', updateResult);
             } else {
-                Alert.alert('Upload Failed', `Failed to upload inside photo: ${uploadResult.error}`);
-                console.error('❌ S3 upload failed:', uploadResult.error);
+                console.error('❌ Failed to update container load status:', updateResult.error);
             }
+            
+            // After updating load status, show damage check modal
+            setShowDamageModal(true);
+            
         } catch (error) {
-            Alert.alert('Upload Error', 'An error occurred while uploading inside photo. Please try again.');
-            console.error('❌ Error in handleNext:', error);
-        } finally {
-            setIsProcessing(false);
+            console.error('❌ Error updating container load status:', error);
+            Alert.alert('Error', 'Failed to update container load status. Please try again.');
+        }
+    };
+
+    const handleDamageResponse = async (isDamaged) => {
+        setShowDamageModal(false);
+        
+        if (isDamaged) {
+            // Update hasDamages in database to "Yes"
+            try {
+                console.log('🔧 Updating damage status in database...');
+                
+                const BACKEND_URL = API_CONFIG.getBackendUrl();
+                
+                // Update damage status to "Yes"
+                const updateResponse = await fetch(`${BACKEND_URL}/api/update-damage-status`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        tripSegmentNumber: containerData?.tripSegmentNumber,
+                        hasDamages: 'Yes',
+                        damageLocation: 'Inside'
+                    }),
+                });
+                
+                const updateResult = await updateResponse.json();
+                
+                if (updateResult.success) {
+                    console.log('✅ Damage status updated successfully:', updateResult);
+                } else {
+                    console.error('❌ Failed to update damage status:', updateResult.error);
+                }
+                
+                // Upload inside photo to S3
+                setIsProcessing(true);
+                const uploadResult = await uploadInsidePhotoToS3(image, containerData?.tripSegmentNumber);
+                
+                if (uploadResult.success) {
+                    // Navigate to damage photos screen
+                    const insidePhotoData = {
+                        ...containerData,
+                        insidePhoto: uploadResult.insidePhoto,
+                        hasInsideDamage: 'Yes'
+                    };
+                    
+                    setInsidePhotoData(insidePhotoData);
+                    
+                    // Navigate to damage photos screen instead of next step
+                    if (onNavigateToDamagePhotos) {
+                        onNavigateToDamagePhotos(insidePhotoData);
+                    } else if (onNavigateToStepNine) {
+                        onNavigateToStepNine(insidePhotoData);
+                    }
+                } else {
+                    Alert.alert('Upload Failed', `Failed to upload inside photo: ${uploadResult.error}`);
+                    console.error('❌ S3 upload failed:', uploadResult.error);
+                }
+                
+            } catch (error) {
+                console.error('❌ Error updating damage status:', error);
+                Alert.alert('Error', 'Failed to update damage status. Please try again.');
+            } finally {
+                setIsProcessing(false);
+            }
+        } else {
+            // No damage - proceed normally
+            setIsProcessing(true);
+            
+            try {
+                // Upload inside photo to S3
+                const uploadResult = await uploadInsidePhotoToS3(image, containerData?.tripSegmentNumber);
+                
+                if (uploadResult.success) {
+                    const insidePhotoData = {
+                        ...containerData,
+                        insidePhoto: uploadResult.insidePhoto,
+                        hasInsideDamage: 'No'
+                    };
+                    
+                    setInsidePhotoData(insidePhotoData);
+
+                    // Navigate to next step
+                    if (onNavigateToStepNine) {
+                        onNavigateToStepNine(insidePhotoData);
+                    }
+                } else {
+                    Alert.alert('Upload Failed', `Failed to upload inside photo: ${uploadResult.error}`);
+                    console.error('❌ S3 upload failed:', uploadResult.error);
+                }
+            } catch (error) {
+                Alert.alert('Upload Error', 'An error occurred while uploading inside photo. Please try again.');
+                console.error('❌ Error in handleDamageResponse:', error);
+            } finally {
+                setIsProcessing(false);
+            }
         }
     };
 
@@ -189,7 +294,7 @@ const StepEightInsidePhoto = ({ onBack, containerData, onNavigateToStepNine }) =
     }
 
     return (
-        <SafeAreaView style={cn(`flex-1 ${isDark ? 'bg-gray-900' : 'bg-gray-100'}`)}>
+        <SafeAreaView style={cn(`flex-1 ${isDark ? 'bg-gray-900' : 'bg-gray-100'}`)} edges={['top']}>
             <StatusBar style={isDark ? "light" : "dark"} />
             
             {/* Header */}
@@ -461,6 +566,122 @@ const StepEightInsidePhoto = ({ onBack, containerData, onNavigateToStepNine }) =
                         style={cn('w-full h-full')} 
                         resizeMode="contain"
                     />
+                </View>
+            </Modal>
+
+            {/* Container Load Status Modal */}
+            <Modal
+                visible={showLoadStatusModal}
+                transparent={true}
+                animationType="fade"
+                onRequestClose={() => setShowLoadStatusModal(false)}
+            >
+                <View style={cn('flex-1 justify-center items-center bg-black/50')}>
+                    <View style={cn(`${isDark ? 'bg-gray-800' : 'bg-white'} rounded-3xl mx-8 p-6`)}>
+                        
+                        {/* Question Text */}
+                        <View style={cn('mb-6')}>
+                            <Text style={cn(`text-xl font-bold text-center ${isDark ? 'text-white' : 'text-black'} mb-2`)}>
+                                Container Load Status
+                            </Text>
+                            <Text style={cn(`text-lg font-semibold text-center ${isDark ? 'text-gray-300' : 'text-gray-600'}`)}>
+                                Is the Container Empty?
+                            </Text>
+                        </View>
+                        
+                        {/* Yes/No Buttons */}
+                        <View style={cn('flex-row gap-3')}>
+                            <TouchableOpacity
+                                onPress={() => handleLoadStatusResponse(true)}
+                                style={cn('flex-1 rounded-xl overflow-hidden')}
+                            >
+                                <LinearGradient
+                                    colors={['#10B981', '#059669']}
+                                    start={{ x: 0, y: 0 }}
+                                    end={{ x: 1, y: 0 }}
+                                    style={cn('py-4 items-center')}
+                                >
+                                    <Text style={cn('text-white font-bold text-lg')}>
+                                        Yes
+                                    </Text>
+                                </LinearGradient>
+                            </TouchableOpacity>
+                            
+                            <TouchableOpacity
+                                onPress={() => handleLoadStatusResponse(false)}
+                                style={cn('flex-1 rounded-xl overflow-hidden')}
+                            >
+                                <LinearGradient
+                                    colors={['#EF4444', '#DC2626']}
+                                    start={{ x: 0, y: 0 }}
+                                    end={{ x: 1, y: 0 }}
+                                    style={cn('py-4 items-center')}
+                                >
+                                    <Text style={cn('text-white font-bold text-lg')}>
+                                        No
+                                    </Text>
+                                </LinearGradient>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                </View>
+            </Modal>
+
+            {/* Damage Check Modal */}
+            <Modal
+                visible={showDamageModal}
+                transparent={true}
+                animationType="fade"
+                onRequestClose={() => setShowDamageModal(false)}
+            >
+                <View style={cn('flex-1 justify-center items-center bg-black/50')}>
+                    <View style={cn(`${isDark ? 'bg-gray-800' : 'bg-white'} rounded-3xl mx-8 p-6`)}>
+                        
+                        {/* Question Text */}
+                        <View style={cn('mb-6')}>
+                            <Text style={cn(`text-xl font-bold text-center ${isDark ? 'text-white' : 'text-black'} mb-2`)}>
+                                Damage Check
+                            </Text>
+                            <Text style={cn(`text-lg font-semibold text-center ${isDark ? 'text-gray-300' : 'text-gray-600'}`)}>
+                                Is the Inside damaged?
+                            </Text>
+                        </View>
+                        
+                        {/* Yes/No Buttons */}
+                        <View style={cn('flex-row gap-3')}>
+                            <TouchableOpacity
+                                onPress={() => handleDamageResponse(true)}
+                                style={cn('flex-1 rounded-xl overflow-hidden')}
+                            >
+                                <LinearGradient
+                                    colors={['#EF4444', '#DC2626']}
+                                    start={{ x: 0, y: 0 }}
+                                    end={{ x: 1, y: 0 }}
+                                    style={cn('py-4 items-center')}
+                                >
+                                    <Text style={cn('text-white font-bold text-lg')}>
+                                        Yes
+                                    </Text>
+                                </LinearGradient>
+                            </TouchableOpacity>
+                            
+                            <TouchableOpacity
+                                onPress={() => handleDamageResponse(false)}
+                                style={cn('flex-1 rounded-xl overflow-hidden')}
+                            >
+                                <LinearGradient
+                                    colors={['#10B981', '#059669']}
+                                    start={{ x: 0, y: 0 }}
+                                    end={{ x: 1, y: 0 }}
+                                    style={cn('py-4 items-center')}
+                                >
+                                    <Text style={cn('text-white font-bold text-lg')}>
+                                        No
+                                    </Text>
+                                </LinearGradient>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
                 </View>
             </Modal>
         </SafeAreaView>

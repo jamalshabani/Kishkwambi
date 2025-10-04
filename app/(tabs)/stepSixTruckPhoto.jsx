@@ -1,12 +1,13 @@
 import React, { useState, useRef } from 'react';
-import { View, Text, TouchableOpacity, Alert, Image, ScrollView, Animated, Modal, ActivityIndicator } from 'react-native';
+import { View, Text, TouchableOpacity, Alert, Image, ScrollView, Animated, Modal, TextInput, KeyboardAvoidingView, Platform, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { LinearGradient } from 'expo-linear-gradient';
+import * as ImagePicker from 'expo-image-picker';
 import { cn } from '../../lib/tw';
 import { useTheme } from '../../contexts/ThemeContext';
-import { Sun, Moon, Eye, X, ArrowLeft } from 'lucide-react-native';
+import { Sun, Moon, Eye, X, ImageIcon, ArrowLeft } from 'lucide-react-native';
 import { API_CONFIG } from '../../lib/config';
 
 const StepSixTruckPhoto = ({ onBack, containerData, onNavigateToStepSeven }) => {
@@ -14,10 +15,16 @@ const StepSixTruckPhoto = ({ onBack, containerData, onNavigateToStepSeven }) => 
     const [permission, requestPermission] = useCameraPermissions();
     const [image, setImage] = useState(null);
     const [showZoomModal, setShowZoomModal] = useState(false);
+    const [truckNumber, setTruckNumber] = useState(Array(7).fill(''));
+    const [extractedData, setExtractedData] = useState({
+        truckNumber: '',
+    });
     const [isProcessing, setIsProcessing] = useState(false);
+    const [isRecognizingPlate, setIsRecognizingPlate] = useState(false);
     const [facing, setFacing] = useState('back');
     const [truckPhotoData, setTruckPhotoData] = useState(null);
     const cameraRef = useRef(null);
+    const truckNumberRefs = useRef([]);
 
     // Animation values for theme switcher
     const themeIconRotation = useRef(new Animated.Value(0)).current;
@@ -49,6 +56,17 @@ const StepSixTruckPhoto = ({ onBack, containerData, onNavigateToStepSeven }) => 
         toggleTheme();
     };
 
+    const handleTruckNumberChange = (index, value) => {
+        const newTruckNumber = [...truckNumber];
+        newTruckNumber[index] = value.toUpperCase();
+        setTruckNumber(newTruckNumber);
+
+        // Auto-focus next input
+        if (value && index < truckNumber.length - 1) {
+            truckNumberRefs.current[index + 1]?.focus();
+        }
+    };
+
     const takePicture = async () => {
         if (!cameraRef.current) return;
 
@@ -62,6 +80,9 @@ const StepSixTruckPhoto = ({ onBack, containerData, onNavigateToStepSeven }) => 
             if (photo?.uri) {
                 setImage(photo.base64);
                 console.log('📸 Truck photo taken successfully');
+
+                // Call PlateRecognizer API to extract truck number
+                await recognizeTruckNumber(photo.base64);
             }
         } catch (error) {
             console.error('❌ Error taking truck photo:', error);
@@ -71,7 +92,73 @@ const StepSixTruckPhoto = ({ onBack, containerData, onNavigateToStepSeven }) => 
         }
     };
 
-    const uploadTruckPhotoToS3 = async (imageBase64, tripSegmentNumber) => {
+    const recognizeTruckNumber = async (base64Image) => {
+        try {
+            setIsRecognizingPlate(true);
+            console.log('🚗 Calling PlateRecognizer API...');
+
+            const BACKEND_URL = API_CONFIG.getBackendUrl();
+            
+            const response = await fetch(`${BACKEND_URL}/api/plate-recognizer/recognize`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    base64Image: base64Image,
+                }),
+            });
+
+            const result = await response.json();
+            console.log('🚗 PlateRecognizer response:', result);
+
+            if (result.success && result.data && result.data.licencePlate) {
+                const plateNumber = result.data.licencePlate.toUpperCase();
+                const confidence = result.data.confidence;
+                console.log(`✅ Detected truck number: ${plateNumber} (confidence: ${confidence})`);
+                
+                // Update extracted data
+                setExtractedData({
+                    truckNumber: plateNumber,
+                });
+
+                // Auto-fill the truck number inputs
+                const plateArray = plateNumber.split('');
+                const newTruckNumber = Array(7).fill('');
+
+                // Fill the array with detected characters (already uppercase from backend)
+                for (let i = 0; i < Math.min(plateArray.length, 7); i++) {
+                    newTruckNumber[i] = plateArray[i];
+                }
+
+                setTruckNumber(newTruckNumber);
+
+                Alert.alert(
+                    'Truck Number Detected',
+                    `Detected truck number: ${plateNumber}`,
+                    [{ text: 'OK' }]
+                );
+            } else {
+                console.log('❌ No truck number detected or API error');
+                Alert.alert(
+                    'No Truck Number Detected',
+                    'No truck number was detected in the image. Please enter it manually.',
+                    [{ text: 'OK' }]
+                );
+            }
+        } catch (error) {
+            console.error('❌ Error recognizing truck number:', error);
+            Alert.alert(
+                'Recognition Error',
+                'Failed to recognize truck number. Please enter it manually.',
+                [{ text: 'OK' }]
+            );
+        } finally {
+            setIsRecognizingPlate(false);
+        }
+    };
+
+    const uploadTruckPhotoToS3 = async (imageBase64, tripSegmentNumber, truckNumber) => {
         try {
             console.log('📸 Uploading truck photo to S3...');
             
@@ -90,9 +177,11 @@ const StepSixTruckPhoto = ({ onBack, containerData, onNavigateToStepSeven }) => 
             // Add metadata
             formData.append('tripSegmentNumber', tripSegmentNumber);
             formData.append('photoType', 'truck');
+            formData.append('truckNumber', truckNumber);
             
             console.log('📸 Uploading to:', `${BACKEND_URL}/api/upload/s3-truck-photo`);
             console.log('📸 Trip segment:', tripSegmentNumber);
+            console.log('📸 Truck number:', truckNumber);
             
             const uploadResponse = await fetch(`${BACKEND_URL}/api/upload/s3-truck-photo`, {
                 method: 'POST',
@@ -124,11 +213,17 @@ const StepSixTruckPhoto = ({ onBack, containerData, onNavigateToStepSeven }) => 
             return;
         }
 
+        const currentTruckNumber = truckNumber.join('').toUpperCase();
+        if (!currentTruckNumber || currentTruckNumber.length === 0) {
+            Alert.alert('Missing Truck Number', 'Please enter the truck number before proceeding.');
+            return;
+        }
+
         setIsProcessing(true);
 
         try {
-            // Upload truck photo to S3
-            const uploadResult = await uploadTruckPhotoToS3(image, containerData?.tripSegmentNumber);
+            // Upload truck photo to S3 with truck number
+            const uploadResult = await uploadTruckPhotoToS3(image, containerData?.tripSegmentNumber, currentTruckNumber);
             
             if (uploadResult.success) {
                 console.log('✅ Truck photo uploaded to S3 successfully');
@@ -136,7 +231,8 @@ const StepSixTruckPhoto = ({ onBack, containerData, onNavigateToStepSeven }) => 
                 // Prepare truck data for next step with S3 reference
                 const truckData = {
                     ...containerData,
-                    truckPhoto: uploadResult.truckPhoto // Use S3 reference instead of base64
+                    truckPhoto: uploadResult.truckPhoto, // Use S3 reference instead of base64
+                    truckNumber: currentTruckNumber
                 };
                 
                 // Save truck photo data to state for navigation
@@ -189,7 +285,7 @@ const StepSixTruckPhoto = ({ onBack, containerData, onNavigateToStepSeven }) => 
     }
 
     return (
-        <SafeAreaView style={cn(`flex-1 ${isDark ? 'bg-gray-900' : 'bg-gray-100'}`)}>
+        <SafeAreaView style={cn(`flex-1 ${isDark ? 'bg-gray-900' : 'bg-gray-100'}`)} edges={['top']}>
             <StatusBar style={isDark ? "light" : "dark"} />
             
             {/* Header */}
@@ -407,22 +503,65 @@ const StepSixTruckPhoto = ({ onBack, containerData, onNavigateToStepSeven }) => 
 
                             {/* Retake Button */}
                             <TouchableOpacity
-                                onPress={() => setImage(null)}
+                                onPress={() => {
+                                    setImage(null);
+                                    setTruckNumber(Array(7).fill(''));
+                                    setExtractedData({ truckNumber: '' });
+                                }}
                                 style={cn('mt-4 bg-red-500 px-4 py-2 rounded-lg items-center')}
                             >
                                 <Text style={cn('text-white font-semibold')}>Retake Photo</Text>
                             </TouchableOpacity>
                         </View>
 
+                        {/* Truck Number Input Section */}
+                        <KeyboardAvoidingView
+                            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                            style={cn('flex-1')}
+                        >
+                            <View style={cn(`${isDark ? 'bg-gray-800' : 'bg-white'} rounded-lg shadow-lg p-4 mb-6`)}>
+                                <Text style={cn(`text-lg font-bold mb-4 ${isDark ? 'text-white' : 'text-black'}`)}>
+                                    Truck Number
+                                </Text>
+                                
+                                <View style={cn('flex-row justify-center items-center mb-4')}>
+                                    {truckNumber.map((digit, index) => (
+                                        <TextInput
+                                            key={index}
+                                            ref={(ref) => (truckNumberRefs.current[index] = ref)}
+                                            style={cn(
+                                                'w-10 h-12 text-center text-lg font-bold border-2 rounded-lg mr-2',
+                                                isDark 
+                                                    ? 'bg-gray-700 border-gray-600 text-white' 
+                                                    : 'bg-white border-gray-300 text-black',
+                                                digit ? (isDark ? 'border-yellow-400' : 'border-yellow-500') : '',
+                                                index === truckNumber.length - 1 ? 'mr-0' : ''
+                                            )}
+                                            value={digit}
+                                            onChangeText={(value) => handleTruckNumberChange(index, value)}
+                                            maxLength={1}
+                                            keyboardType="default"
+                                            autoCapitalize="characters"
+                                            selectTextOnFocus
+                                        />
+                                    ))}
+                                </View>
+                                
+                                <Text style={cn(`text-sm text-center ${isDark ? 'text-gray-400' : 'text-gray-600'}`)}>
+                                    Enter the truck number manually or use the camera to auto-detect
+                                </Text>
+                            </View>
+                        </KeyboardAvoidingView>
+
                         {/* Navigation Button */}
                         <View style={cn('flex-row justify-between mt-4 pb-6')}>
                             <TouchableOpacity
                                 onPress={handleNext}
-                                disabled={isProcessing}
-                                style={cn(`flex-1 rounded-lg overflow-hidden ${isProcessing ? 'opacity-50' : ''}`)}
+                                disabled={isRecognizingPlate || isProcessing}
+                                style={cn(`flex-1 rounded-lg overflow-hidden ${(isRecognizingPlate || isProcessing) ? 'opacity-50' : ''}`)}
                             >
                                 <LinearGradient
-                                    colors={isProcessing ? ['#9CA3AF', '#6B7280'] : ['#F59E0B', '#000000']}
+                                    colors={(isRecognizingPlate || isProcessing) ? ['#9CA3AF', '#6B7280'] : ['#F59E0B', '#000000']}
                                     start={{ x: 0, y: 0 }}
                                     end={{ x: 1, y: 0 }}
                                     style={cn('p-4 items-center')}
@@ -430,7 +569,7 @@ const StepSixTruckPhoto = ({ onBack, containerData, onNavigateToStepSeven }) => 
                                     {isProcessing ? (
                                         <View style={cn('flex-row items-center')}>
                                             <ActivityIndicator size="small" color="white" style={cn('mr-2')} />
-                                            <Text style={cn('text-white font-bold')}>Uploading...</Text>
+                                            <Text style={cn('text-white font-bold')}>Submitting...</Text>
                                         </View>
                                     ) : (
                                         <Text style={cn('text-white font-bold')}>Next</Text>

@@ -13,10 +13,14 @@ import StepTwoContainerDetails from './stepTwoContainerDetails';
 import StepOneDamagePhotos from './stepOneDamagePhotos';
 import StepThreeTrailerPhoto from './stepThreeTrailerPhoto';
 import StepFourRightSidePhoto from './stepFourRightSidePhoto';
+import StepFourDamagePhotos from './stepFourDamagePhotos';
 import StepFiveFrontWallPhoto from './stepFiveFrontWallPhoto';
+import StepFiveDamagePhotos from './stepFiveDamagePhotos';
 import StepSixTruckPhoto from './stepSixTruckPhoto';
 import StepSevenLeftSidePhoto from './stepSevenLeftSidePhoto';
+import StepSevenDamagePhotos from './stepSevenDamagePhotos';
 import StepEightInsidePhoto from './stepEightInsidePhoto';
+import StepEightDamagePhotos from './stepEightDamagePhotos';
 import StepNineDriverDetails from './stepNineDriverDetails';
 
 export default function TabLayout() {
@@ -27,10 +31,14 @@ export default function TabLayout() {
     const [damagePhotosData, setDamagePhotosData] = useState(null);
     const [trailerData, setTrailerData] = useState(null);
     const [rightSidePhotoData, setRightSidePhotoData] = useState(null);
+    const [rightSideDamagePhotosData, setRightSideDamagePhotosData] = useState(null);
+    const [frontWallDamagePhotosData, setFrontWallDamagePhotosData] = useState(null);
     const [frontWallPhotoData, setFrontWallPhotoData] = useState(null);
     const [truckPhotoData, setTruckPhotoData] = useState(null);
     const [leftSidePhotoData, setLeftSidePhotoData] = useState(null);
+    const [leftSideDamagePhotosData, setLeftSideDamagePhotosData] = useState(null);
     const [insidePhotoData, setInsidePhotoData] = useState(null);
+    const [insideDamagePhotosData, setInsideDamagePhotosData] = useState(null);
     const [driverData, setDriverData] = useState(null);
 
     // Redirect to login if not authenticated
@@ -122,17 +130,27 @@ export default function TabLayout() {
         setActiveTab('stepFourRightSidePhoto');
     };
 
+    const navigateToStepFourDamagePhotos = (data) => {
+        setRightSideDamagePhotosData(data);
+        setActiveTab('stepFourDamagePhotos');
+    };
+
+    const navigateToStepFiveDamagePhotos = (data) => {
+        setFrontWallDamagePhotosData(data);
+        setActiveTab('stepFiveDamagePhotos');
+    };
+
     const navigateBackToStepThree = () => {
         setActiveTab('stepThreeTrailerPhoto');
+    };
+
+    const navigateBackToStepFour = () => {
+        setActiveTab('stepFourRightSidePhoto');
     };
 
     const navigateToStepFive = (data) => {
         setFrontWallPhotoData(data);
         setActiveTab('stepFiveFrontWallPhoto');
-    };
-
-    const navigateBackToStepFour = () => {
-        setActiveTab('stepFourRightSidePhoto');
     };
 
     const navigateToStepSix = (data) => {
@@ -149,6 +167,11 @@ export default function TabLayout() {
         setActiveTab('stepSevenLeftSidePhoto');
     };
 
+    const navigateToStepSevenDamagePhotos = (data) => {
+        setLeftSideDamagePhotosData(data);
+        setActiveTab('stepSevenDamagePhotos');
+    };
+
     const navigateBackToStepSix = () => {
         setActiveTab('stepSixTruckPhoto');
     };
@@ -160,6 +183,11 @@ export default function TabLayout() {
 
     const navigateBackToStepSeven = () => {
         setActiveTab('stepSevenLeftSidePhoto');
+    };
+
+    const navigateToStepEightDamagePhotos = (data) => {
+        setInsideDamagePhotosData(data);
+        setActiveTab('stepEightDamagePhotos');
     };
 
     const navigateToStepNine = (data) => {
@@ -180,10 +208,14 @@ export default function TabLayout() {
         setDamagePhotosData(null);
         setTrailerData(null);
         setRightSidePhotoData(null);
+        setRightSideDamagePhotosData(null);
+        setFrontWallDamagePhotosData(null);
         setFrontWallPhotoData(null);
         setTruckPhotoData(null);
         setLeftSidePhotoData(null);
+        setLeftSideDamagePhotosData(null);
         setInsidePhotoData(null);
+        setInsideDamagePhotosData(null);
         setDriverData(null);
     };
 
@@ -202,15 +234,23 @@ export default function TabLayout() {
             case 'stepThreeTrailerPhoto':
                 return <StepThreeTrailerPhoto onBack={navigateBackToDamagePhotos} containerData={trailerData} onNavigateToStepFour={navigateToStepFour} />;
             case 'stepFourRightSidePhoto':
-                return <StepFourRightSidePhoto onBack={navigateBackToStepThree} containerData={containerData} trailerData={trailerData} onNavigateToStepFive={navigateToStepFive} />;
+                return <StepFourRightSidePhoto onBack={navigateBackToStepThree} containerData={containerData} trailerData={trailerData} onNavigateToStepFive={navigateToStepFive} onNavigateToDamagePhotos={navigateToStepFourDamagePhotos} />;
+            case 'stepFourDamagePhotos':
+                return <StepFourDamagePhotos onBack={navigateBackToStepFour} containerData={rightSideDamagePhotosData} onNavigateToStepFive={navigateToStepFive} />;
+            case 'stepFiveDamagePhotos':
+                return <StepFiveDamagePhotos onBack={navigateBackToStepFive} containerData={frontWallDamagePhotosData} onNavigateToStepSix={navigateToStepSix} />;
             case 'stepFiveFrontWallPhoto':
-                return <StepFiveFrontWallPhoto onBack={navigateBackToStepFour} containerData={frontWallPhotoData} onNavigateToStepSix={navigateToStepSix} />;
+                return <StepFiveFrontWallPhoto onBack={navigateBackToStepFour} containerData={frontWallPhotoData} onNavigateToStepSix={navigateToStepSix} onNavigateToDamagePhotos={navigateToStepFiveDamagePhotos} />;
             case 'stepSixTruckPhoto':
                 return <StepSixTruckPhoto onBack={navigateBackToStepFive} containerData={truckPhotoData} onNavigateToStepSeven={navigateToStepSeven} />;
             case 'stepSevenLeftSidePhoto':
-                return <StepSevenLeftSidePhoto onBack={navigateBackToStepSix} containerData={leftSidePhotoData} onNavigateToStepEight={navigateToStepEight} />;
+                return <StepSevenLeftSidePhoto onBack={navigateBackToStepSix} containerData={leftSidePhotoData} truckData={truckPhotoData} onNavigateToStepEight={navigateToStepEight} onNavigateToDamagePhotos={navigateToStepSevenDamagePhotos} />;
+            case 'stepSevenDamagePhotos':
+                return <StepSevenDamagePhotos onBack={navigateBackToStepSeven} containerData={leftSideDamagePhotosData} onNavigateToStepEight={navigateToStepEight} />;
             case 'stepEightInsidePhoto':
-                return <StepEightInsidePhoto onBack={navigateBackToStepSeven} containerData={insidePhotoData} onNavigateToStepNine={navigateToStepNine} />;
+                return <StepEightInsidePhoto onBack={navigateBackToStepSeven} containerData={insidePhotoData} onNavigateToStepNine={navigateToStepNine} onNavigateToDamagePhotos={navigateToStepEightDamagePhotos} />;
+            case 'stepEightDamagePhotos':
+                return <StepEightDamagePhotos onBack={navigateBackToStepEight} containerData={insideDamagePhotosData} onNavigateToStepNine={navigateToStepNine} />;
             case 'stepNineDriverDetails':
                 return <StepNineDriverDetails onBack={navigateBackToStepEight} containerData={driverData} onComplete={navigateToComplete} />;
             default:

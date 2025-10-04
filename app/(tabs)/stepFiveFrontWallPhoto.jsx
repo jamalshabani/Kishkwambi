@@ -9,7 +9,7 @@ import { useTheme } from '../../contexts/ThemeContext';
 import { Sun, Moon, Eye, X, ArrowLeft } from 'lucide-react-native';
 import { API_CONFIG } from '../../lib/config';
 
-const StepFiveFrontWallPhoto = ({ onBack, containerData, onNavigateToStepSix }) => {
+const StepFiveFrontWallPhoto = ({ onBack, containerData, onNavigateToStepSix, onNavigateToDamagePhotos }) => {
     const { isDark, toggleTheme } = useTheme();
     const [permission, requestPermission] = useCameraPermissions();
     const [image, setImage] = useState(null);
@@ -17,6 +17,7 @@ const StepFiveFrontWallPhoto = ({ onBack, containerData, onNavigateToStepSix }) 
     const [isProcessing, setIsProcessing] = useState(false);
     const [facing, setFacing] = useState('back');
     const [frontWallPhotoData, setFrontWallPhotoData] = useState(null);
+    const [showDamageModal, setShowDamageModal] = useState(false);
     const cameraRef = useRef(null);
 
     // Animation values for theme switcher
@@ -118,44 +119,69 @@ const StepFiveFrontWallPhoto = ({ onBack, containerData, onNavigateToStepSix }) 
         }
     };
 
+    const handleDamageResponse = async (isDamaged) => {
+        try {
+            if (isDamaged) {
+                // Update damage status in database
+                const BACKEND_URL = API_CONFIG.getBackendUrl();
+                
+                const response = await fetch(`${BACKEND_URL}/api/update-damage-status`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        tripSegmentNumber: containerData?.tripSegmentNumber,
+                        hasDamages: 'Yes',
+                        damageLocation: 'Front Wall'
+                    }),
+                });
+
+                const result = await response.json();
+                
+                if (result.success) {
+                    console.log('✅ Updated damage status to Yes for Front Wall');
+                    
+                    // Navigate to damage photos screen
+                    const damageData = {
+                        ...containerData,
+                        frontWallPhoto: image
+                    };
+                    
+                    if (onNavigateToDamagePhotos) {
+                        onNavigateToDamagePhotos(damageData);
+                    }
+                } else {
+                    console.error('❌ Failed to update damage status:', result.error);
+                    Alert.alert('Error', 'Failed to update damage status. Please try again.');
+                }
+            } else {
+                // No damage, proceed to next step
+                const frontWallData = {
+                    ...containerData,
+                    frontWallPhoto: image
+                };
+                
+                if (onNavigateToStepSix) {
+                    onNavigateToStepSix(frontWallData);
+                }
+            }
+        } catch (error) {
+            console.error('❌ Error handling damage response:', error);
+            Alert.alert('Error', 'An error occurred. Please try again.');
+        }
+        
+        setShowDamageModal(false);
+    };
+
     const handleNext = async () => {
         if (!image) {
             Alert.alert('Missing Photo', 'Please take a front wall photo before proceeding.');
             return;
         }
 
-        setIsProcessing(true);
-
-        try {
-            // Upload front wall photo to S3
-            const uploadResult = await uploadFrontWallPhotoToS3(image, containerData?.tripSegmentNumber);
-            
-            if (uploadResult.success) {
-                console.log('✅ Front wall photo uploaded to S3 successfully');
-                
-                // Prepare front wall data for next step with S3 reference
-                const frontWallData = {
-                    ...containerData,
-                    frontWallPhoto: uploadResult.frontWallPhoto // Use S3 reference instead of base64
-                };
-                
-                // Save front wall photo data to state for navigation
-                setFrontWallPhotoData(frontWallData);
-
-                // Navigate to next step
-                if (onNavigateToStepSix) {
-                    onNavigateToStepSix(frontWallData);
-                }
-            } else {
-                Alert.alert('Upload Failed', `Failed to upload front wall photo: ${uploadResult.error}`);
-                console.error('❌ S3 upload failed:', uploadResult.error);
-            }
-        } catch (error) {
-            Alert.alert('Upload Error', 'An error occurred while uploading front wall photo. Please try again.');
-            console.error('❌ Error in handleNext:', error);
-        } finally {
-            setIsProcessing(false);
-        }
+        // Show damage check popup
+        setShowDamageModal(true);
     };
 
     if (!permission) {
@@ -189,7 +215,7 @@ const StepFiveFrontWallPhoto = ({ onBack, containerData, onNavigateToStepSix }) 
     }
 
     return (
-        <SafeAreaView style={cn(`flex-1 ${isDark ? 'bg-gray-900' : 'bg-gray-100'}`)}>
+        <SafeAreaView style={cn(`flex-1 ${isDark ? 'bg-gray-900' : 'bg-gray-100'}`)} edges={['top']}>
             <StatusBar style={isDark ? "light" : "dark"} />
             
             {/* Header */}
@@ -461,6 +487,64 @@ const StepFiveFrontWallPhoto = ({ onBack, containerData, onNavigateToStepSix }) 
                         style={cn('w-full h-full')} 
                         resizeMode="contain"
                     />
+                </View>
+            </Modal>
+
+            {/* Damage Check Modal */}
+            <Modal
+                visible={showDamageModal}
+                transparent={true}
+                animationType="fade"
+                onRequestClose={() => setShowDamageModal(false)}
+            >
+                <View style={cn('flex-1 justify-center items-center bg-black/50')}>
+                    <View style={cn(`${isDark ? 'bg-gray-800' : 'bg-white'} rounded-3xl mx-8 p-6`)}>
+                        
+                        {/* Question Text */}
+                        <View style={cn('mb-6')}>
+                            <Text style={cn(`text-xl font-bold text-center ${isDark ? 'text-white' : 'text-black'} mb-2`)}>
+                                Damage Check
+                            </Text>
+                            <Text style={cn(`text-lg font-semibold text-center ${isDark ? 'text-gray-300' : 'text-gray-600'}`)}>
+                                Is the Front Wall damaged?
+                            </Text>
+                        </View>
+                        
+                        {/* Yes/No Buttons */}
+                        <View style={cn('flex-row gap-3')}>
+                            <TouchableOpacity
+                                onPress={() => handleDamageResponse(true)}
+                                style={cn('flex-1 rounded-xl overflow-hidden')}
+                            >
+                                <LinearGradient
+                                    colors={['#EF4444', '#DC2626']}
+                                    start={{ x: 0, y: 0 }}
+                                    end={{ x: 1, y: 0 }}
+                                    style={cn('py-4 items-center')}
+                                >
+                                    <Text style={cn('text-white font-bold text-lg')}>
+                                        Yes
+                                    </Text>
+                                </LinearGradient>
+                            </TouchableOpacity>
+                            
+                            <TouchableOpacity
+                                onPress={() => handleDamageResponse(false)}
+                                style={cn('flex-1 rounded-xl overflow-hidden')}
+                            >
+                                <LinearGradient
+                                    colors={['#10B981', '#059669']}
+                                    start={{ x: 0, y: 0 }}
+                                    end={{ x: 1, y: 0 }}
+                                    style={cn('py-4 items-center')}
+                                >
+                                    <Text style={cn('text-white font-bold text-lg')}>
+                                        No
+                                    </Text>
+                                </LinearGradient>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
                 </View>
             </Modal>
         </SafeAreaView>

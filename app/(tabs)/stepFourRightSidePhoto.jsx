@@ -1,20 +1,22 @@
 import React, { useState, useRef } from 'react';
-import { View, Text, TouchableOpacity, Alert, Image, ScrollView, ActivityIndicator } from 'react-native';
+import { View, Text, TouchableOpacity, Alert, Image, ScrollView, ActivityIndicator, Modal } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { LinearGradient } from 'expo-linear-gradient';
 import { cn } from '../../lib/tw';
 import { useTheme } from '../../contexts/ThemeContext';
-import { Moon, Sun, Camera, ArrowLeft } from 'lucide-react-native';
+import { API_CONFIG } from '../../lib/config';
+import { Moon, Sun, Camera, ArrowLeft, Eye, X } from 'lucide-react-native';
 
-export default function StepFourRightSidePhoto({ containerData, trailerData, onBack, onNavigateToStepFive }) {
+export default function StepFourRightSidePhoto({ containerData, trailerData, onBack, onNavigateToStepFive, onNavigateToDamagePhotos }) {
     const { isDark, toggleTheme } = useTheme();
     const [facing, setFacing] = useState('back');
     const [image, setImage] = useState(null);
     const [showZoomModal, setShowZoomModal] = useState(false);
     const [rightSidePhotoData, setRightSidePhotoData] = useState(null);
     const [isProcessing, setIsProcessing] = useState(false);
+    const [showDamageModal, setShowDamageModal] = useState(false);
     const cameraRef = useRef(null);
 
     const [permission, requestPermission] = useCameraPermissions();
@@ -70,19 +72,77 @@ export default function StepFourRightSidePhoto({ containerData, trailerData, onB
             return;
         }
 
-        // Prepare right side photo data for next step
-        const rightSidePhotoData = {
-            ...containerData,
-            ...trailerData,
-            rightSidePhoto: image
-        };
-        
-        // Save right side photo data to state for navigation
-        setRightSidePhotoData(rightSidePhotoData);
+        // Show damage check modal
+        setShowDamageModal(true);
+    };
 
-        // Navigate to next step
-        if (onNavigateToStepFive) {
-            onNavigateToStepFive(rightSidePhotoData);
+    const handleDamageResponse = async (isDamaged) => {
+        setShowDamageModal(false);
+        
+        if (isDamaged) {
+            // Update hasDamages in database to "Yes"
+            try {
+                console.log('🔧 Updating damage status in database...');
+                
+                const BACKEND_URL = API_CONFIG.getBackendUrl();
+                
+                // Update damage status to "Yes"
+                const updateResponse = await fetch(`${BACKEND_URL}/api/update-damage-status`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        tripSegmentNumber: containerData?.tripSegmentNumber,
+                        hasDamages: 'Yes',
+                        damageLocation: 'Right Side'
+                    }),
+                });
+                
+                const updateResult = await updateResponse.json();
+                
+                if (updateResult.success) {
+                    console.log('✅ Damage status updated successfully:', updateResult);
+                } else {
+                    console.error('❌ Failed to update damage status:', updateResult.error);
+                }
+                
+                // Navigate to damage photos screen
+                const rightSidePhotoData = {
+                    ...containerData,
+                    ...trailerData,
+                    rightSidePhoto: image,
+                    hasRightSideDamage: 'Yes'
+                };
+                
+                setRightSidePhotoData(rightSidePhotoData);
+                
+                // Navigate to damage photos screen instead of next step
+                if (onNavigateToDamagePhotos) {
+                    onNavigateToDamagePhotos(rightSidePhotoData);
+                } else if (onNavigateToStepFive) {
+                    onNavigateToStepFive(rightSidePhotoData);
+                }
+                
+            } catch (error) {
+                console.error('❌ Error updating damage status:', error);
+                Alert.alert('Error', 'Failed to update damage status. Please try again.');
+            }
+        } else {
+            // No damage - proceed normally
+            const rightSidePhotoData = {
+                ...containerData,
+                ...trailerData,
+                rightSidePhoto: image,
+                hasRightSideDamage: 'No'
+            };
+            
+            setRightSidePhotoData(rightSidePhotoData);
+
+            // Navigate to next step
+            if (onNavigateToStepFive) {
+                onNavigateToStepFive(rightSidePhotoData);
+            }
         }
     };
 
@@ -252,11 +312,42 @@ export default function StepFourRightSidePhoto({ containerData, trailerData, onB
             ) : (
                 <ScrollView style={cn('flex-1')} showsVerticalScrollIndicator={false}>
                     <View style={cn('px-4 py-4')}>
+                        {/* Container Number and Trip Segment Display */}
+                        <View style={cn(`mb-6 p-4 rounded-lg ${isDark ? 'bg-gray-700 border-gray-600' : 'bg-gray-50 border-gray-200'} border`)}>
+                            <View style={cn('flex-row items-center justify-between')}>
+                                <View style={cn('flex-1')}>
+                                    <Text style={cn(`text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-600'} mb-1`)}>
+                                        Container Number
+                                    </Text>
+                                    <Text style={cn(`text-lg font-bold ${isDark ? 'text-white' : 'text-black'}`)}>
+                                        {containerData?.containerNumber || 'N/A'}
+                                    </Text>
+                                </View>
+                                <View style={cn('flex-1 ml-4')}>
+                                    <Text style={cn(`text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-600'} mb-1`)}>
+                                        Trip Segment
+                                    </Text>
+                                    <Text style={cn(`text-lg font-semibold ${isDark ? 'text-white' : 'text-black'}`)}>
+                                        {containerData?.tripSegmentNumber || 'N/A'}
+                                    </Text>
+                                </View>
+                            </View>
+                        </View>
+
                         {/* Photo Preview */}
                         <View style={cn(`rounded-lg overflow-hidden ${isDark ? 'bg-gray-800' : 'bg-white'} shadow-lg`)}>
-                            <TouchableOpacity onPress={() => setShowZoomModal(true)}>
+                            <View style={cn('relative')}>
                                 <Image source={{ uri: image }} style={cn('w-full h-96')} resizeMode="cover" />
-                            </TouchableOpacity>
+                                {/* Eye Icon Overlay */}
+                                <TouchableOpacity
+                                    onPress={() => setShowZoomModal(true)}
+                                    style={cn('absolute inset-0 items-center justify-center')}
+                                >
+                                    <View style={cn('bg-black/50 rounded-full p-3')}>
+                                        <Eye size={32} color="white" />
+                                    </View>
+                                </TouchableOpacity>
+                            </View>
                         </View>
 
                         {/* Retake Button */}
@@ -310,15 +401,91 @@ export default function StepFourRightSidePhoto({ containerData, trailerData, onB
             )}
 
             {/* Zoom Modal */}
-            {showZoomModal && (
-                <View style={cn('absolute inset-0 bg-black justify-center items-center')}>
-                    <TouchableOpacity
-                        style={cn('absolute inset-0')}
-                        onPress={() => setShowZoomModal(false)}
-                    />
-                    <Image source={{ uri: image }} style={cn('w-11/12 h-3/4')} resizeMode="contain" />
+            <Modal
+                visible={showZoomModal}
+                transparent={true}
+                animationType="fade"
+                onRequestClose={() => setShowZoomModal(false)}
+            >
+                <View style={cn('flex-1 bg-black')}>
+                    <SafeAreaView style={cn('flex-1')}>
+                        <View style={cn('flex-row justify-between items-center p-4')}>
+                            <Text style={cn('text-white text-lg font-bold')}>Photo Preview</Text>
+                            <TouchableOpacity
+                                onPress={() => setShowZoomModal(false)}
+                                style={cn('bg-black/50 rounded-full p-2')}
+                            >
+                                <X size={24} color="white" />
+                            </TouchableOpacity>
+                        </View>
+                        <View style={cn('flex-1 justify-center items-center')}>
+                            <Image
+                                source={{ uri: image }}
+                                style={cn('w-full h-3/4')}
+                                resizeMode="contain"
+                            />
+                        </View>
+                    </SafeAreaView>
                 </View>
-            )}
+            </Modal>
+
+            {/* Damage Check Modal */}
+            <Modal
+                visible={showDamageModal}
+                transparent={true}
+                animationType="fade"
+                onRequestClose={() => setShowDamageModal(false)}
+            >
+                <View style={cn('flex-1 justify-center items-center bg-black/50')}>
+                    <View style={cn(`${isDark ? 'bg-gray-800' : 'bg-white'} rounded-3xl mx-8 p-6`)}>
+                        
+                        {/* Question Text */}
+                        <View style={cn('mb-6')}>
+                            <Text style={cn(`text-xl font-bold text-center ${isDark ? 'text-white' : 'text-black'} mb-2`)}>
+                                Damage Check
+                            </Text>
+                            <Text style={cn(`text-lg font-semibold text-center ${isDark ? 'text-gray-300' : 'text-gray-600'}`)}>
+                                Is the Right Side damaged?
+                            </Text>
+                        </View>
+                        
+                        {/* Yes/No Buttons */}
+                        <View style={cn('flex-row gap-3')}>
+                            <TouchableOpacity
+                                onPress={() => handleDamageResponse(true)}
+                                style={cn('flex-1 rounded-xl overflow-hidden')}
+                            >
+                                <LinearGradient
+                                    colors={['#EF4444', '#DC2626']}
+                                    start={{ x: 0, y: 0 }}
+                                    end={{ x: 1, y: 0 }}
+                                    style={cn('py-4 items-center')}
+                                >
+                                    <Text style={cn('text-white font-bold text-lg')}>
+                                        Yes
+                                    </Text>
+                                </LinearGradient>
+                            </TouchableOpacity>
+                            
+                            <TouchableOpacity
+                                onPress={() => handleDamageResponse(false)}
+                                style={cn('flex-1 rounded-xl overflow-hidden')}
+                            >
+                                <LinearGradient
+                                    colors={['#10B981', '#059669']}
+                                    start={{ x: 0, y: 0 }}
+                                    end={{ x: 1, y: 0 }}
+                                    style={cn('py-4 items-center')}
+                                >
+                                    <Text style={cn('text-white font-bold text-lg')}>
+                                        No
+                                    </Text>
+                                </LinearGradient>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                </View>
+            </Modal>
         </SafeAreaView>
     );
 }

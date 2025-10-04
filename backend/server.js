@@ -1325,6 +1325,73 @@ app.post('/api/update-damage-status', async (req, res) => {
     }
 });
 
+// Update container load status endpoint
+app.post('/api/update-container-load-status', async (req, res) => {
+    try {
+        const { tripSegmentNumber, containerLoadStatus } = req.body;
+        
+        console.log('🔧 Received container load status update:', {
+            tripSegmentNumber,
+            containerLoadStatus
+        });
+
+        if (!tripSegmentNumber) {
+            return res.status(400).json({
+                success: false,
+                error: 'Trip segment number is required'
+            });
+        }
+
+        if (!containerLoadStatus) {
+            return res.status(400).json({
+                success: false,
+                error: 'Container load status is required'
+            });
+        }
+
+        if (!db) {
+            throw new Error('Database not connected');
+        }
+
+        const collection = db.collection('tripsegments');
+        
+        const updateResult = await collection.updateOne(
+            { tripSegmentNumber: tripSegmentNumber },
+            {
+                $set: {
+                    containerLoadStatus: containerLoadStatus,
+                    lastUpdated: new Date().toISOString()
+                }
+            },
+            { upsert: false }
+        );
+
+        if (updateResult.matchedCount === 0) {
+            console.log(`❌ Trip segment ${tripSegmentNumber} not found`);
+            return res.status(404).json({
+                success: false,
+                error: `Trip segment ${tripSegmentNumber} not found`
+            });
+        }
+
+        console.log(`✅ Updated trip segment ${tripSegmentNumber} container load status to ${containerLoadStatus}`);
+
+        res.json({
+            success: true,
+            message: 'Container load status updated successfully',
+            tripSegmentNumber: tripSegmentNumber,
+            containerLoadStatus: containerLoadStatus
+        });
+
+    } catch (error) {
+        console.error('❌ Container load status update error:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message || 'Failed to update container load status'
+        });
+    }
+});
+
 // S3 Upload endpoint for trailer photo
 app.post('/api/upload/s3-trailer-photo', uploadS3.single('photo'), async (req, res) => {
     try {
@@ -1907,6 +1974,7 @@ app.post('/api/vision/extract-driver-details', async (req, res) => {
         const { base64Image } = req.body;
         
         console.log('🔍 Received driver details extraction request');
+        console.log('📸 Base64 image length:', base64Image ? base64Image.length : 'undefined');
 
         if (!base64Image) {
             return res.status(400).json({
@@ -1915,18 +1983,63 @@ app.post('/api/vision/extract-driver-details', async (req, res) => {
             });
         }
 
-        // Call Google Vision AI for text extraction
-        const vision = require('@google-cloud/vision');
-        const client = new vision.ImageAnnotatorClient({
-            keyFilename: process.env.GOOGLE_APPLICATION_CREDENTIALS,
-        });
+        // Ensure base64 image is properly formatted (remove data URL prefix if present)
+        let cleanBase64 = base64Image;
+        if (base64Image.includes(',')) {
+            cleanBase64 = base64Image.split(',')[1];
+        }
 
-        const image = {
-            content: base64Image,
+        console.log('📸 Clean base64 length:', cleanBase64.length);
+        console.log('📸 Clean base64 preview:', cleanBase64.substring(0, 50) + '...');
+
+        // Validate base64 format
+        const base64Regex = /^[A-Za-z0-9+/]*={0,2}$/;
+        if (!base64Regex.test(cleanBase64)) {
+            console.log('❌ Invalid base64 format detected');
+            return res.status(400).json({
+                success: false,
+                error: 'Invalid base64 image format'
+            });
+        }
+
+        // Call Google Vision AI for text extraction using REST API
+        console.log('🔍 Calling Google Vision AI REST API...');
+
+        const requestBody = {
+            requests: [
+                {
+                    image: {
+                        content: cleanBase64
+                    },
+                    features: [
+                        {
+                            type: 'TEXT_DETECTION',
+                            maxResults: 50
+                        }
+                    ]
+                }
+            ]
         };
 
-        const [result] = await client.textDetection(image);
-        const detections = result.textAnnotations;
+        const response = await fetch(`https://vision.googleapis.com/v1/images:annotate?key=${process.env.GOOGLE_VISION_API_KEY}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(requestBody),
+        });
+
+        if (!response.ok) {
+            throw new Error(`Vision AI API error: ${response.status} ${response.statusText}`);
+        }
+
+        const result = await response.json();
+        
+        if (!result.responses || !result.responses[0]) {
+            throw new Error('Invalid response from Vision AI API');
+        }
+
+        const detections = result.responses[0].textAnnotations || [];
         
         if (detections.length === 0) {
             return res.json({
@@ -1939,15 +2052,8 @@ app.post('/api/vision/extract-driver-details', async (req, res) => {
         const fullText = detections[0].description;
         console.log('📄 Extracted text:', fullText);
 
-        // Parse driver details from text (basic implementation)
-        const driverDetails = {
-            fullName: extractField(fullText, ['name', 'full name', 'driver name']),
-            idNumber: extractField(fullText, ['id', 'id number', 'identity number']),
-            phoneNumber: extractField(fullText, ['phone', 'mobile', 'contact']),
-            email: extractField(fullText, ['email', 'e-mail']),
-            licenseNumber: extractField(fullText, ['license', 'licence', 'dl number']),
-            licenseExpiry: extractField(fullText, ['expiry', 'expires', 'valid until'])
-        };
+        // Parse driver details from text with improved logic
+        const driverDetails = parseDriverDetails(fullText);
 
         res.json({
             success: true,
@@ -1988,6 +2094,94 @@ function extractField(text, keywords) {
     }
     
     return '';
+}
+
+// Improved function to parse driver details from license text
+function parseDriverDetails(text) {
+    console.log('🔍 Parsing driver details from text...');
+    
+    const lines = text.split('\n').map(line => line.trim()).filter(line => line.length > 0);
+    console.log('📝 Text lines:', lines);
+    
+    const driverDetails = {
+        firstName: '',
+        lastName: '',
+        fullName: '',
+        phoneNumber: '',
+        licenseNumber: '',
+        transporterName: ''
+    };
+    
+    // Extract license number (10 digits)
+    const licenseNumberMatch = text.match(/\b\d{10}\b/);
+    if (licenseNumberMatch) {
+        driverDetails.licenseNumber = licenseNumberMatch[0];
+        console.log('✅ Found license number:', driverDetails.licenseNumber);
+    }
+    
+    // Extract family name and given names
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i].toLowerCase();
+        
+        // Look for family name
+        if (line.includes('family name') || line.includes('1. family name')) {
+            // Look for the name in the next few lines
+            for (let j = i + 1; j < Math.min(i + 3, lines.length); j++) {
+                const nameLine = lines[j].trim();
+                if (nameLine && !nameLine.includes('given names') && !nameLine.includes('date of birth')) {
+                    driverDetails.lastName = nameLine;
+                    console.log('✅ Found family name:', driverDetails.lastName);
+                    break;
+                }
+            }
+        }
+        
+        // Look for given names
+        if (line.includes('given names') || line.includes('2. given names')) {
+            // Look for the name in the next few lines
+            for (let j = i + 1; j < Math.min(i + 3, lines.length); j++) {
+                const nameLine = lines[j].trim();
+                if (nameLine && !nameLine.includes('date of birth') && !nameLine.includes('family name')) {
+                    driverDetails.firstName = nameLine;
+                    console.log('✅ Found given names:', driverDetails.firstName);
+                    break;
+                }
+            }
+        }
+        
+        // Look for phone number (various formats)
+        if (line.includes('phone') || line.includes('mobile') || line.includes('contact')) {
+            const phoneMatch = line.match(/(\+?\d{1,4}[\s-]?)?\(?\d{3,4}\)?[\s-]?\d{3,4}[\s-]?\d{3,4}/);
+            if (phoneMatch) {
+                driverDetails.phoneNumber = phoneMatch[0].replace(/[\s-]/g, '');
+                console.log('✅ Found phone number:', driverDetails.phoneNumber);
+            }
+        }
+        
+        // Look for transporter/company name
+        if (line.includes('transporter') || line.includes('company') || line.includes('employer')) {
+            for (let j = i + 1; j < Math.min(i + 3, lines.length); j++) {
+                const companyLine = lines[j].trim();
+                if (companyLine && companyLine.length > 2) {
+                    driverDetails.transporterName = companyLine;
+                    console.log('✅ Found transporter name:', driverDetails.transporterName);
+                    break;
+                }
+            }
+        }
+    }
+    
+    // Combine first and last name for full name
+    if (driverDetails.firstName && driverDetails.lastName) {
+        driverDetails.fullName = `${driverDetails.firstName} ${driverDetails.lastName}`;
+    } else if (driverDetails.firstName) {
+        driverDetails.fullName = driverDetails.firstName;
+    } else if (driverDetails.lastName) {
+        driverDetails.fullName = driverDetails.lastName;
+    }
+    
+    console.log('📋 Parsed driver details:', driverDetails);
+    return driverDetails;
 }
 
 // Image upload endpoint for mobile app (legacy - for other photo types)
@@ -2184,6 +2378,96 @@ async function startServer() {
             res.status(500).json({
                 success: false,
                 error: error.message || 'Failed to recognize licence plate'
+            });
+        }
+    });
+
+    // API endpoint to update trip segment with driver details
+    app.put('/api/trip-segments/update-driver-details', async (req, res) => {
+        try {
+            console.log('🔍 Received driver details update request');
+            const { 
+                tripSegmentNumber, 
+                transporterName, 
+                driverFirstName, 
+                driverLastName, 
+                driverLicenceNumber, 
+                driverPhoneNumber, 
+                containerStatus,
+                driverPhoto 
+            } = req.body;
+
+            console.log('📊 Update data:', {
+                tripSegmentNumber,
+                transporterName,
+                driverFirstName,
+                driverLastName,
+                driverLicenceNumber,
+                driverPhoneNumber,
+                containerStatus,
+                driverPhoto: driverPhoto ? 'Present' : 'Not provided'
+            });
+
+            // Validate required fields
+            if (!tripSegmentNumber) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'Trip segment number is required'
+                });
+            }
+
+            // Update TripSegment document with driver details
+            const tripsegmentsCollection = db.collection('tripsegments');
+            
+            const updateData = {
+                transporterName: transporterName || "Local Transporter",
+                driverFirstName: driverFirstName || '',
+                driverLastName: driverLastName || '',
+                driverLicenceNumber: driverLicenceNumber || '',
+                driverPhoneNumber: driverPhoneNumber || '',
+                containerStatus: containerStatus || 'Arrived'
+            };
+
+            // Add driver photo if provided
+            if (driverPhoto) {
+                updateData.driverPhoto = driverPhoto;
+            }
+
+            const updateResult = await tripsegmentsCollection.updateOne(
+                { tripSegmentNumber: tripSegmentNumber },
+                { $set: updateData }
+            );
+
+            if (updateResult.matchedCount === 0) {
+                console.log(`❌ Trip segment ${tripSegmentNumber} not found`);
+                return res.status(404).json({
+                    success: false,
+                    error: 'Trip segment not found'
+                });
+            }
+
+            if (updateResult.modifiedCount === 0) {
+                console.log(`⚠️ Trip segment ${tripSegmentNumber} found but no changes made`);
+                return res.status(200).json({
+                    success: true,
+                    message: 'Trip segment found but no changes were needed'
+                });
+            }
+
+            console.log(`✅ Trip segment ${tripSegmentNumber} updated successfully with driver details`);
+            
+            res.json({
+                success: true,
+                message: 'Driver details updated successfully',
+                tripSegmentNumber: tripSegmentNumber,
+                updatedFields: Object.keys(updateData)
+            });
+
+        } catch (error) {
+            console.error('❌ Error updating trip segment with driver details:', error);
+            res.status(500).json({
+                success: false,
+                error: error.message || 'Failed to update trip segment'
             });
         }
     });

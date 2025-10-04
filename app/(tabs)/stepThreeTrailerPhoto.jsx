@@ -633,16 +633,23 @@ const StepThreeTrailerPhoto = ({ onBack, containerData, onNavigateToStepFour }) 
                                 <View style={cn('flex-row justify-between mt-4 pb-6')}>
                                     <TouchableOpacity
                                         onPress={handleNext}
-                                        disabled={isRecognizingPlate}
-                                        style={cn(`flex-1 ml-2 rounded-lg overflow-hidden ${isRecognizingPlate ? 'opacity-50' : ''}`)}
+                                        disabled={isRecognizingPlate || isProcessing}
+                                        style={cn(`flex-1 ml-2 rounded-lg overflow-hidden ${(isRecognizingPlate || isProcessing) ? 'opacity-50' : ''}`)}
                                     >
                                         <LinearGradient
-                                            colors={isRecognizingPlate ? ['#9CA3AF', '#6B7280'] : ['#F59E0B', '#000000']}
+                                            colors={(isRecognizingPlate || isProcessing) ? ['#9CA3AF', '#6B7280'] : ['#F59E0B', '#000000']}
                                             start={{ x: 0, y: 0 }}
                                             end={{ x: 1, y: 0 }}
                                             style={cn('p-4 items-center')}
                                         >
-                                            <Text style={cn('text-white font-bold')}>Next</Text>
+                                            {isProcessing ? (
+                                                <View style={cn('flex-row items-center')}>
+                                                    <ActivityIndicator size="small" color="white" style={cn('mr-2')} />
+                                                    <Text style={cn('text-white font-bold')}>Submitting...</Text>
+                                                </View>
+                                            ) : (
+                                                <Text style={cn('text-white font-bold')}>Next</Text>
+                                            )}
                                         </LinearGradient>
                                     </TouchableOpacity>
                                 </View>
