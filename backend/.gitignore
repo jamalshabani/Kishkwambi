@@ -84,12 +84,12 @@ typings/
 .env.backup
 .env.test
 .env.production
-../Kishkwambi/backend/.env
-../Kishkwambi/backend/.env.*
-../Kishkwambi/backend/.env*.local
-../Kishkwambi/backend/.env.backup
-../Kishkwambi/backend/.env.test
-../Kishkwambi/backend/.env.production
+backend/.env
+backend/.env.*
+backend/.env*.local
+backend/.env.backup
+backend/.env.test
+backend/.env.production
 
 # parcel-bundler cache (https://parceljs.org/)
 .cache

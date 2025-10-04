@@ -39,6 +39,7 @@ yarn-error.*
 .env.staging
 .env.test
 backend/.env
+backend/.env.backup
 backend/.env.*
 backend/.env*.local
 
