@@ -53,17 +53,17 @@ const StepTwoContainerDetails = ({ onBack, containerData, onNavigateToStepThree,
     
     // Color options for SelectList
     const colorOptions = [
-        { key: 'Blue', value: 'Blue' },
-        { key: 'Red', value: 'Red' },
-        { key: 'Green', value: 'Green' },
-        { key: 'Yellow', value: 'Yellow' },
-        { key: 'White', value: 'White' },
-        { key: 'Black', value: 'Black' },
-        { key: 'Gray', value: 'Gray' },
-        { key: 'Orange', value: 'Orange' },
-        { key: 'Brown', value: 'Brown' },
-        { key: 'Silver', value: 'Silver' },
-        { key: 'Other', value: 'Other' }
+        { key: 'Blue', value: 'Blue', hexColor: '#0000FF' },
+        { key: 'Red', value: 'Red', hexColor: '#FF0000' },
+        { key: 'Green', value: 'Green', hexColor: '#008000' },
+        { key: 'Yellow', value: 'Yellow', hexColor: '#FFFF00' },
+        { key: 'White', value: 'White', hexColor: '#FFFFFF' },
+        { key: 'Black', value: 'Black', hexColor: '#000000' },
+        { key: 'Gray', value: 'Gray', hexColor: '#808080' },
+        { key: 'Orange', value: 'Orange', hexColor: '#FFA500' },
+        { key: 'Brown', value: 'Brown', hexColor: '#A52A2A' },
+        { key: 'Silver', value: 'Silver', hexColor: '#C0C0C0' },
+        { key: 'Other', value: 'Other', hexColor: '#666666' }
     ];
     
     // ISO code mapping for container type and size based on BIC standards
@@ -247,14 +247,6 @@ const StepTwoContainerDetails = ({ onBack, containerData, onNavigateToStepThree,
                     Container Details
                 </Text>
 
-                {/* Go to Step 3 Button */}
-                <TouchableOpacity
-                    onPress={() => onNavigateToStepThree && onNavigateToStepThree(containerDetailsData)}
-                    style={cn('mr-3 px-3 py-2 rounded-lg bg-blue-500')}
-                >
-                    <Text style={cn('text-white font-semibold text-sm')}>Go to Step 3</Text>
-                </TouchableOpacity>
-
                 {/* Theme Switcher */}
                 <Animated.View
                     style={{
@@ -278,12 +270,12 @@ const StepTwoContainerDetails = ({ onBack, containerData, onNavigateToStepThree,
 
             {/* Main Content */}
             <View style={cn(`flex-1 ${isDark ? 'bg-gray-900' : 'bg-gray-100'}`)}>
-                <View style={cn('p-6')}>
+                <View style={cn('p-4')}>
                     {/* Main Card */}
                     <View style={cn(`${isDark ? 'bg-gray-800' : 'bg-white'} rounded-lg shadow-lg p-6`)}>
                     
                     {/* Container Number and Trip Segment Display */}
-                    <View style={cn(`mb-6 p-4 rounded-lg ${isDark ? 'bg-gray-700 border-gray-600' : 'bg-gray-50 border-gray-200'} border`)}>
+                    <View style={cn(`mb-6 py-4 px-3 rounded-lg ${isDark ? 'bg-gray-700 border-gray-600' : 'bg-gray-50 border-gray-200'} border`)}>
                         <View style={cn('flex-row items-center justify-between')}>
                             <View style={cn('flex-1')}>
                                 <Text style={cn(`text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-600'} mb-1`)}>

@@ -201,7 +201,6 @@ export default function TabLayout() {
 
     const navigateToComplete = (data) => {
         // Handle completion - could show summary or redirect to dashboard
-        console.log('Inspection completed:', data);
         setActiveTab('dashboard');
         // Reset all data
         setContainerData(null);

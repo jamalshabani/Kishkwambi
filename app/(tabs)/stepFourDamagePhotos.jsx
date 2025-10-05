@@ -62,8 +62,9 @@ const StepFourDamagePhotos = ({ onBack, containerData, onNavigateToStepFive }) =
 
             // Add all damage photos
             photos.forEach((photo, index) => {
+                // Use the actual file URI instead of base64 data URI
                 formData.append('photos', {
-                    uri: `data:image/jpeg;base64,${photo.base64}`,
+                    uri: photo.uri,
                     type: 'image/jpeg',
                     name: `damage_${index + 1}.jpg`
                 });
@@ -119,6 +120,7 @@ const StepFourDamagePhotos = ({ onBack, containerData, onNavigateToStepFive }) =
             if (photo?.uri) {
                 const newPhoto = {
                     id: Date.now(),
+                    uri: photo.uri,
                     base64: photo.base64,
                     timestamp: new Date().toISOString()
                 };
@@ -238,14 +240,6 @@ const StepFourDamagePhotos = ({ onBack, containerData, onNavigateToStepFive }) =
                 <Text style={cn(`text-lg font-bold ${isDark ? 'text-gray-100' : 'text-gray-800'} flex-1`)}>
                     Right Side Damage
                 </Text>
-
-                {/* Go to Step 5 Button */}
-                <TouchableOpacity
-                    onPress={() => onNavigateToStepFive && onNavigateToStepFive(damageData)}
-                    style={cn('mr-3 px-3 py-2 rounded-lg bg-blue-500')}
-                >
-                    <Text style={cn('text-white font-semibold text-sm')}>Go to Step 5</Text>
-                </TouchableOpacity>
 
                 {/* Theme Switcher */}
                 <Animated.View
@@ -425,13 +419,6 @@ const StepFourDamagePhotos = ({ onBack, containerData, onNavigateToStepFive }) =
                                 )}
                             </TouchableOpacity>
 
-                            {/* Close Camera Button */}
-                            <TouchableOpacity
-                                onPress={() => setShowCamera(false)}
-                                style={cn('mt-4 bg-black/50 px-6 py-3 rounded-lg')}
-                            >
-                                <Text style={cn('text-white font-semibold')}>Close Camera</Text>
-                            </TouchableOpacity>
                         </View>
                     </View>
                 </View>

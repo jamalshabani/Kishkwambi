@@ -224,7 +224,7 @@ const StepNineDriverDetails = ({ onBack, containerData, onComplete }) => {
                 driverLastName: driverDetails.lastName,
                 driverLicenceNumber: driverDetails.licenseNumber,
                 driverPhoneNumber: driverDetails.phoneNumber,
-                containerStatus: "Arrived"
+                containerStatus: "Pending"
             };
 
             // Add driver photo if available
@@ -274,7 +274,7 @@ const StepNineDriverDetails = ({ onBack, containerData, onComplete }) => {
             return;
         }
 
-        console.log('📊 Container data:', containerData);
+        //console.log('📊 Container data:', containerData);
         console.log('📊 Trip segment number:', containerData?.tripSegmentNumber);
 
         setIsProcessing(true);

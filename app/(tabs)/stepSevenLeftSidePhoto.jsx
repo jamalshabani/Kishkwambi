@@ -208,13 +208,6 @@ const StepSevenLeftSidePhoto = ({ containerData, truckData, onBack, onNavigateTo
                     </Text>
                 </View>
                 
-                {/* Go to Step 8 Button */}
-                <TouchableOpacity
-                    onPress={() => onNavigateToStepEight && onNavigateToStepEight(leftSidePhotoData)}
-                    style={cn('mr-3 px-3 py-2 rounded-lg bg-blue-500')}
-                >
-                    <Text style={cn('text-white font-semibold text-sm')}>Go to Step 8</Text>
-                </TouchableOpacity>
                 
                 <TouchableOpacity onPress={toggleTheme} style={cn('p-2')}>
                     {isDark ? <Sun size={24} color="#F59E0B" /> : <Moon size={24} color="#1F2937" />}

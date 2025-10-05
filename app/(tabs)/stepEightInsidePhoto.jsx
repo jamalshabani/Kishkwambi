@@ -312,13 +312,6 @@ const StepEightInsidePhoto = ({ onBack, containerData, onNavigateToStepNine, onN
                     Inside Photo
                 </Text>
 
-                {/* Go to Step 10 Button */}
-                <TouchableOpacity
-                    onPress={() => onNavigateToStepNine && onNavigateToStepNine(insidePhotoData)}
-                    style={cn('mr-3 px-3 py-2 rounded-lg bg-blue-500')}
-                >
-                    <Text style={cn('text-white font-semibold text-sm')}>Go to Step 10</Text>
-                </TouchableOpacity>
 
                 {/* Theme Switcher */}
                 <Animated.View

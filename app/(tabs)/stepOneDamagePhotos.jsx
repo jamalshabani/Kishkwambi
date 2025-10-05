@@ -121,6 +121,7 @@ const StepOneDamagePhotos = ({ onBack, containerData, onNavigateToStepThree }) =
             if (photo?.uri) {
                 const newPhoto = {
                     id: Date.now(),
+                    uri: photo.uri,
                     base64: photo.base64,
                     timestamp: new Date().toISOString()
                 };
@@ -242,13 +243,6 @@ const StepOneDamagePhotos = ({ onBack, containerData, onNavigateToStepThree }) =
                     Back Wall Damage
                 </Text>
 
-                {/* Go to Step 4 Button */}
-                <TouchableOpacity
-                    onPress={() => onNavigateToStepThree && onNavigateToStepThree(damageData)}
-                    style={cn('mr-3 px-3 py-2 rounded-lg bg-blue-500')}
-                >
-                    <Text style={cn('text-white font-semibold text-sm')}>Go to Step 4</Text>
-                </TouchableOpacity>
 
                 {/* Theme Switcher */}
                 <Animated.View
@@ -428,13 +422,6 @@ const StepOneDamagePhotos = ({ onBack, containerData, onNavigateToStepThree }) =
                                 )}
                             </TouchableOpacity>
 
-                            {/* Close Camera Button */}
-                            <TouchableOpacity
-                                onPress={() => setShowCamera(false)}
-                                style={cn('mt-4 bg-black/50 px-6 py-3 rounded-lg')}
-                            >
-                                <Text style={cn('text-white font-semibold')}>Close Camera</Text>
-                            </TouchableOpacity>
                         </View>
                     </View>
                 </View>

@@ -97,7 +97,7 @@ const StepThreeTrailerPhoto = ({ onBack, containerData, onNavigateToStepFour }) 
             setIsRecognizingPlate(true);
             console.log('🚗 Calling PlateRecognizer API...');
 
-            const BACKEND_URL = 'http://192.168.12.134:3001'; // Update with your backend URL
+            const BACKEND_URL = 'http://192.168.1.144:3001'; // Update with your backend URL
 
             const response = await fetch(`${BACKEND_URL}/api/plate-recognizer/recognize`, {
                 method: 'POST',
@@ -320,14 +320,6 @@ const StepThreeTrailerPhoto = ({ onBack, containerData, onNavigateToStepFour }) 
                 <Text style={cn(`text-lg font-bold ${isDark ? 'text-gray-100' : 'text-gray-800'} flex-1`)}>
                     Trailer Photo
                 </Text>
-
-                {/* Go to Step 5 Button */}
-                <TouchableOpacity
-                    onPress={() => onNavigateToStepFour && onNavigateToStepFour(trailerData)}
-                    style={cn('mr-3 px-3 py-2 rounded-lg bg-blue-500')}
-                >
-                    <Text style={cn('text-white font-semibold text-sm')}>Go to Step 5</Text>
-                </TouchableOpacity>
 
                 {/* Theme Switcher */}
                 <Animated.View

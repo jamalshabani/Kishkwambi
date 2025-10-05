@@ -132,12 +132,6 @@ const StepSixTruckPhoto = ({ onBack, containerData, onNavigateToStepSeven }) => 
                 }
 
                 setTruckNumber(newTruckNumber);
-
-                Alert.alert(
-                    'Truck Number Detected',
-                    `Detected truck number: ${plateNumber}`,
-                    [{ text: 'OK' }]
-                );
             } else {
                 console.log('❌ No truck number detected or API error');
                 Alert.alert(
@@ -303,13 +297,6 @@ const StepSixTruckPhoto = ({ onBack, containerData, onNavigateToStepSeven }) => 
                     Truck Photo
                 </Text>
 
-                {/* Go to Step 8 Button */}
-                <TouchableOpacity
-                    onPress={() => onNavigateToStepSeven && onNavigateToStepSeven(truckPhotoData)}
-                    style={cn('mr-3 px-3 py-2 rounded-lg bg-blue-500')}
-                >
-                    <Text style={cn('text-white font-semibold text-sm')}>Go to Step 8</Text>
-                </TouchableOpacity>
 
                 {/* Theme Switcher */}
                 <Animated.View

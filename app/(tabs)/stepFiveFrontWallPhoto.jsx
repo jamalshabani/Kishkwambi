@@ -233,14 +233,6 @@ const StepFiveFrontWallPhoto = ({ onBack, containerData, onNavigateToStepSix, on
                     Front Wall Photo
                 </Text>
 
-                {/* Go to Step 7 Button */}
-                <TouchableOpacity
-                    onPress={() => onNavigateToStepSix && onNavigateToStepSix(frontWallPhotoData)}
-                    style={cn('mr-3 px-3 py-2 rounded-lg bg-blue-500')}
-                >
-                    <Text style={cn('text-white font-semibold text-sm')}>Go to Step 7</Text>
-                </TouchableOpacity>
-
                 {/* Theme Switcher */}
                 <Animated.View
                     style={{

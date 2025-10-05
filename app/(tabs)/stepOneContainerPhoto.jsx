@@ -34,6 +34,7 @@ const StepOneContainerPhoto = ({ onBack, onNavigateToStepTwo }) => {
         processingTime: 0
     });
     const [isProcessing, setIsProcessing] = useState(false);
+    const [isSubmitting, setIsSubmitting] = useState(false);
     const [facing, setFacing] = useState('back');
     const [showContainerModal, setShowContainerModal] = useState(false);
     const [containerModalData, setContainerModalData] = useState({ type: '', message: '' });
@@ -224,33 +225,34 @@ const StepOneContainerPhoto = ({ onBack, onNavigateToStepTwo }) => {
 
     // Helper function to determine container type from ISO code
     const getContainerTypeFromIsoCode = (isoCode) => {
-        const typeMap = {
-            '20G0': 'Dry Container',
-            '20G1': 'Dry Container',
-            '40G0': 'Dry Container',
-            '40G1': 'Dry Container',
-            '45G0': 'Dry Container',
-            '45G1': 'Dry Container',
-            '20R0': 'Refrigerated Container',
-            '20R1': 'Refrigerated Container',
-            '40R0': 'Refrigerated Container',
-            '40R1': 'Refrigerated Container',
-            '45R0': 'Refrigerated Container',
-            '45R1': 'Refrigerated Container',
-            '20T0': 'Tank Container',
-            '20T1': 'Tank Container',
-            '40T0': 'Tank Container',
-            '40T1': 'Tank Container',
-            '20P0': 'Flat Rack Container',
-            '20P1': 'Flat Rack Container',
-            '40P0': 'Flat Rack Container',
-            '40P1': 'Flat Rack Container',
-            '20U0': 'Open Top Container',
-            '20U1': 'Open Top Container',
-            '40U0': 'Open Top Container',
-            '40U1': 'Open Top Container',
-        };
-        return typeMap[isoCode] || 'Unknown Container Type';
+        if (!isoCode) return 'Unknown Container Type';
+        
+        const isoCodeUpper = isoCode.toUpperCase();
+        
+        // Check for container type based on letter in ISO code
+        if (isoCodeUpper.includes('G')) {
+            return 'Dry Container';
+        } else if (isoCodeUpper.includes('R')) {
+            return 'Refrigerated Container';
+        } else if (isoCodeUpper.includes('T')) {
+            return 'Tank Container';
+        } else if (isoCodeUpper.includes('P')) {
+            return 'Flat Rack Container';
+        } else if (isoCodeUpper.includes('U')) {
+            return 'Open Top Container';
+        } else if (isoCodeUpper.includes('S')) {
+            return 'Named Cargo Container';
+        } else if (isoCodeUpper.includes('H')) {
+            return 'Thermal Container';
+        } else if (isoCodeUpper.includes('V')) {
+            return 'Auto Container';
+        } else if (isoCodeUpper.includes('B')) {
+            return 'Bulk Container';
+        } else if (isoCodeUpper.includes('L')) {
+            return 'Livestock Container';
+        } else {
+            return 'Unknown Container Type';
+        }
     };
 
     // Helper function to determine container size from ISO code
@@ -307,8 +309,9 @@ const StepOneContainerPhoto = ({ onBack, onNavigateToStepTwo }) => {
     };
 
     // Function to validate container number against database and detect color
-    const validateContainerNumber = async (useTestData = false) => {
-        console.log('🔍 validateContainerNumber called with useTestData:', useTestData);
+    const validateContainerNumber = async () => {
+        setIsSubmitting(true);
+        
         // Use the manually corrected container number from input fields
         const correctedContainerNumber = containerNumber.join('').trim();
         
@@ -326,14 +329,17 @@ const StepOneContainerPhoto = ({ onBack, onNavigateToStepTwo }) => {
                     headers: {
                         'Content-Type': 'application/json',
                     },
-                    body: JSON.stringify({ containerNumber: correctedContainerNumber }),
+                    body: JSON.stringify({ 
+                        containerNumber: correctedContainerNumber,
+                        containerStatus: "Not Received"
+                    }),
                 }).then(res => res.json()).catch(err => ({
                     success: false,
                     error: `Validation Error: ${err.message}`
                 })),
                 
-                // Color detection (only if we have an image and not using test data)
-                !useTestData && imageBase64 ? fetch(`${BACKEND_URL}/api/vision/google-vision-color`, {
+                // Color detection (only if we have an image)
+                imageBase64 ? fetch(`${BACKEND_URL}/api/vision/google-vision-color`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -344,9 +350,9 @@ const StepOneContainerPhoto = ({ onBack, onNavigateToStepTwo }) => {
                     error: `Color Detection Error: ${err.message}`,
                     data: { containerColor: '', colorHex: '' }
                 })) : Promise.resolve({
-                    success: useTestData,
-                    error: useTestData ? 'Using test data color' : 'No image available for color detection',
-                    data: useTestData ? { containerColor: 'Black', colorHex: '#000000' } : { containerColor: '', colorHex: '' }
+                    success: false,
+                    error: 'No image available for color detection',
+                    data: { containerColor: '', colorHex: '' }
                 })
             ]);
             
@@ -438,24 +444,22 @@ const StepOneContainerPhoto = ({ onBack, onNavigateToStepTwo }) => {
                     setShowErrorModal(true);
                 }
             } else {
-                if (!useTestData) {
-                    setContainerModalData({
-                        type: 'error',
-                        message: validationResponse.error || 'Failed to validate container number'
-                    });
-                    setShowContainerModal(true);
-                }
+                setContainerModalData({
+                    type: 'error',
+                    message: validationResponse.error || 'Failed to validate container number'
+                });
+                setShowContainerModal(true);
             }
             
         } catch (error) {
             console.error('Container validation error:', error);
-            if (!useTestData) {
-                setContainerModalData({
-                    type: 'error',
-                    message: 'Failed to validate container number. Please check your connection.'
-                });
-                setShowContainerModal(true);
-            }
+            setContainerModalData({
+                type: 'error',
+                message: 'Failed to validate container number. Please check your connection.'
+            });
+            setShowContainerModal(true);
+        } finally {
+            setIsSubmitting(false);
         }
     };
 
@@ -642,14 +646,6 @@ const StepOneContainerPhoto = ({ onBack, onNavigateToStepTwo }) => {
                     Container Back Wall
                 </Text>
 
-                {/* Go to Step 2 Button */}
-                <TouchableOpacity
-                    onPress={() => onNavigateToStepTwo && onNavigateToStepTwo(containerData)}
-                    style={cn('mr-3 px-3 py-2 rounded-lg bg-blue-500')}
-                >
-                    <Text style={cn('text-white font-semibold text-sm')}>Go to Step 2</Text>
-                </TouchableOpacity>
-
                 {/* Theme Switcher */}
                 <Animated.View
                     style={{
@@ -690,112 +686,6 @@ const StepOneContainerPhoto = ({ onBack, onNavigateToStepTwo }) => {
                                     Make sure the Container Number is clearly visible
                                 </Text>
                             </View>
-                            
-                            {/* Skip Photo Button */}
-                            <TouchableOpacity
-                                onPress={async () => {
-                                    try {
-                                        const BACKEND_URL = API_CONFIG.getBackendUrl();
-                                        const containerNumber = 'BSIU2253788';
-                                        
-                                        console.log('🔍 Fetching container info for:', containerNumber);
-                                        
-                                        // Fetch container information from database
-                                        const response = await fetch(`${BACKEND_URL}/api/validate-container`, {
-                                            method: 'POST',
-                                            headers: {
-                                                'Content-Type': 'application/json',
-                                            },
-                                            body: JSON.stringify({ containerNumber }),
-                                        });
-                                        
-                                        const result = await response.json();
-                                        console.log('📊 Database response:', result);
-                                        
-                                        // Set test image
-                                        const testImageSource = require('../../assets/container/container1.jpg');
-                                        setImage(testImageSource);
-                                        
-                                        // Set test data
-                                        const testData = {
-                                            containerNumber: containerNumber,
-                                            isoCode: '45G1',
-                                            containerColor: 'Black',
-                                            colorHex: '#000000',
-                                            tripSegmentNumber: result.success && result.exists ? result.containerData?.tripSegmentNumber || 'ST25-00024' : 'ST25-00024'
-                                        };
-                                        
-                                        console.log('✅ Using test data:', testData);
-                                        
-                                        // Populate the extracted data
-                                        setExtractedData({
-                                            containerNumber: testData.containerNumber,
-                                            isoCode: testData.isoCode,
-                                            containerColor: testData.containerColor,
-                                            colorHex: testData.colorHex
-                                        });
-                                        
-                                        // Populate individual character arrays
-                                        const containerChars = testData.containerNumber.padEnd(11, ' ').split('').slice(0, 11);
-                                        const isoChars = testData.isoCode.padEnd(4, ' ').split('').slice(0, 4);
-                                        setContainerNumber(containerChars);
-                                        setIsoCode(isoChars);
-                                        
-                                        // Store test data for later use
-                                        setComparisonResults({
-                                            parkrow: { containerNumber: testData.containerNumber, isoCode: testData.isoCode },
-                                            googleVision: { containerNumber: testData.containerNumber, isoCode: testData.isoCode },
-                                            processingTime: 0.1
-                                        });
-                                        
-                                        // Test data is now set up - the preview screen will show with test data
-                                        
-                                    } catch (error) {
-                                        console.error('❌ Error setting up test data:', error);
-                                        
-                                        // Fallback test data
-                                        setImage('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgdmlld0JveD0iMCAwIDIwMCAyMDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIyMDAiIGhlaWdodD0iMjAwIiBmaWxsPSIjRjVGOUZCIi8+Cjx0ZXh0IHg9IjEwMCIgeT0iMTAwIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMTQiIGZpbGw9IiM2QjcyODAiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGR5PSIuM2VtIj5UZXN0IERhdGE8L3RleHQ+Cjx0ZXh0IHg9IjEwMCIgeT0iMTIwIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMTIiIGZpbGw9IiM2QjcyODAiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGR5PSIuM2VtIj5Db250YWluZXIgUGhvdG88L3RleHQ+Cjwvc3ZnPgo=');
-                                        
-                                        const fallbackData = {
-                                            containerNumber: 'BSIU2253788',
-                                            isoCode: '45G1',
-                                            containerColor: 'Black',
-                                            colorHex: '#000000',
-                                            tripSegmentNumber: 'ST25-00024'
-                                        };
-                                        
-                                        setExtractedData({
-                                            containerNumber: fallbackData.containerNumber,
-                                            isoCode: fallbackData.isoCode
-                                        });
-                                        
-                                        const containerChars = fallbackData.containerNumber.padEnd(11, ' ').split('').slice(0, 11);
-                                        const isoChars = fallbackData.isoCode.padEnd(4, ' ').split('').slice(0, 4);
-                                        setContainerNumber(containerChars);
-                                        setIsoCode(isoChars);
-                                        
-                                        setComparisonResults({
-                                            parkrow: { containerNumber: fallbackData.containerNumber, isoCode: fallbackData.isoCode },
-                                            googleVision: { containerNumber: fallbackData.containerNumber, isoCode: fallbackData.isoCode },
-                                            processingTime: 0.1
-                                        });
-                                        
-                                        // Fallback test data is now set up - the preview screen will show with test data
-                                    }
-                                }}
-                                style={cn('mt-4 rounded-lg overflow-hidden')}
-                            >
-                                <LinearGradient
-                                    colors={['#F59E0B', '#000000']}
-                                    start={{ x: 0, y: 0 }}
-                                    end={{ x: 1, y: 0 }}
-                                    style={cn('px-6 py-3')}
-                                >
-                                    <Text style={cn('text-white text-center font-semibold')}>
-                                        Skip Photo - Use Test Data
-                                    </Text>
-                                </LinearGradient>
-                            </TouchableOpacity>
                         </View>
                         
                         {/* Container Guide Frame */}
@@ -1021,18 +911,31 @@ const StepOneContainerPhoto = ({ onBack, onNavigateToStepTwo }) => {
                             <View style={cn('mt-4')}>
                                 <TouchableOpacity
                                     onPress={validateContainerNumber}
-                                    disabled={isProcessing}
-                                    style={cn(`rounded-lg overflow-hidden w-full ${isProcessing ? 'opacity-50' : ''}`)}
+                                    disabled={isSubmitting}
+                                    style={cn(`rounded-lg overflow-hidden w-full ${isSubmitting ? 'opacity-50' : ''}`)}
                                 >
                                     <LinearGradient
-                                        colors={isProcessing ? ['#9CA3AF', '#6B7280'] : ['#F59E0B', '#000000']}
+                                        colors={isSubmitting ? ['#9CA3AF', '#6B7280'] : ['#F59E0B', '#000000']}
                                         start={{ x: 0, y: 0 }}
                                         end={{ x: 1, y: 0 }}
                                         style={cn('p-4 items-center')}
                                     >
-                                        <Text style={cn('text-white font-bold')}>
-                                            {isProcessing ? 'Processing...' : 'Next'}
-                                        </Text>
+                                        {isSubmitting ? (
+                                            <View style={cn('flex-row items-center')}>
+                                                <ActivityIndicator 
+                                                    size="small" 
+                                                    color="white" 
+                                                    style={cn('mr-2')}
+                                                />
+                                                <Text style={cn('text-white font-bold')}>
+                                                    Submitting...
+                                                </Text>
+                                            </View>
+                                        ) : (
+                                            <Text style={cn('text-white font-bold')}>
+                                                Next
+                                            </Text>
+                                        )}
                                     </LinearGradient>
                                 </TouchableOpacity>
                             </View>

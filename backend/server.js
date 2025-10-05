@@ -18,16 +18,18 @@ const COLLECTION_NAME = 'users';
 
 let db;
 
-// AWS S3 Configuration
+// Backblaze B2 Configuration (S3-compatible API)
 const s3Client = new S3Client({
-    region: process.env.AWS_REGION || 'us-east-1',
+    region: process.env.B2_REGION || 'eu-central-003',
+    endpoint: process.env.B2_ENDPOINT || 'https://s3.eu-central-003.backblazeb2.com',
     credentials: {
-        accessKeyId: process.env.AWS_ACCESS_KEY_ID,
-        secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+        accessKeyId: process.env.B2_APPLICATION_KEY_ID,
+        secretAccessKey: process.env.B2_APPLICATION_KEY,
     },
+    forcePathStyle: true, // Required for B2
 });
 
-const S3_BUCKET_NAME = process.env.S3_BUCKET_NAME || 'simba-terminal-photos';
+const S3_BUCKET_NAME = process.env.B2_BUCKET_NAME || 'simba-terminal-photos';
 
 // Shared directory configuration
 const SHARED_ASSETS_DIR = path.join(__dirname, '..', '..', 'shared-assets');
@@ -44,6 +46,11 @@ async function ensureSharedDirectories() {
     }
 }
 
+// Helper function to generate standardized filenames
+function generateFilename(tripSegmentNumber, photoType, sequenceNumber, timestamp) {
+    return `${tripSegmentNumber}_${photoType}_${sequenceNumber}_${timestamp}.jpg`;
+}
+
 // S3 Upload Utility Functions
 async function uploadToS3(file, key, contentType = 'image/jpeg') {
     try {
@@ -57,12 +64,12 @@ async function uploadToS3(file, key, contentType = 'image/jpeg') {
         });
 
         const result = await s3Client.send(command);
-        const publicUrl = `https://${S3_BUCKET_NAME}.s3.${process.env.AWS_REGION || 'us-east-1'}.amazonaws.com/${key}`;
+        const publicUrl = `https://${S3_BUCKET_NAME}.s3.${process.env.B2_REGION || 'eu-central-003'}.backblazeb2.com/${key}`;
         
-        console.log(`✅ File uploaded to S3: ${key}`);
+        console.log(`✅ File uploaded to B2: ${key}`);
         return { success: true, url: publicUrl, key: key };
     } catch (error) {
-        console.error('❌ S3 upload error:', error);
+        console.error('❌ B2 upload error:', error);
         return { success: false, error: error.message };
     }
 }
@@ -75,16 +82,16 @@ async function deleteFromS3(key) {
         });
 
         await s3Client.send(command);
-        console.log(`✅ File deleted from S3: ${key}`);
+        console.log(`✅ File deleted from B2: ${key}`);
         return { success: true };
     } catch (error) {
-        console.error('❌ S3 delete error:', error);
+        console.error('❌ B2 delete error:', error);
         return { success: false, error: error.message };
     }
 }
 
 // Configure multer for file uploads
-// Use memory storage for S3 uploads (gets file buffer)
+// Use memory storage for B2 uploads (gets file buffer)
 const memoryStorage = multer.memoryStorage();
 
 // Use disk storage for local uploads (legacy)
@@ -673,9 +680,12 @@ app.post('/api/vision/google-vision-color', async (req, res) => {
 // Container number validation endpoint
 app.post('/api/validate-container', async (req, res) => {
     try {
-        const { containerNumber } = req.body;
+        const { containerNumber, containerStatus } = req.body;
         
-        console.log('🔍 Received container number:', containerNumber);
+        console.log('🔍 Received container validation request:', {
+            containerNumber,
+            containerStatus
+        });
 
         if (!containerNumber) {
             return res.status(400).json({
@@ -692,42 +702,50 @@ app.post('/api/validate-container', async (req, res) => {
         const tripsegmentsCollection = db.collection('tripsegments');
         const trimmedContainerNumber = containerNumber.trim();
         
+        // Build query object with container number and status
+        const baseQuery = { containerNumber: trimmedContainerNumber };
+        if (containerStatus) {
+            baseQuery.containerStatus = containerStatus;
+        }
+        
         // Try exact match first
-        let existingContainer = await tripsegmentsCollection.findOne({ 
-            containerNumber: trimmedContainerNumber 
-        });
+        let existingContainer = await tripsegmentsCollection.findOne(baseQuery);
         
         // If not found, try without spaces (common OCR issue)
         if (!existingContainer) {
             const containerWithoutSpaces = trimmedContainerNumber.replace(/\s/g, '');
-            existingContainer = await tripsegmentsCollection.findOne({ 
-                containerNumber: containerWithoutSpaces 
-            });
+            const queryWithoutSpaces = { containerNumber: containerWithoutSpaces };
+            if (containerStatus) {
+                queryWithoutSpaces.containerStatus = containerStatus;
+            }
+            existingContainer = await tripsegmentsCollection.findOne(queryWithoutSpaces);
         }
 
         if (existingContainer) {
-            console.log(`✅ Container number ${containerNumber} found in database`);
+            console.log(`✅ Container number ${containerNumber}${containerStatus ? ` with status "${containerStatus}"` : ''} found in database`);
             console.log('📊 Available fields in database document:', Object.keys(existingContainer));
             console.log('📊 Trip segment fields:', {
                 tripSegmentNumber: existingContainer.tripSegmentNumber,
-                tripSegment: existingContainer.tripSegment
+                tripSegment: existingContainer.tripSegment,
+                containerStatus: existingContainer.containerStatus
             });
             res.json({
                 success: true,
                 exists: true,
-                message: `Container number ${containerNumber} exists in the database`,
+                message: `Container number ${containerNumber}${containerStatus ? ` with status "${containerStatus}"` : ''} exists in the database`,
                 containerData: {
                     containerNumber: existingContainer.containerNumber,
                     tripSegmentNumber: existingContainer.tripSegmentNumber || existingContainer.tripSegment || 'N/A',
+                    containerStatus: existingContainer.containerStatus,
                     // Add other relevant fields as needed
                 }
             });
         } else {
-            console.log(`❌ Container number ${containerNumber} not found in database`);
+            console.log(`❌ Container number ${containerNumber}${containerStatus ? ` with status "${containerStatus}"` : ''} not found in database`);
             res.json({
                 success: true,
                 exists: false,
-                message: `Container number ${containerNumber} does not exist in the database`
+                message: `Container number ${containerNumber}${containerStatus ? ` with status "${containerStatus}"` : ''} does not exist in the database`
             });
         }
 
@@ -1051,16 +1069,24 @@ app.post('/api/upload/s3-damage-photos', uploadS3.array('photos', 10), async (re
             throw new Error('Database not connected');
         }
 
+        const tripsegmentsCollection = db.collection('tripsegments');
+
+        // Get existing damage photos count to determine next sequence number
+        const existingTripSegment = await tripsegmentsCollection.findOne({ tripSegmentNumber: tripSegmentNumber });
+        const existingDamagePhotosCount = existingTripSegment?.damagePhotos?.length || 0;
+        console.log(`📊 Existing damage photos count for ${tripSegmentNumber}: ${existingDamagePhotosCount}`);
+        
         // Upload files to S3 and create damage photo objects
         const uploadedFiles = [];
         const damagePhotoObjects = [];
         
-        for (const file of req.files) {
+        for (let i = 0; i < req.files.length; i++) {
+            const file = req.files[i];
             // Create S3 key: damage-photos/tripSegmentNumber/filename
             const timestamp = Date.now();
-            const fileExtension = path.extname(file.originalname);
-            const filename = `damage_${timestamp}${fileExtension}`;
-            const s3Key = `damage-photos/${tripSegmentNumber}/${filename}`;
+            const sequenceNumber = existingDamagePhotosCount + i + 1;
+            const filename = generateFilename(tripSegmentNumber, 'DamagePhoto', sequenceNumber, timestamp);
+            const s3Key = `${tripSegmentNumber}/${filename}`;
             
             console.log('📸 File details:', {
                 originalname: file.originalname,
@@ -1070,11 +1096,24 @@ app.post('/api/upload/s3-damage-photos', uploadS3.array('photos', 10), async (re
                 s3Key: s3Key
             });
             
+            // Validate file buffer
+            if (!file.buffer || file.buffer.length === 0) {
+                console.error('❌ Empty file buffer for:', file.originalname);
+                return res.status(400).json({
+                    success: false,
+                    error: `File ${file.originalname} has no data`
+                });
+            }
+            
             // Upload to S3
             const uploadResult = await uploadToS3(file, s3Key, file.mimetype);
             
             if (uploadResult.success) {
-                uploadedFiles.push(s3Key);
+                uploadedFiles.push({
+                    s3Key: s3Key,
+                    filename: filename,
+                    url: uploadResult.url
+                });
                 
                 // Create damage photo object matching the schema
                 const damagePhotoObject = {
@@ -1098,8 +1137,6 @@ app.post('/api/upload/s3-damage-photos', uploadS3.array('photos', 10), async (re
         }
 
         // Update TripSegment document with damage photo objects
-        const tripsegmentsCollection = db.collection('tripsegments');
-        
         const updateResult = await tripsegmentsCollection.updateOne(
             { tripSegmentNumber: tripSegmentNumber },
             {
@@ -1167,16 +1204,24 @@ app.post('/api/upload/s3-container-photos', uploadS3.array('photos', 10), async 
             throw new Error('Database not connected');
         }
 
+        const tripsegmentsCollection = db.collection('tripsegments');
+
+        // Get existing container photos count to determine next sequence number
+        const existingTripSegment = await tripsegmentsCollection.findOne({ tripSegmentNumber: tripSegmentNumber });
+        const existingContainerPhotosCount = existingTripSegment?.containerPhotos?.length || 0;
+        console.log(`📊 Existing container photos count for ${tripSegmentNumber}: ${existingContainerPhotosCount}`);
+
         // Upload files to S3 and create container photo objects
         const uploadedFiles = [];
         const containerPhotoObjects = [];
         
-        for (const file of req.files) {
+        for (let i = 0; i < req.files.length; i++) {
+            const file = req.files[i];
             // Create S3 key: container-photos/tripSegmentNumber/filename
             const timestamp = Date.now();
-            const fileExtension = path.extname(file.originalname);
-            const filename = `container_${timestamp}${fileExtension}`;
-            const s3Key = `container-photos/${tripSegmentNumber}/${filename}`;
+            const sequenceNumber = existingContainerPhotosCount + i + 1;
+            const filename = generateFilename(tripSegmentNumber, 'ContainerPhoto', sequenceNumber, timestamp);
+            const s3Key = `${tripSegmentNumber}/${filename}`;
             
             console.log('📸 File details:', {
                 originalname: file.originalname,
@@ -1186,11 +1231,24 @@ app.post('/api/upload/s3-container-photos', uploadS3.array('photos', 10), async 
                 s3Key: s3Key
             });
             
+            // Validate file buffer
+            if (!file.buffer || file.buffer.length === 0) {
+                console.error('❌ Empty file buffer for:', file.originalname);
+                return res.status(400).json({
+                    success: false,
+                    error: `File ${file.originalname} has no data`
+                });
+            }
+            
             // Upload to S3
             const uploadResult = await uploadToS3(file, s3Key, file.mimetype);
             
             if (uploadResult.success) {
-                uploadedFiles.push(s3Key);
+                uploadedFiles.push({
+                    s3Key: s3Key,
+                    filename: filename,
+                    url: uploadResult.url
+                });
                 
                 // Create container photo object matching the schema
                 const containerPhotoObject = {
@@ -1214,8 +1272,6 @@ app.post('/api/upload/s3-container-photos', uploadS3.array('photos', 10), async 
         }
 
         // Update TripSegment document with container photo objects
-        const tripsegmentsCollection = db.collection('tripsegments');
-        
         const updateResult = await tripsegmentsCollection.updateOne(
             { tripSegmentNumber: tripSegmentNumber },
             {
@@ -1423,9 +1479,8 @@ app.post('/api/upload/s3-trailer-photo', uploadS3.single('photo'), async (req, r
 
         // Upload file to S3
         const timestamp = Date.now();
-        const fileExtension = path.extname(req.file.originalname);
-        const filename = `trailer_${timestamp}${fileExtension}`;
-        const s3Key = `trailer-photos/${tripSegmentNumber}/${filename}`;
+        const filename = generateFilename(tripSegmentNumber, 'TrailerPhoto', 1, timestamp);
+        const s3Key = `${tripSegmentNumber}/${filename}`;
         
         console.log('📸 File details:', {
             originalname: req.file.originalname,
@@ -1434,6 +1489,15 @@ app.post('/api/upload/s3-trailer-photo', uploadS3.single('photo'), async (req, r
             filename: filename,
             s3Key: s3Key
         });
+        
+        // Validate file buffer
+        if (!req.file.buffer || req.file.buffer.length === 0) {
+            console.error('❌ Empty file buffer for:', req.file.originalname);
+            return res.status(400).json({
+                success: false,
+                error: `File ${req.file.originalname} has no data`
+            });
+        }
         
         // Upload to S3
         const uploadResult = await uploadToS3(req.file, s3Key, req.file.mimetype);
@@ -1476,6 +1540,7 @@ app.post('/api/upload/s3-trailer-photo', uploadS3.single('photo'), async (req, r
             success: true,
             message: 'Successfully uploaded trailer photo to S3',
             trailerPhoto: uploadResult.url,
+            filename: filename,
             tripSegmentNumber: tripSegmentNumber
         });
 
@@ -1517,11 +1582,16 @@ app.post('/api/upload/s3-front-wall-photo', uploadS3.single('photo'), async (req
             throw new Error('Database not connected');
         }
 
+        // Get existing container photos count to determine next sequence number
+        const existingTripSegment = await tripsegmentsCollection.findOne({ tripSegmentNumber: tripSegmentNumber });
+        const existingContainerPhotosCount = existingTripSegment?.containerPhotos?.length || 0;
+        console.log(`📊 Existing container photos count for ${tripSegmentNumber}: ${existingContainerPhotosCount}`);
+
         // Upload file to S3
         const timestamp = Date.now();
-        const fileExtension = path.extname(req.file.originalname);
-        const filename = `front_wall_${timestamp}${fileExtension}`;
-        const s3Key = `front-wall-photos/${tripSegmentNumber}/${filename}`;
+        const sequenceNumber = existingContainerPhotosCount + 1;
+        const filename = generateFilename(tripSegmentNumber, 'ContainerPhoto', sequenceNumber, timestamp);
+        const s3Key = `${tripSegmentNumber}/${filename}`;
         
         console.log('📸 File details:', {
             originalname: req.file.originalname,
@@ -1544,14 +1614,25 @@ app.post('/api/upload/s3-front-wall-photo', uploadS3.single('photo'), async (req
 
         console.log(`✅ Front wall photo uploaded to S3: ${s3Key}`);
 
-        // Update TripSegment document with front wall photo
+        // Update TripSegment document with container photo
         const tripsegmentsCollection = db.collection('tripsegments');
+        
+        const containerPhotoObject = {
+            photoType: 'ContainerPhoto',
+            photoPath: uploadResult.url,
+            photoSize: req.file.buffer ? req.file.buffer.length : 0,
+            damageLocation: 'Front Wall',
+            uploadedAt: new Date().toISOString(),
+            filename: filename
+        };
         
         const updateResult = await tripsegmentsCollection.updateOne(
             { tripSegmentNumber: tripSegmentNumber },
             {
+                $push: {
+                    containerPhotos: containerPhotoObject
+                },
                 $set: {
-                    frontWallPhoto: uploadResult.url,
                     lastUpdated: new Date().toISOString()
                 }
             },
@@ -1566,12 +1647,13 @@ app.post('/api/upload/s3-front-wall-photo', uploadS3.single('photo'), async (req
             });
         }
 
-        console.log(`✅ Updated trip segment ${tripSegmentNumber} with front wall photo`);
+        console.log(`✅ Updated trip segment ${tripSegmentNumber} with container photo`);
 
         res.json({
             success: true,
-            message: 'Successfully uploaded front wall photo to S3',
-            frontWallPhoto: uploadResult.url,
+            message: 'Successfully uploaded container photo to S3',
+            containerPhoto: uploadResult.url,
+            filename: filename,
             tripSegmentNumber: tripSegmentNumber
         });
 
@@ -1615,9 +1697,8 @@ app.post('/api/upload/s3-truck-photo', uploadS3.single('photo'), async (req, res
 
         // Upload file to S3
         const timestamp = Date.now();
-        const fileExtension = path.extname(req.file.originalname);
-        const filename = `truck_${timestamp}${fileExtension}`;
-        const s3Key = `truck-photos/${tripSegmentNumber}/${filename}`;
+        const filename = generateFilename(tripSegmentNumber, 'TruckPhoto', 1, timestamp);
+        const s3Key = `${tripSegmentNumber}/${filename}`;
         
         console.log('📸 File details:', {
             originalname: req.file.originalname,
@@ -1668,6 +1749,7 @@ app.post('/api/upload/s3-truck-photo', uploadS3.single('photo'), async (req, res
             success: true,
             message: 'Successfully uploaded truck photo to S3',
             truckPhoto: uploadResult.url,
+            filename: filename,
             tripSegmentNumber: tripSegmentNumber
         });
 
@@ -1805,11 +1887,18 @@ app.post('/api/upload/s3-inside-photo', uploadS3.single('photo'), async (req, re
             throw new Error('Database not connected');
         }
 
+        const tripsegmentsCollection = db.collection('tripsegments');
+
+        // Get existing container photos count to determine next sequence number
+        const existingTripSegment = await tripsegmentsCollection.findOne({ tripSegmentNumber: tripSegmentNumber });
+        const existingContainerPhotosCount = existingTripSegment?.containerPhotos?.length || 0;
+        console.log(`📊 Existing container photos count for ${tripSegmentNumber}: ${existingContainerPhotosCount}`);
+
         // Upload file to S3
         const timestamp = Date.now();
-        const fileExtension = path.extname(req.file.originalname);
-        const filename = `inside_${timestamp}${fileExtension}`;
-        const s3Key = `inside-photos/${tripSegmentNumber}/${filename}`;
+        const sequenceNumber = existingContainerPhotosCount + 1;
+        const filename = generateFilename(tripSegmentNumber, 'ContainerPhoto', sequenceNumber, timestamp);
+        const s3Key = `${tripSegmentNumber}/${filename}`;
         
         console.log('📸 File details:', {
             originalname: req.file.originalname,
@@ -1832,14 +1921,23 @@ app.post('/api/upload/s3-inside-photo', uploadS3.single('photo'), async (req, re
 
         console.log(`✅ Inside photo uploaded to S3: ${s3Key}`);
 
-        // Update TripSegment document with inside photo
-        const tripsegmentsCollection = db.collection('tripsegments');
+        // Update TripSegment document with container photo
+        const containerPhotoObject = {
+            photoType: 'ContainerPhoto',
+            photoPath: uploadResult.url,
+            photoSize: req.file.buffer ? req.file.buffer.length : 0,
+            damageLocation: 'Inside',
+            uploadedAt: new Date().toISOString(),
+            filename: filename
+        };
         
         const updateResult = await tripsegmentsCollection.updateOne(
             { tripSegmentNumber: tripSegmentNumber },
             {
+                $push: {
+                    containerPhotos: containerPhotoObject
+                },
                 $set: {
-                    insidePhoto: uploadResult.url,
                     lastUpdated: new Date().toISOString()
                 }
             },
@@ -1854,12 +1952,13 @@ app.post('/api/upload/s3-inside-photo', uploadS3.single('photo'), async (req, re
             });
         }
 
-        console.log(`✅ Updated trip segment ${tripSegmentNumber} with inside photo`);
+        console.log(`✅ Updated trip segment ${tripSegmentNumber} with container photo`);
 
         res.json({
             success: true,
-            message: 'Successfully uploaded inside photo to S3',
-            insidePhoto: uploadResult.url,
+            message: 'Successfully uploaded container photo to S3',
+            containerPhoto: uploadResult.url,
+            filename: filename,
             tripSegmentNumber: tripSegmentNumber
         });
 
@@ -1868,6 +1967,232 @@ app.post('/api/upload/s3-inside-photo', uploadS3.single('photo'), async (req, re
         res.status(500).json({
             success: false,
             error: error.message || 'Failed to upload inside photo to S3'
+        });
+    }
+});
+
+// S3 Upload endpoint for right side photo
+app.post('/api/upload/s3-right-side-photo', uploadS3.single('photo'), async (req, res) => {
+    try {
+        const { tripSegmentNumber, photoType } = req.body;
+        
+        console.log('📸 Received S3 right side photo upload:', {
+            tripSegmentNumber,
+            photoType,
+            hasFile: !!req.file
+        });
+
+        if (!tripSegmentNumber) {
+            return res.status(400).json({
+                success: false,
+                error: 'Trip segment number is required'
+            });
+        }
+
+        if (!req.file) {
+            return res.status(400).json({
+                success: false,
+                error: 'No file uploaded'
+            });
+        }
+
+        if (!db) {
+            throw new Error('Database not connected');
+        }
+
+        // Get existing container photos count to determine next sequence number
+        const existingTripSegment = await tripsegmentsCollection.findOne({ tripSegmentNumber: tripSegmentNumber });
+        const existingContainerPhotosCount = existingTripSegment?.containerPhotos?.length || 0;
+        console.log(`📊 Existing container photos count for ${tripSegmentNumber}: ${existingContainerPhotosCount}`);
+
+        // Upload file to S3
+        const timestamp = Date.now();
+        const sequenceNumber = existingContainerPhotosCount + 1;
+        const filename = generateFilename(tripSegmentNumber, 'ContainerPhoto', sequenceNumber, timestamp);
+        const s3Key = `${tripSegmentNumber}/${filename}`;
+        
+        console.log('📸 File details:', {
+            originalname: req.file.originalname,
+            mimetype: req.file.mimetype,
+            size: req.file.buffer ? req.file.buffer.length : 'no buffer',
+            filename: filename,
+            s3Key: s3Key
+        });
+        
+        // Upload to S3
+        const uploadResult = await uploadToS3(req.file, s3Key, req.file.mimetype);
+        
+        if (!uploadResult.success) {
+            console.error(`❌ Failed to upload right side photo:`, uploadResult.error);
+            return res.status(500).json({
+                success: false,
+                error: 'Failed to upload right side photo to S3'
+            });
+        }
+
+        console.log(`✅ Right side photo uploaded to S3: ${s3Key}`);
+
+        // Update TripSegment document with container photo
+        const tripsegmentsCollection = db.collection('tripsegments');
+        
+        const containerPhotoObject = {
+            photoType: 'ContainerPhoto',
+            photoPath: uploadResult.url,
+            photoSize: req.file.buffer ? req.file.buffer.length : 0,
+            damageLocation: 'Right Side',
+            uploadedAt: new Date().toISOString(),
+            filename: filename
+        };
+        
+        const updateResult = await tripsegmentsCollection.updateOne(
+            { tripSegmentNumber: tripSegmentNumber },
+            {
+                $push: {
+                    containerPhotos: containerPhotoObject
+                },
+                $set: {
+                    lastUpdated: new Date().toISOString()
+                }
+            },
+            { upsert: false }
+        );
+
+        if (updateResult.matchedCount === 0) {
+            console.log(`❌ Trip segment ${tripSegmentNumber} not found`);
+            return res.status(404).json({
+                success: false,
+                error: `Trip segment ${tripSegmentNumber} not found`
+            });
+        }
+
+        console.log(`✅ Updated trip segment ${tripSegmentNumber} with container photo`);
+
+        res.json({
+            success: true,
+            message: 'Successfully uploaded container photo to S3',
+            containerPhoto: uploadResult.url,
+            filename: filename,
+            tripSegmentNumber: tripSegmentNumber
+        });
+
+    } catch (error) {
+        console.error('❌ S3 right side photo upload error:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Internal server error during right side photo upload'
+        });
+    }
+});
+
+// S3 Upload endpoint for left side photo
+app.post('/api/upload/s3-left-side-photo', uploadS3.single('photo'), async (req, res) => {
+    try {
+        const { tripSegmentNumber, photoType } = req.body;
+        
+        console.log('📸 Received S3 left side photo upload:', {
+            tripSegmentNumber,
+            photoType,
+            hasFile: !!req.file
+        });
+
+        if (!tripSegmentNumber) {
+            return res.status(400).json({
+                success: false,
+                error: 'Trip segment number is required'
+            });
+        }
+
+        if (!req.file) {
+            return res.status(400).json({
+                success: false,
+                error: 'No file uploaded'
+            });
+        }
+
+        if (!db) {
+            throw new Error('Database not connected');
+        }
+
+        // Get existing container photos count to determine next sequence number
+        const existingTripSegment = await tripsegmentsCollection.findOne({ tripSegmentNumber: tripSegmentNumber });
+        const existingContainerPhotosCount = existingTripSegment?.containerPhotos?.length || 0;
+        console.log(`📊 Existing container photos count for ${tripSegmentNumber}: ${existingContainerPhotosCount}`);
+
+        // Upload file to S3
+        const timestamp = Date.now();
+        const sequenceNumber = existingContainerPhotosCount + 1;
+        const filename = generateFilename(tripSegmentNumber, 'ContainerPhoto', sequenceNumber, timestamp);
+        const s3Key = `${tripSegmentNumber}/${filename}`;
+        
+        console.log('📸 File details:', {
+            originalname: req.file.originalname,
+            mimetype: req.file.mimetype,
+            size: req.file.buffer ? req.file.buffer.length : 'no buffer',
+            filename: filename,
+            s3Key: s3Key
+        });
+        
+        // Upload to S3
+        const uploadResult = await uploadToS3(req.file, s3Key, req.file.mimetype);
+        
+        if (!uploadResult.success) {
+            console.error(`❌ Failed to upload left side photo:`, uploadResult.error);
+            return res.status(500).json({
+                success: false,
+                error: 'Failed to upload left side photo to S3'
+            });
+        }
+
+        console.log(`✅ Left side photo uploaded to S3: ${s3Key}`);
+
+        // Update TripSegment document with container photo
+        const tripsegmentsCollection = db.collection('tripsegments');
+        
+        const containerPhotoObject = {
+            photoType: 'ContainerPhoto',
+            photoPath: uploadResult.url,
+            photoSize: req.file.buffer ? req.file.buffer.length : 0,
+            damageLocation: 'Left Side',
+            uploadedAt: new Date().toISOString(),
+            filename: filename
+        };
+        
+        const updateResult = await tripsegmentsCollection.updateOne(
+            { tripSegmentNumber: tripSegmentNumber },
+            {
+                $push: {
+                    containerPhotos: containerPhotoObject
+                },
+                $set: {
+                    lastUpdated: new Date().toISOString()
+                }
+            },
+            { upsert: false }
+        );
+
+        if (updateResult.matchedCount === 0) {
+            console.log(`❌ Trip segment ${tripSegmentNumber} not found`);
+            return res.status(404).json({
+                success: false,
+                error: `Trip segment ${tripSegmentNumber} not found`
+            });
+        }
+
+        console.log(`✅ Updated trip segment ${tripSegmentNumber} with container photo`);
+
+        res.json({
+            success: true,
+            message: 'Successfully uploaded container photo to S3',
+            containerPhoto: uploadResult.url,
+            filename: filename,
+            tripSegmentNumber: tripSegmentNumber
+        });
+
+    } catch (error) {
+        console.error('❌ S3 left side photo upload error:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Internal server error during left side photo upload'
         });
     }
 });
@@ -1903,9 +2228,8 @@ app.post('/api/upload/s3-driver-photo', uploadS3.single('photo'), async (req, re
 
         // Upload file to S3
         const timestamp = Date.now();
-        const fileExtension = path.extname(req.file.originalname);
-        const filename = `driver_${timestamp}${fileExtension}`;
-        const s3Key = `driver-photos/${tripSegmentNumber}/${filename}`;
+        const filename = generateFilename(tripSegmentNumber, 'DriverPhoto', 1, timestamp);
+        const s3Key = `${tripSegmentNumber}/${filename}`;
         
         console.log('📸 File details:', {
             originalname: req.file.originalname,
@@ -1956,6 +2280,7 @@ app.post('/api/upload/s3-driver-photo', uploadS3.single('photo'), async (req, re
             success: true,
             message: 'Successfully uploaded driver photo to S3',
             driverPhoto: uploadResult.url,
+            filename: filename,
             tripSegmentNumber: tripSegmentNumber
         });
 
