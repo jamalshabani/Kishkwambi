@@ -506,18 +506,23 @@ const StepEightInsidePhoto = ({ onBack, containerData, onNavigateToStepNine, onN
                             {/* Retake Button */}
                             <TouchableOpacity
                                 onPress={() => setImage(null)}
-                                style={cn('mt-4 bg-red-500 px-4 py-2 rounded-lg items-center')}
+                                style={cn('mt-4 rounded-lg overflow-hidden')}
                             >
-                                <Text style={cn('text-white font-semibold')}>Retake Photo</Text>
+                                <LinearGradient
+                                    colors={['#000000', '#F59E0B']}
+                                    start={{ x: 0, y: 0 }}
+                                    end={{ x: 1, y: 0 }}
+                                    style={cn('p-4 items-center')}
+                                >
+                                    <Text style={cn('text-white font-semibold')}>Retake Photo</Text>
+                                </LinearGradient>
                             </TouchableOpacity>
-                        </View>
 
-                        {/* Navigation Button */}
-                        <View style={cn('flex-row justify-between mt-4 pb-6')}>
+                            {/* Next Button */}
                             <TouchableOpacity
                                 onPress={handleNext}
                                 disabled={isProcessing}
-                                style={cn(`flex-1 rounded-lg overflow-hidden ${isProcessing ? 'opacity-50' : ''}`)}
+                                style={cn(`mt-4 rounded-lg overflow-hidden ${isProcessing ? 'opacity-50' : ''}`)}
                             >
                                 <LinearGradient
                                     colors={isProcessing ? ['#9CA3AF', '#6B7280'] : ['#F59E0B', '#000000']}

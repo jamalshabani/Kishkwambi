@@ -40,24 +40,24 @@ export default function StepFourRightSidePhoto({ containerData, trailerData, onB
 
 
     const takePicture = async () => {
-        if (cameraRef.current) {
-            try {
-                setIsProcessing(true);
-                const photo = await cameraRef.current.takePictureAsync({
-                    quality: 0.8,
-                    base64: true,
-                });
-                
-                if (photo) {
-                    setImage(photo.uri);
-                    console.log('📸 Container right side photo taken successfully');
-                }
-            } catch (error) {
-                console.error('❌ Error taking photo:', error);
-                Alert.alert('Error', 'Failed to take photo. Please try again.');
-            } finally {
-                setIsProcessing(false);
+        if (!cameraRef.current) return;
+
+        try {
+            setIsProcessing(true);
+            const photo = await cameraRef.current.takePictureAsync({
+                quality: 0.8,
+                base64: true,
+            });
+
+            if (photo?.uri) {
+                setImage(photo.base64);
+                console.log('📸 Right side photo taken successfully');
             }
+        } catch (error) {
+            console.error('❌ Error taking right side photo:', error);
+            Alert.alert('Error', 'Failed to take photo. Please try again.');
+        } finally {
+            setIsProcessing(false);
         }
     };
 
@@ -303,7 +303,7 @@ export default function StepFourRightSidePhoto({ containerData, trailerData, onB
                 </View>
             ) : (
                 <ScrollView style={cn('flex-1')} showsVerticalScrollIndicator={false}>
-                    <View style={cn('px-4 py-4')}>
+                    <View style={cn('p-6')}>
                         {/* Container Number and Trip Segment Display */}
                         <View style={cn(`mb-6 p-4 rounded-lg ${isDark ? 'bg-gray-700 border-gray-600' : 'bg-gray-50 border-gray-200'} border`)}>
                             <View style={cn('flex-row items-center justify-between')}>
@@ -326,42 +326,29 @@ export default function StepFourRightSidePhoto({ containerData, trailerData, onB
                             </View>
                         </View>
 
-                        {/* Photo Preview */}
-                        <View style={cn(`rounded-lg overflow-hidden ${isDark ? 'bg-gray-800' : 'bg-white'} shadow-lg`)}>
-                            <View style={cn('relative')}>
-                                <Image source={{ uri: image }} style={cn('w-full h-96')} resizeMode="cover" />
-                                {/* Eye Icon Overlay */}
-                                <TouchableOpacity
-                                    onPress={() => setShowZoomModal(true)}
-                                    style={cn('absolute inset-0 items-center justify-center')}
-                                >
-                                    <View style={cn('bg-black/50 rounded-full p-3')}>
-                                        <Eye size={32} color="white" />
-                                    </View>
-                                </TouchableOpacity>
-                            </View>
-                        </View>
-
-                        {/* Retake Button */}
-                        <TouchableOpacity
-                            onPress={retakePhoto}
-                            style={cn('mt-4 rounded-lg overflow-hidden')}
-                        >
-                            <LinearGradient
-                                colors={['#000000', '#F59E0B']}
-                                start={{ x: 0, y: 0 }}
-                                end={{ x: 1, y: 0 }}
-                                style={cn('p-4 items-center')}
-                            >
-                                <Text style={cn('text-white font-bold')}>Retake Photo</Text>
-                            </LinearGradient>
-                        </TouchableOpacity>
-
-                        {/* Navigation Buttons */}
-                        <View style={cn('flex-row justify-between mt-4')}>
+                        {/* Photo Preview Section */}
+                        <View style={cn(`${isDark ? 'bg-gray-800' : 'bg-white'} rounded-lg shadow-lg p-4 mb-6`)}>
+                            <Text style={cn(`text-lg font-bold mb-4 ${isDark ? 'text-white' : 'text-black'}`)}>
+                                Right Side Photo
+                            </Text>
+                            
                             <TouchableOpacity
-                                onPress={onBack}
-                                style={cn('flex-1 mr-2 rounded-lg overflow-hidden')}
+                                onPress={() => setShowZoomModal(true)}
+                                style={cn('relative')}
+                            >
+                                <Image 
+                                    source={{ uri: `data:image/jpeg;base64,${image}` }} 
+                                    style={cn('w-full h-64 rounded-lg')} 
+                                />
+                                <View style={cn('absolute inset-0 bg-black/30 rounded-lg items-center justify-center')}>
+                                    <Eye size={32} color="white" />
+                                </View>
+                            </TouchableOpacity>
+
+                            {/* Retake Button */}
+                            <TouchableOpacity
+                                onPress={() => setImage(null)}
+                                style={cn('mt-4 rounded-lg overflow-hidden')}
                             >
                                 <LinearGradient
                                     colors={['#000000', '#F59E0B']}
@@ -369,22 +356,30 @@ export default function StepFourRightSidePhoto({ containerData, trailerData, onB
                                     end={{ x: 1, y: 0 }}
                                     style={cn('p-4 items-center')}
                                 >
-                                    <Text style={cn('text-white font-bold')}>Previous</Text>
+                                    <Text style={cn('text-white font-semibold')}>Retake Photo</Text>
                                 </LinearGradient>
                             </TouchableOpacity>
 
+                            {/* Next Button */}
                             <TouchableOpacity
                                 onPress={handleNext}
-                                disabled={!image}
-                                style={cn(`flex-1 ml-2 rounded-lg overflow-hidden ${!image ? 'opacity-50' : ''}`)}
+                                disabled={isProcessing}
+                                style={cn(`mt-4 rounded-lg overflow-hidden ${isProcessing ? 'opacity-50' : ''}`)}
                             >
                                 <LinearGradient
-                                    colors={!image ? ['#9CA3AF', '#6B7280'] : ['#F59E0B', '#000000']}
+                                    colors={isProcessing ? ['#9CA3AF', '#6B7280'] : ['#F59E0B', '#000000']}
                                     start={{ x: 0, y: 0 }}
                                     end={{ x: 1, y: 0 }}
                                     style={cn('p-4 items-center')}
                                 >
-                                    <Text style={cn('text-white font-bold')}>Next</Text>
+                                    {isProcessing ? (
+                                        <View style={cn('flex-row items-center')}>
+                                            <ActivityIndicator size="small" color="white" style={cn('mr-2')} />
+                                            <Text style={cn('text-white font-bold')}>Uploading...</Text>
+                                        </View>
+                                    ) : (
+                                        <Text style={cn('text-white font-bold')}>Next</Text>
+                                    )}
                                 </LinearGradient>
                             </TouchableOpacity>
                         </View>
@@ -399,25 +394,18 @@ export default function StepFourRightSidePhoto({ containerData, trailerData, onB
                 animationType="fade"
                 onRequestClose={() => setShowZoomModal(false)}
             >
-                <View style={cn('flex-1 bg-black')}>
-                    <SafeAreaView style={cn('flex-1')}>
-                        <View style={cn('flex-row justify-between items-center p-4')}>
-                            <Text style={cn('text-white text-lg font-bold')}>Photo Preview</Text>
-                            <TouchableOpacity
-                                onPress={() => setShowZoomModal(false)}
-                                style={cn('bg-black/50 rounded-full p-2')}
-                            >
-                                <X size={24} color="white" />
-                            </TouchableOpacity>
-                        </View>
-                        <View style={cn('flex-1 justify-center items-center')}>
-                            <Image
-                                source={{ uri: image }}
-                                style={cn('w-full h-3/4')}
-                                resizeMode="contain"
-                            />
-                        </View>
-                    </SafeAreaView>
+                <View style={cn('flex-1 bg-black items-center justify-center')}>
+                    <TouchableOpacity
+                        onPress={() => setShowZoomModal(false)}
+                        style={cn('absolute top-12 right-6 z-10')}
+                    >
+                        <X size={32} color="white" />
+                    </TouchableOpacity>
+                    <Image 
+                        source={{ uri: `data:image/jpeg;base64,${image}` }} 
+                        style={cn('w-full h-full')} 
+                        resizeMode="contain"
+                    />
                 </View>
             </Modal>
 

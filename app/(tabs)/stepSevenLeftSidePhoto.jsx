@@ -39,24 +39,24 @@ const StepSevenLeftSidePhoto = ({ containerData, truckData, onBack, onNavigateTo
     }
 
     const takePicture = async () => {
-        if (cameraRef.current) {
-            try {
-                setIsProcessing(true);
-                const photo = await cameraRef.current.takePictureAsync({
-                    quality: 0.8,
-                    base64: true,
-                });
-                
-                if (photo?.uri) {
-                    setImage(photo.base64);
-                    console.log('📸 Left side photo taken successfully');
-                }
-            } catch (error) {
-                console.error('❌ Error taking left side photo:', error);
-                Alert.alert('Error', 'Failed to take photo. Please try again.');
-            } finally {
-                setIsProcessing(false);
+        if (!cameraRef.current) return;
+
+        try {
+            setIsProcessing(true);
+            const photo = await cameraRef.current.takePictureAsync({
+                quality: 0.8,
+                base64: true,
+            });
+
+            if (photo?.uri) {
+                setImage(photo.base64);
+                console.log('📸 Left side photo taken successfully');
             }
+        } catch (error) {
+            console.error('❌ Error taking left side photo:', error);
+            Alert.alert('Error', 'Failed to take photo. Please try again.');
+        } finally {
+            setIsProcessing(false);
         }
     };
 
@@ -390,18 +390,23 @@ const StepSevenLeftSidePhoto = ({ containerData, truckData, onBack, onNavigateTo
                             {/* Retake Button */}
                             <TouchableOpacity
                                 onPress={() => setImage(null)}
-                                style={cn('mt-4 bg-red-500 px-4 py-2 rounded-lg items-center')}
+                                style={cn('mt-4 rounded-lg overflow-hidden')}
                             >
-                                <Text style={cn('text-white font-semibold')}>Retake Photo</Text>
+                                <LinearGradient
+                                    colors={['#000000', '#F59E0B']}
+                                    start={{ x: 0, y: 0 }}
+                                    end={{ x: 1, y: 0 }}
+                                    style={cn('p-4 items-center')}
+                                >
+                                    <Text style={cn('text-white font-semibold')}>Retake Photo</Text>
+                                </LinearGradient>
                             </TouchableOpacity>
-                        </View>
 
-                        {/* Navigation Button */}
-                        <View style={cn('flex-row justify-between mt-4 pb-6')}>
+                            {/* Next Button */}
                             <TouchableOpacity
                                 onPress={handleNext}
                                 disabled={isProcessing}
-                                style={cn(`flex-1 rounded-lg overflow-hidden ${isProcessing ? 'opacity-50' : ''}`)}
+                                style={cn(`mt-4 rounded-lg overflow-hidden ${isProcessing ? 'opacity-50' : ''}`)}
                             >
                                 <LinearGradient
                                     colors={isProcessing ? ['#9CA3AF', '#6B7280'] : ['#F59E0B', '#000000']}
@@ -412,7 +417,7 @@ const StepSevenLeftSidePhoto = ({ containerData, truckData, onBack, onNavigateTo
                                     {isProcessing ? (
                                         <View style={cn('flex-row items-center')}>
                                             <ActivityIndicator size="small" color="white" style={cn('mr-2')} />
-                                            <Text style={cn('text-white font-bold')}>Processing...</Text>
+                                            <Text style={cn('text-white font-bold')}>Uploading...</Text>
                                         </View>
                                     ) : (
                                         <Text style={cn('text-white font-bold')}>Next</Text>
@@ -431,25 +436,18 @@ const StepSevenLeftSidePhoto = ({ containerData, truckData, onBack, onNavigateTo
                 animationType="fade"
                 onRequestClose={() => setShowZoomModal(false)}
             >
-                <View style={cn('flex-1 bg-black')}>
-                    <SafeAreaView style={cn('flex-1')}>
-                        <View style={cn('flex-row justify-between items-center p-4')}>
-                            <Text style={cn('text-white text-lg font-bold')}>Photo Preview</Text>
-                            <TouchableOpacity
-                                onPress={() => setShowZoomModal(false)}
-                                style={cn('bg-black/50 rounded-full p-2')}
-                            >
-                                <X size={24} color="white" />
-                            </TouchableOpacity>
-                        </View>
-                        <View style={cn('flex-1 justify-center items-center')}>
-                            <Image
-                                source={{ uri: `data:image/jpeg;base64,${image}` }}
-                                style={cn('w-full h-3/4')}
-                                resizeMode="contain"
-                            />
-                        </View>
-                    </SafeAreaView>
+                <View style={cn('flex-1 bg-black items-center justify-center')}>
+                    <TouchableOpacity
+                        onPress={() => setShowZoomModal(false)}
+                        style={cn('absolute top-12 right-6 z-10')}
+                    >
+                        <X size={32} color="white" />
+                    </TouchableOpacity>
+                    <Image 
+                        source={{ uri: `data:image/jpeg;base64,${image}` }} 
+                        style={cn('w-full h-full')} 
+                        resizeMode="contain"
+                    />
                 </View>
             </Modal>
 

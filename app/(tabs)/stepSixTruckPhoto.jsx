@@ -444,128 +444,157 @@ const StepSixTruckPhoto = ({ onBack, containerData, onNavigateToStepSeven }) => 
                     </View>
                 </View>
             ) : (
-                // Photo Preview
-                <ScrollView style={cn('flex-1')} showsVerticalScrollIndicator={false}>
-                    <View style={cn('p-6')}>
-                        {/* Container Number and Trip Segment Display */}
-                        <View style={cn(`mb-6 p-4 rounded-lg ${isDark ? 'bg-gray-700 border-gray-600' : 'bg-gray-50 border-gray-200'} border`)}>
-                            <View style={cn('flex-row items-center justify-between')}>
-                                <View style={cn('flex-1')}>
-                                    <Text style={cn(`text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-600'} mb-1`)}>
-                                        Container Number
-                                    </Text>
-                                    <Text style={cn(`text-lg font-bold ${isDark ? 'text-white' : 'text-black'}`)}>
-                                        {containerData?.containerNumber || 'N/A'}
-                                    </Text>
-                                </View>
-                                <View style={cn('flex-1 ml-4')}>
-                                    <Text style={cn(`text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-600'} mb-1`)}>
-                                        Trip Segment
-                                    </Text>
-                                    <Text style={cn(`text-lg font-semibold ${isDark ? 'text-white' : 'text-black'}`)}>
-                                        {containerData?.tripSegmentNumber || 'N/A'}
-                                    </Text>
+                // Photo Preview with Controls
+                <KeyboardAvoidingView
+                    style={cn('flex-1')}
+                    behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                    keyboardVerticalOffset={Platform.OS === 'ios' ? 100 : 20}
+                >
+                    <View
+                        style={cn('flex-1')}
+                        keyboardShouldPersistTaps="handled"
+                        contentContainerStyle={{ paddingBottom: 400 }}
+                        showsVerticalScrollIndicator={false}
+                    >
+                        
+                        <View style={cn('p-6')}>
+                            {/* Container Number and Trip Segment Display */}
+                            <View style={cn(`mb-6 p-4 rounded-lg ${isDark ? 'bg-gray-700 border-gray-600' : 'bg-gray-50 border-gray-200'} border`)}>
+                                <View style={cn('flex-row items-center justify-between')}>
+                                    <View style={cn('flex-1')}>
+                                        <Text style={cn(`text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-600'} mb-1`)}>
+                                            Container Number
+                                        </Text>
+                                        <Text style={cn(`text-lg font-bold ${isDark ? 'text-white' : 'text-black'}`)}>
+                                            {containerData?.containerNumber || 'N/A'}
+                                        </Text>
+                                    </View>
+                                    <View style={cn('flex-1 ml-4')}>
+                                        <Text style={cn(`text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-600'} mb-1`)}>
+                                            Trip Segment
+                                        </Text>
+                                        <Text style={cn(`text-lg font-semibold ${isDark ? 'text-white' : 'text-black'}`)}>
+                                            {containerData?.tripSegmentNumber || 'N/A'}
+                                        </Text>
+                                    </View>
                                 </View>
                             </View>
-                        </View>
 
-                        {/* Photo Preview Section */}
-                        <View style={cn(`${isDark ? 'bg-gray-800' : 'bg-white'} rounded-lg shadow-lg p-4 mb-6`)}>
-                            <Text style={cn(`text-lg font-bold mb-4 ${isDark ? 'text-white' : 'text-black'}`)}>
-                                Truck Photo
-                            </Text>
-                            
-                            <TouchableOpacity
-                                onPress={() => setShowZoomModal(true)}
-                                style={cn('relative')}
-                            >
-                                <Image 
-                                    source={{ uri: `data:image/jpeg;base64,${image}` }} 
-                                    style={cn('w-full h-64 rounded-lg')} 
-                                />
-                                <View style={cn('absolute inset-0 bg-black/30 rounded-lg items-center justify-center')}>
-                                    <Eye size={32} color="white" />
-                                </View>
-                            </TouchableOpacity>
-
-                            {/* Retake Button */}
-                            <TouchableOpacity
-                                onPress={() => {
-                                    setImage(null);
-                                    setTruckNumber(Array(7).fill(''));
-                                    setExtractedData({ truckNumber: '' });
-                                }}
-                                style={cn('mt-4 bg-red-500 px-4 py-2 rounded-lg items-center')}
-                            >
-                                <Text style={cn('text-white font-semibold')}>Retake Photo</Text>
-                            </TouchableOpacity>
-                        </View>
-
-                        {/* Truck Number Input Section */}
-                        <KeyboardAvoidingView
-                            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-                            style={cn('flex-1')}
-                        >
                             <View style={cn(`${isDark ? 'bg-gray-800' : 'bg-white'} rounded-lg shadow-lg p-4 mb-6`)}>
-                                <Text style={cn(`text-lg font-bold mb-4 ${isDark ? 'text-white' : 'text-black'}`)}>
-                                    Truck Number
-                                </Text>
                                 
-                                <View style={cn('flex-row justify-center items-center mb-4')}>
-                                    {truckNumber.map((digit, index) => (
-                                        <TextInput
-                                            key={index}
-                                            ref={(ref) => (truckNumberRefs.current[index] = ref)}
-                                            style={cn(
-                                                'w-10 h-12 text-center text-lg font-bold border-2 rounded-lg mr-2',
-                                                isDark 
-                                                    ? 'bg-gray-700 border-gray-600 text-white' 
-                                                    : 'bg-white border-gray-300 text-black',
-                                                digit ? (isDark ? 'border-yellow-400' : 'border-yellow-500') : '',
-                                                index === truckNumber.length - 1 ? 'mr-0' : ''
-                                            )}
-                                            value={digit}
-                                            onChangeText={(value) => handleTruckNumberChange(index, value)}
-                                            maxLength={1}
-                                            keyboardType="default"
-                                            autoCapitalize="characters"
-                                            selectTextOnFocus
-                                        />
-                                    ))}
+                                <View style={cn('mb-2 flex items-center justify-center')}>
+                                    <View style={cn('relative')}>
+                                        <Image source={{ uri: `data:image/jpeg;base64,${image}` }} style={cn('w-[200px] h-[200px] rounded-lg')} />
+                                        {/* Eye Icon Overlay */}
+                                        <TouchableOpacity
+                                            onPress={() => setShowZoomModal(true)}
+                                            style={cn('absolute inset-0 items-center justify-center')}
+                                        >
+                                            <View style={cn('bg-black/50 rounded-full p-3')}>
+                                                <Eye size={32} color="white" />
+                                            </View>
+                                        </TouchableOpacity>
+                                    </View>
                                 </View>
-                                
-                                <Text style={cn(`text-sm text-center ${isDark ? 'text-gray-400' : 'text-gray-600'}`)}>
-                                    Enter the truck number manually or use the camera to auto-detect
-                                </Text>
-                            </View>
-                        </KeyboardAvoidingView>
 
-                        {/* Navigation Button */}
-                        <View style={cn('flex-row justify-between mt-4 pb-6')}>
-                            <TouchableOpacity
-                                onPress={handleNext}
-                                disabled={isRecognizingPlate || isProcessing}
-                                style={cn(`flex-1 rounded-lg overflow-hidden ${(isRecognizingPlate || isProcessing) ? 'opacity-50' : ''}`)}
-                            >
-                                <LinearGradient
-                                    colors={(isRecognizingPlate || isProcessing) ? ['#9CA3AF', '#6B7280'] : ['#F59E0B', '#000000']}
-                                    start={{ x: 0, y: 0 }}
-                                    end={{ x: 1, y: 0 }}
-                                    style={cn('p-4 items-center')}
+                                {/* Retake Photo Button */}
+                                <TouchableOpacity
+                                    onPress={() => {
+                                        setImage(null);
+                                        setTruckNumber(Array(7).fill(''));
+                                        setExtractedData({ truckNumber: '' });
+                                    }}
+                                    style={cn('rounded-lg overflow-hidden w-full mb-4')}
                                 >
-                                    {isProcessing ? (
-                                        <View style={cn('flex-row items-center')}>
-                                            <ActivityIndicator size="small" color="white" style={cn('mr-2')} />
-                                            <Text style={cn('text-white font-bold')}>Submitting...</Text>
+                                    <LinearGradient
+                                        colors={['#F59E0B', '#000000']}
+                                        start={{ x: 0, y: 0 }}
+                                        end={{ x: 1, y: 0 }}
+                                        style={cn('p-4 items-center')}
+                                    >
+                                        <Text style={cn('text-white font-bold')}>Retake Photo</Text>
+                                    </LinearGradient>
+                                </TouchableOpacity>
+
+                                {/* Truck Number Input */}
+                                <View style={cn(`px-4 py-2 rounded-lg ${isDark ? 'bg-gray-700' : 'bg-gray-50'}`)}>
+                                    {isRecognizingPlate ? (
+                                        <View style={cn('items-center py-8')}>
+                                            <ActivityIndicator 
+                                                size="large" 
+                                                color={isDark ? '#eab308' : '#a16207'} 
+                                                style={cn('mb-4')}
+                                            />
+                                            <Text style={cn(`text-lg ${isDark ? 'text-gray-100' : 'text-gray-800'}`)}>
+                                                Processing...
+                                            </Text>
                                         </View>
                                     ) : (
-                                        <Text style={cn('text-white font-bold')}>Next</Text>
+                                        <View>
+                                            <View style={cn('flex-row items-center justify-between mb-2')}>
+                                                <Text style={cn(`text-sm font-bold ${isDark ? 'text-gray-300' : 'text-gray-600'}`)}>
+                                                    Truck Number
+                                                </Text>
+                                            </View>
+                                            <View style={cn('flex-row gap-1 flex-wrap')}>
+                                                {truckNumber.map((char, index) => (
+                                                    <View key={index} style={cn('items-center justify-center')}>
+                                                        <TextInput
+                                                            ref={(ref) => (truckNumberRefs.current[index] = ref)}
+                                                            value={char}
+                                                            onChangeText={(value) => handleTruckNumberChange(index, value)}
+                                                            style={[
+                                                                cn(`w-12 h-12 border-2 ${isDark ? 'border-yellow-500 bg-gray-800 text-gray-100' : 'border-yellow-700 bg-white text-gray-800'} rounded-lg text-center text-xl font-bold`),
+                                                                {
+                                                                    textAlignVertical: 'center',
+                                                                    padding: 0,
+                                                                    margin: 0,
+                                                                    lineHeight: 25,
+                                                                    includeFontPadding: false
+                                                                }
+                                                            ]}
+                                                            maxLength={1}
+                                                            autoCapitalize="characters"
+                                                            selectTextOnFocus
+                                                        />
+                                                    </View>
+                                                ))}
+                                            </View>
+                                        </View>
                                     )}
-                                </LinearGradient>
-                            </TouchableOpacity>
+                                </View>
+                                {/* Navigation Buttons */}
+                                <View style={cn('flex-row justify-between mt-4 pb-6')}>
+                                    <TouchableOpacity
+                                        onPress={handleNext}
+                                        disabled={isRecognizingPlate || isProcessing}
+                                        style={cn(`flex-1 ml-2 rounded-lg overflow-hidden ${(isRecognizingPlate || isProcessing) ? 'opacity-50' : ''}`)}
+                                    >
+                                        <LinearGradient
+                                            colors={(isRecognizingPlate || isProcessing) ? ['#9CA3AF', '#6B7280'] : ['#F59E0B', '#000000']}
+                                            start={{ x: 0, y: 0 }}
+                                            end={{ x: 1, y: 0 }}
+                                            style={cn('p-4 items-center')}
+                                        >
+                                            {isProcessing ? (
+                                                <View style={cn('flex-row items-center')}>
+                                                    <ActivityIndicator size="small" color="white" style={cn('mr-2')} />
+                                                    <Text style={cn('text-white font-bold')}>Submitting...</Text>
+                                                </View>
+                                            ) : (
+                                                <Text style={cn('text-white font-bold')}>Next</Text>
+                                            )}
+                                        </LinearGradient>
+                                    </TouchableOpacity>
+                                </View>
+                            </View>
+
                         </View>
+
                     </View>
-                </ScrollView>
+
+
+                </KeyboardAvoidingView>
             )}
 
             {/* Zoom Modal */}
