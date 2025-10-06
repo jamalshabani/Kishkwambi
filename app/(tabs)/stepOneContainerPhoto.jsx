@@ -1,9 +1,11 @@
 import React, { useState, useRef } from 'react';
-import { View, Text, TouchableOpacity, Alert, Image, Animated, Modal, TextInput, ActivityIndicator, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, TouchableOpacity, Alert, Image, Animated, Modal, TextInput, ActivityIndicator, ScrollView, KeyboardAvoidingView, Platform, Dimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { LinearGradient } from 'expo-linear-gradient';
+import MaskedView from '@react-native-masked-view/masked-view';
+import * as ImageManipulator from 'expo-image-manipulator';
 import { cn } from '../../lib/tw';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useAuth } from '../../contexts/AuthContext';
@@ -39,6 +41,7 @@ const StepOneContainerPhoto = ({ onBack, onNavigateToStepTwo, onNavigateToDamage
     const [facing, setFacing] = useState('back');
     const [showContainerModal, setShowContainerModal] = useState(false);
     const [containerModalData, setContainerModalData] = useState({ type: '', message: '' });
+    const [screenDimensions, setScreenDimensions] = useState({ width: 0, height: 0 });
     const cameraRef = useRef(null);
     const containerNumberRefs = useRef([]);
     const isoCodeRefs = useRef([]);
@@ -46,6 +49,23 @@ const StepOneContainerPhoto = ({ onBack, onNavigateToStepTwo, onNavigateToDamage
     // Animation values for theme switcher
     const themeIconRotation = useRef(new Animated.Value(0)).current;
     const themeButtonScale = useRef(new Animated.Value(1)).current;
+
+    // Mask component for the container area
+    const ContainerMask = () => (
+        <View style={cn('flex-1 justify-center items-center')}>
+            {/* Container Rectangle - this will be the visible area */}
+            <View 
+                style={[
+                    cn('bg-white'),
+                    {
+                        width: 320,
+                        height: 298, // Adjusted for 2.44m × 2.59m ratio (0.94:1)
+                        borderRadius: 8,
+                    }
+                ]}
+            />
+        </View>
+    );
 
     const handleThemeToggle = () => {
         // Scale down animation
@@ -98,16 +118,87 @@ const StepOneContainerPhoto = ({ onBack, onNavigateToStepTwo, onNavigateToDamage
         }
     };
 
+    // Function to calculate crop area based on overlay dimensions
+    const calculateCropArea = (imageWidth, imageHeight) => {
+        const screenWidth = Dimensions.get('window').width;
+        const screenHeight = Dimensions.get('window').height;
+        
+        // Container overlay dimensions (from the mask)
+        const overlayWidth = 320;
+        const overlayHeight = 298;
+        
+        // Calculate the position of the overlay on screen (centered)
+        const screenOverlayX = (screenWidth - overlayWidth) / 2;
+        const screenOverlayY = (screenHeight - overlayHeight) / 2;
+        
+        // Calculate scale factors between image and screen
+        const scaleX = imageWidth / screenWidth;
+        const scaleY = imageHeight / screenHeight;
+        
+        // Convert screen coordinates to image coordinates
+        const imageOverlayX = screenOverlayX * scaleX;
+        const imageOverlayY = screenOverlayY * scaleY;
+        const imageOverlayWidth = overlayWidth * scaleX;
+        const imageOverlayHeight = overlayHeight * scaleY;
+        
+        return {
+            x: Math.round(imageOverlayX),
+            y: Math.round(imageOverlayY),
+            width: Math.round(imageOverlayWidth),
+            height: Math.round(imageOverlayHeight),
+            screenWidth,
+            screenHeight,
+            imageWidth,
+            imageHeight
+        };
+    };
+
     // Function to crop image to overlay area
     const cropImageToOverlay = async (imageUri) => {
         try {
-            // For now, we'll use the original image
-            // In a real implementation, you would use react-native-image-crop-picker
-            // or similar library to crop the image to the overlay dimensions
-            return imageUri;
+            // First, get the image dimensions
+            const imageInfo = await ImageManipulator.manipulateAsync(
+                imageUri,
+                [],
+                { format: ImageManipulator.SaveFormat.JPEG }
+            );
+            
+            // Get the actual image dimensions
+            const imageWidth = imageInfo.width;
+            const imageHeight = imageInfo.height;
+            
+            console.log('📐 Image dimensions:', { width: imageWidth, height: imageHeight });
+            
+            // Calculate crop area based on actual image dimensions
+            const cropArea = calculateCropArea(imageWidth, imageHeight);
+            
+            console.log('✂️ Crop area:', cropArea);
+            
+            // Use ImageManipulator to crop the image
+            const croppedImage = await ImageManipulator.manipulateAsync(
+                imageUri,
+                [
+                    {
+                        crop: {
+                            originX: cropArea.x,
+                            originY: cropArea.y,
+                            width: cropArea.width,
+                            height: cropArea.height,
+                        },
+                    },
+                ],
+                {
+                    compress: 0.8,
+                    format: ImageManipulator.SaveFormat.JPEG,
+                }
+            );
+            
+            console.log('✅ Image cropped successfully:', croppedImage.uri);
+            return croppedImage.uri;
         } catch (error) {
-            console.error('Crop error:', error);
-            return imageUri; // Fallback to original image
+            console.error('❌ Crop error:', error);
+            // Fallback to original image if cropping fails
+            return imageUri;
         }
     };
 
@@ -672,15 +763,21 @@ const StepOneContainerPhoto = ({ onBack, onNavigateToStepTwo, onNavigateToDamage
             {!image ? (
                 // Full Screen Camera View
                 <View style={cn('flex-1')}>
-                    <CameraView
-                        ref={cameraRef}
+                    {/* Masked Camera View */}
+                    <MaskedView
                         style={cn('flex-1')}
-                        facing={facing}
-                        ratio="1:1"
-                    />
+                        maskElement={<ContainerMask />}
+                    >
+                        <CameraView
+                            ref={cameraRef}
+                            style={cn('flex-1')}
+                            facing={facing}
+                            ratio="1:1"
+                        />
+                    </MaskedView>
                     
-                    {/* Container Guide Overlay */}
-                    <View style={cn('absolute inset-0 justify-center items-center')}>
+                    {/* Overlay UI Elements */}
+                    <View style={cn('absolute inset-0')}>
                         {/* Instruction Text */}
                         <View style={cn('absolute top-4 left-4 right-4 items-center')}>
                             <View style={cn('bg-black/70 p-6 rounded-lg')}>
@@ -691,7 +788,8 @@ const StepOneContainerPhoto = ({ onBack, onNavigateToStepTwo, onNavigateToDamage
                         </View>
                         
                         {/* Container Guide Frame */}
-                        <View style={cn('relative')}>
+                        <View style={cn('absolute inset-0 justify-center items-center')}>
+                            <View style={cn('relative')}>
                             {/* Container Rectangle Outline */}
                             <View 
                                 style={[
@@ -761,8 +859,8 @@ const StepOneContainerPhoto = ({ onBack, onNavigateToStepTwo, onNavigateToDamage
                                     }
                                 ]}
                             />
+                            </View>
                         </View>
-                        
                     </View>
                     
                     {/* Camera Controls Overlay */}
