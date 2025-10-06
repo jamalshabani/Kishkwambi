@@ -9,7 +9,7 @@ import { useTheme } from '../../contexts/ThemeContext';
 import { Sun, Moon, Eye, X, ArrowLeft } from 'lucide-react-native';
 import { API_CONFIG } from '../../lib/config';
 
-const StepFiveFrontWallPhoto = ({ onBack, containerData, onNavigateToStepSix, onNavigateToDamagePhotos }) => {
+const StepFiveBackWallPhoto = ({ onBack, containerData, onNavigateToStepSix, onNavigateToDamagePhotos }) => {
     const { isDark, toggleTheme } = useTheme();
     const [permission, requestPermission] = useCameraPermissions();
     const [image, setImage] = useState(null);
@@ -62,10 +62,10 @@ const StepFiveFrontWallPhoto = ({ onBack, containerData, onNavigateToStepSix, on
 
             if (photo?.uri) {
                 setImage(photo.base64);
-                console.log('📸 Front wall photo taken successfully');
+                console.log('📸 Back Wall photo taken successfully');
             }
         } catch (error) {
-            console.error('❌ Error taking front wall photo:', error);
+            console.error('❌ Error taking Back Wall photo:', error);
             Alert.alert('Error', 'Failed to take photo. Please try again.');
         } finally {
             setIsProcessing(false);
@@ -74,7 +74,7 @@ const StepFiveFrontWallPhoto = ({ onBack, containerData, onNavigateToStepSix, on
 
     const uploadFrontWallPhotoToS3 = async (imageBase64, tripSegmentNumber) => {
         try {
-            console.log('📸 Uploading front wall photo to S3...');
+            console.log('📸 Uploading Back Wall photo to S3...');
             
             const BACKEND_URL = API_CONFIG.getBackendUrl();
             
@@ -106,15 +106,15 @@ const StepFiveFrontWallPhoto = ({ onBack, containerData, onNavigateToStepSix, on
             const result = await uploadResponse.json();
             
             if (result.success) {
-                console.log('✅ Front wall photo uploaded successfully to S3:', result.frontWallPhoto);
+                console.log('✅ Back Wall photo uploaded successfully to S3:', result.frontWallPhoto);
                 return { success: true, frontWallPhoto: result.frontWallPhoto };
             } else {
-                console.error('❌ Failed to upload front wall photo to S3:', result.error);
+                console.error('❌ Failed to upload Back Wall photo to S3:', result.error);
                 return { success: false, error: result.error };
             }
             
         } catch (error) {
-            console.error('❌ Error uploading front wall photo to S3:', error);
+            console.error('❌ Error uploading Back Wall photo to S3:', error);
             return { success: false, error: error.message };
         }
     };
@@ -138,7 +138,7 @@ const StepFiveFrontWallPhoto = ({ onBack, containerData, onNavigateToStepSix, on
                     body: JSON.stringify({
                         tripSegmentNumber: containerData?.tripSegmentNumber,
                         hasDamages: 'Yes',
-                        damageLocation: 'Front Wall'
+                        damageLocation: 'Back Wall'
                     }),
                 });
                 
@@ -181,13 +181,13 @@ const StepFiveFrontWallPhoto = ({ onBack, containerData, onNavigateToStepSix, on
 
     const handleNext = async () => {
         if (!image) {
-            Alert.alert('Missing Photo', 'Please take a front wall photo before proceeding.');
+            Alert.alert('Missing Photo', 'Please take a Back Wall photo before proceeding.');
             return;
         }
 
         try {
             setIsProcessing(true);
-            console.log('📸 Starting front wall photo upload...');
+            console.log('📸 Starting Back Wall photo upload...');
             
             const BACKEND_URL = API_CONFIG.getBackendUrl();
             
@@ -207,7 +207,7 @@ const StepFiveFrontWallPhoto = ({ onBack, containerData, onNavigateToStepSix, on
             formData.append('tripSegmentNumber', containerData?.tripSegmentNumber || '');
             formData.append('containerNumber', containerData?.containerNumber || '');
             formData.append('photoType', 'container');
-            formData.append('containerPhotoLocation', 'Front Wall');
+            formData.append('containerPhotoLocation', 'Back Wall');
             
             console.log('📊 File data created for upload');
             
@@ -223,7 +223,7 @@ const StepFiveFrontWallPhoto = ({ onBack, containerData, onNavigateToStepSix, on
             const uploadResult = await uploadResponse.json();
             
             if (uploadResult.success) {
-                console.log('✅ Front wall photo uploaded successfully:', uploadResult);
+                console.log('✅ Back Wall photo uploaded successfully:', uploadResult);
                 
                 // Calculate file size from base64 data (approximate)
                 const fileSize = Math.round((image.length * 3) / 4);
@@ -240,12 +240,12 @@ const StepFiveFrontWallPhoto = ({ onBack, containerData, onNavigateToStepSix, on
                 // Show damage check modal after successful upload
                 setShowDamageModal(true);
             } else {
-                console.error('❌ Failed to upload front wall photo:', uploadResult.error);
-                Alert.alert('Upload Error', 'Failed to upload front wall photo. Please try again.');
+                console.error('❌ Failed to upload Back Wall photo:', uploadResult.error);
+                Alert.alert('Upload Error', 'Failed to upload Back Wall photo. Please try again.');
             }
             
         } catch (error) {
-            console.error('❌ Error uploading front wall photo:', error);
+            console.error('❌ Error uploading Back Wall photo:', error);
             Alert.alert('Error', 'An error occurred while uploading the photo. Please try again.');
         } finally {
             setIsProcessing(false);
@@ -298,7 +298,7 @@ const StepFiveFrontWallPhoto = ({ onBack, containerData, onNavigateToStepSix, on
 
                 {/* Title */}
                 <Text style={cn(`text-lg font-bold ${isDark ? 'text-gray-100' : 'text-gray-800'} flex-1`)}>
-                    Front Wall Photo
+                    Back Wall Photo
                 </Text>
 
                 {/* Theme Switcher */}
@@ -475,7 +475,7 @@ const StepFiveFrontWallPhoto = ({ onBack, containerData, onNavigateToStepSix, on
                         {/* Photo Preview Section */}
                         <View style={cn(`${isDark ? 'bg-gray-800' : 'bg-white'} rounded-lg shadow-lg p-4 mb-6`)}>
                             <Text style={cn(`text-lg font-bold mb-4 ${isDark ? 'text-white' : 'text-black'}`)}>
-                                Front Wall Photo
+                                Back Wall Photo
                             </Text>
                             
                             <TouchableOpacity
@@ -571,7 +571,7 @@ const StepFiveFrontWallPhoto = ({ onBack, containerData, onNavigateToStepSix, on
                                 Damage Check
                             </Text>
                             <Text style={cn(`text-lg font-semibold text-center ${isDark ? 'text-gray-300' : 'text-gray-600'}`)}>
-                                Is the Front Wall damaged?
+                                Is the Back Wall damaged?
                             </Text>
                         </View>
                         
@@ -616,4 +616,4 @@ const StepFiveFrontWallPhoto = ({ onBack, containerData, onNavigateToStepSix, on
     );
 };
 
-export default StepFiveFrontWallPhoto;
+export default StepFiveBackWallPhoto;

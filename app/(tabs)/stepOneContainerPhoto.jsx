@@ -194,7 +194,7 @@ const StepOneContainerPhoto = ({ onBack, onNavigateToStepTwo }) => {
             formData.append('tripSegmentNumber', tripSegmentNumber);
             formData.append('containerNumber', extractedData.containerNumber || '');
             formData.append('photoType', 'container');
-            formData.append('containerPhotoLocation', 'Container Back Wall');
+            formData.append('containerPhotoLocation', 'Container Front Wall');
             
             console.log('📸 Uploading to:', `${BACKEND_URL}/api/upload/s3-container-photos`);
             console.log('📸 Trip segment:', tripSegmentNumber);
@@ -643,7 +643,7 @@ const StepOneContainerPhoto = ({ onBack, onNavigateToStepTwo }) => {
 
                 {/* Title */}
                 <Text style={cn(`text-lg font-bold ${isDark ? 'text-gray-100' : 'text-gray-800'} flex-1`)}>
-                    Container Back Wall
+                    Container Front Wall
                 </Text>
 
                 {/* Theme Switcher */}

@@ -14,7 +14,7 @@ import StepOneDamagePhotos from './stepOneDamagePhotos';
 import StepThreeTrailerPhoto from './stepThreeTrailerPhoto';
 import StepFourRightSidePhoto from './stepFourRightSidePhoto';
 import StepFourDamagePhotos from './stepFourDamagePhotos';
-import StepFiveFrontWallPhoto from './stepFiveFrontWallPhoto';
+import StepFiveBackWallPhoto from './stepFiveBackWallPhoto';
 import StepFiveDamagePhotos from './stepFiveDamagePhotos';
 import StepSixTruckPhoto from './stepSixTruckPhoto';
 import StepSevenLeftSidePhoto from './stepSevenLeftSidePhoto';
@@ -150,7 +150,7 @@ export default function TabLayout() {
 
     const navigateToStepFive = (data) => {
         setFrontWallPhotoData(data);
-        setActiveTab('stepFiveFrontWallPhoto');
+        setActiveTab('stepFiveBackWallPhoto');
     };
 
     const navigateToStepSix = (data) => {
@@ -159,7 +159,7 @@ export default function TabLayout() {
     };
 
     const navigateBackToStepFive = () => {
-        setActiveTab('stepFiveFrontWallPhoto');
+        setActiveTab('stepFiveBackWallPhoto');
     };
 
     const navigateToStepSeven = (data) => {
@@ -238,8 +238,8 @@ export default function TabLayout() {
                 return <StepFourDamagePhotos onBack={navigateBackToStepFour} containerData={rightSideDamagePhotosData} onNavigateToStepFive={navigateToStepFive} />;
             case 'stepFiveDamagePhotos':
                 return <StepFiveDamagePhotos onBack={navigateBackToStepFive} containerData={frontWallDamagePhotosData} onNavigateToStepSix={navigateToStepSix} />;
-            case 'stepFiveFrontWallPhoto':
-                return <StepFiveFrontWallPhoto onBack={navigateBackToStepFour} containerData={frontWallPhotoData} onNavigateToStepSix={navigateToStepSix} onNavigateToDamagePhotos={navigateToStepFiveDamagePhotos} />;
+            case 'stepFiveBackWallPhoto':
+                return <StepFiveBackWallPhoto onBack={navigateBackToStepFour} containerData={frontWallPhotoData} onNavigateToStepSix={navigateToStepSix} onNavigateToDamagePhotos={navigateToStepFiveDamagePhotos} />;
             case 'stepSixTruckPhoto':
                 return <StepSixTruckPhoto onBack={navigateBackToStepFive} containerData={truckPhotoData} onNavigateToStepSeven={navigateToStepSeven} />;
             case 'stepSevenLeftSidePhoto':
