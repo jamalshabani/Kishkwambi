@@ -97,15 +97,6 @@ const Dashboard = ({ onTakePhoto, onGoToStepOne }) => {
                         </View>
                     )}
 
-                    {/* Go to Step 1 Button */}
-                    <TouchableOpacity 
-                        onPress={onGoToStepOne}
-                        style={cn(`mr-3 px-3 py-1 rounded-lg ${isDark ? 'bg-blue-600' : 'bg-blue-500'}`)}
-                    >
-                        <Text style={cn('text-white text-sm font-medium')}>
-                            Go to Step 1
-                        </Text>
-                    </TouchableOpacity>
 
                     {/* Theme Switcher */}
                     <Animated.View

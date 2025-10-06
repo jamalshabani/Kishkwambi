@@ -244,15 +244,6 @@ const StepTwoContainerDetails = ({ onBack, containerData, onNavigateToStepThree,
                     {/* Timer Display */}
                     <TimerDisplay />
 
-                    {/* Go to Step 3 Button */}
-                    <TouchableOpacity
-                        onPress={() => onNavigateToStepThreeDirect && onNavigateToStepThreeDirect({})}
-                        style={cn(`mr-3 px-3 py-1 rounded-lg ${isDark ? 'bg-blue-600' : 'bg-blue-500'}`)}
-                    >
-                        <Text style={cn('text-white text-sm font-medium')}>
-                            Go to Step 3
-                        </Text>
-                    </TouchableOpacity>
 
                     {/* Theme Switcher */}
                     <Animated.View

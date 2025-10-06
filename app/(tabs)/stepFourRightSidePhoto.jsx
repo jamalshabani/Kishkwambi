@@ -219,15 +219,6 @@ export default function StepFourRightSidePhoto({ containerData, trailerData, onB
                     {/* Timer Display */}
                     <TimerDisplay />
                     
-                    {/* Go to Damage Photos Button */}
-                    <TouchableOpacity 
-                        onPress={() => onNavigateToDamagePhotosDirect && onNavigateToDamagePhotosDirect({})}
-                        style={cn(`mr-3 px-3 py-1 rounded-lg ${isDark ? 'bg-red-600' : 'bg-red-500'}`)}
-                    >
-                        <Text style={cn('text-white text-sm font-medium')}>
-                            Go to Damage Photos
-                        </Text>
-                    </TouchableOpacity>
                     
                     <TouchableOpacity onPress={toggleTheme} style={cn('p-2')}>
                         {isDark ? <Sun size={24} color="#F59E0B" /> : <Moon size={24} color="#1F2937" />}

@@ -354,15 +354,6 @@ const StepSixTruckPhoto = ({ onBack, containerData, onNavigateToStepSeven, onNav
                     {/* Timer Display */}
                     <TimerDisplay />
 
-                    {/* Go to Step 7 Button */}
-                    <TouchableOpacity 
-                        onPress={() => onNavigateToStepSevenDirect && onNavigateToStepSevenDirect({})}
-                        style={cn(`mr-3 px-3 py-1 rounded-lg ${isDark ? 'bg-blue-600' : 'bg-blue-500'}`)}
-                    >
-                        <Text style={cn('text-white text-sm font-medium')}>
-                            Go to Step 7
-                        </Text>
-                    </TouchableOpacity>
 
                     {/* Theme Switcher */}
                     <Animated.View

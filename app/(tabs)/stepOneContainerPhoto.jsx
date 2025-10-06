@@ -646,15 +646,6 @@ const StepOneContainerPhoto = ({ onBack, onNavigateToStepTwo, onNavigateToDamage
                     {/* Timer Display */}
                     <TimerDisplay />
 
-                    {/* Go to Damage Photos Button */}
-                    <TouchableOpacity 
-                        onPress={() => onNavigateToDamagePhotos && onNavigateToDamagePhotos({})}
-                        style={cn(`mr-3 px-3 py-1 rounded-lg ${isDark ? 'bg-red-600' : 'bg-red-500'}`)}
-                    >
-                        <Text style={cn('text-white text-sm font-medium')}>
-                            Go to Damage Photos
-                        </Text>
-                    </TouchableOpacity>
 
                     {/* Theme Switcher */}
                     <Animated.View

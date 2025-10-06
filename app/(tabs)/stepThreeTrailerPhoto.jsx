@@ -386,15 +386,6 @@ const StepThreeTrailerPhoto = ({ onBack, containerData, onNavigateToStepFour, on
                     {/* Timer Display */}
                     <TimerDisplay />
 
-                    {/* Go to Step 4 Button */}
-                    <TouchableOpacity 
-                        onPress={() => onNavigateToStepFourDirect && onNavigateToStepFourDirect({})}
-                        style={cn(`mr-3 px-3 py-1 rounded-lg ${isDark ? 'bg-blue-600' : 'bg-blue-500'}`)}
-                    >
-                        <Text style={cn('text-white text-sm font-medium')}>
-                            Go to Step 4
-                        </Text>
-                    </TouchableOpacity>
 
                     {/* Theme Switcher */}
                     <Animated.View
