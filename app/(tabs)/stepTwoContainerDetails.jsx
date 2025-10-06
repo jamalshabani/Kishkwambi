@@ -6,14 +6,15 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { SelectList } from 'react-native-dropdown-select-list';
 import { cn } from '../../lib/tw';
 import { useTheme } from '../../contexts/ThemeContext';
+import TimerDisplay from '../../components/common/TimerDisplay';
 import { Sun, Moon, ArrowLeft } from 'lucide-react-native';
 import { API_CONFIG } from '../../lib/config';
 
-const StepTwoContainerDetails = ({ onBack, containerData, onNavigateToStepThree, onNavigateToDamagePhotos }) => {
+const StepTwoContainerDetails = ({ onBack, containerData, onNavigateToStepThree, onNavigateToDamagePhotos, onNavigateToStepThreeDirect }) => {
     const { isDark, toggleTheme } = useTheme();
     
     // State for back wall damage modal
-    const [showBackWallModal, setShowBackWallModal] = useState(false);
+    const [showFrontWallModal, setShowFrontWallModal] = useState(false);
     const [containerDetailsData, setContainerDetailsData] = useState(null);
     
     // Animation values for theme switcher
@@ -159,11 +160,11 @@ const StepTwoContainerDetails = ({ onBack, containerData, onNavigateToStepThree,
         }
         
         // Show back wall damage modal
-        setShowBackWallModal(true);
+        setShowFrontWallModal(true);
     };
     
-    const handleBackWallResponse = async (isDamaged) => {
-        setShowBackWallModal(false);
+    const handleFrontWallResponse = async (isDamaged) => {
+        setShowFrontWallModal(false);
         
         // If damaged, update database with damage status
         if (isDamaged) {
@@ -180,7 +181,7 @@ const StepTwoContainerDetails = ({ onBack, containerData, onNavigateToStepThree,
                     body: JSON.stringify({
                         tripSegmentNumber: containerData?.tripSegmentNumber,
                         hasDamages: 'Yes',
-                        damageLocation: 'Back Wall'
+                        damageLocation: 'Front Wall'
                     }),
                 });
                 
@@ -234,38 +235,56 @@ const StepTwoContainerDetails = ({ onBack, containerData, onNavigateToStepThree,
             
             {/* Header */}
             <View style={cn(`${isDark ? 'bg-gray-900' : 'bg-white/10'} px-6 py-4 border-b ${isDark ? 'border-gray-700' : 'border-gray-300'} flex-row items-center justify-between shadow-sm`)}>
-                {/* Back Button */}
-                <TouchableOpacity 
-                    onPress={onBack}
-                    style={cn('mr-4 p-2')}
-                >
-                    <ArrowLeft size={24} color={isDark ? '#F59E0B' : '#1F2937'} />
-                </TouchableOpacity>
-
-                {/* Title */}
-                <Text style={cn(`text-lg font-bold ${isDark ? 'text-gray-100' : 'text-gray-800'} flex-1`)}>
-                    Container Details
-                </Text>
-
-                {/* Theme Switcher */}
-                <Animated.View
-                    style={{
-                        transform: [
-                            { scale: themeButtonScale }
-                        ]
-                    }}
-                >
+                {/* Back Button and Title */}
+                <View style={cn('flex-row items-center flex-1')}>
                     <TouchableOpacity 
-                        onPress={handleThemeToggle}
-                        style={cn('p-2')}
+                        onPress={onBack}
+                        style={cn('mr-4 p-2')}
                     >
-                        {isDark ? (
-                            <Sun size={24} color="#6B7280" />
-                        ) : (
-                            <Moon size={24} color="#6B7280" />
-                        )}
+                        <ArrowLeft size={24} color={isDark ? '#F59E0B' : '#1F2937'} />
                     </TouchableOpacity>
-                </Animated.View>
+
+                    {/* Title */}
+                    <Text style={cn(`text-lg font-bold ${isDark ? 'text-gray-100' : 'text-gray-800'}`)}>
+                        Container Details
+                    </Text>
+                </View>
+
+                {/* Timer Display and Navigation Buttons */}
+                <View style={cn('flex-row items-center')}>
+                    {/* Timer Display */}
+                    <TimerDisplay />
+
+                    {/* Go to Step 3 Button */}
+                    <TouchableOpacity 
+                        onPress={() => onNavigateToStepThreeDirect && onNavigateToStepThreeDirect({})}
+                        style={cn(`mr-3 px-3 py-1 rounded-lg ${isDark ? 'bg-blue-600' : 'bg-blue-500'}`)}
+                    >
+                        <Text style={cn('text-white text-sm font-medium')}>
+                            Go to Step 3
+                        </Text>
+                    </TouchableOpacity>
+
+                    {/* Theme Switcher */}
+                    <Animated.View
+                        style={{
+                            transform: [
+                                { scale: themeButtonScale }
+                            ]
+                        }}
+                    >
+                        <TouchableOpacity 
+                            onPress={handleThemeToggle}
+                            style={cn('p-2')}
+                        >
+                            {isDark ? (
+                                <Sun size={24} color="#6B7280" />
+                            ) : (
+                                <Moon size={24} color="#6B7280" />
+                            )}
+                        </TouchableOpacity>
+                    </Animated.View>
+                </View>
             </View>
 
             {/* Main Content */}
@@ -409,12 +428,12 @@ const StepTwoContainerDetails = ({ onBack, containerData, onNavigateToStepThree,
                 </View>
             </View>
             
-            {/* Back Wall Damage Modal */}
+            {/* Front Wall Damage Modal */}
             <Modal
-                visible={showBackWallModal}
+                visible={showFrontWallModal}
                 transparent={true}
                 animationType="fade"
-                onRequestClose={() => setShowBackWallModal(false)}
+                onRequestClose={() => setShowFrontWallModal(false)}
             >
                 <View style={cn('flex-1 justify-center items-center bg-black/50')}>
                     <View style={cn(`${isDark ? 'bg-gray-800' : 'bg-white'} rounded-3xl mx-8 p-6`)}>
@@ -425,14 +444,14 @@ const StepTwoContainerDetails = ({ onBack, containerData, onNavigateToStepThree,
                                 Damage Check
                             </Text>
                             <Text style={cn(`text-lg font-semibold text-center ${isDark ? 'text-gray-300' : 'text-gray-600'}`)}>
-                                Is the Back Wall damaged?
+                                Is the Front Wall damaged?
                             </Text>
                         </View>
                         
                         {/* Yes/No Buttons */}
                         <View style={cn('flex-row gap-3')}>
                             <TouchableOpacity
-                                onPress={() => handleBackWallResponse(true)}
+                                onPress={() => handleFrontWallResponse(true)}
                                 style={cn('flex-1 rounded-xl overflow-hidden')}
                             >
                                 <LinearGradient
@@ -448,7 +467,7 @@ const StepTwoContainerDetails = ({ onBack, containerData, onNavigateToStepThree,
                             </TouchableOpacity>
                             
                             <TouchableOpacity
-                                onPress={() => handleBackWallResponse(false)}
+                                onPress={() => handleFrontWallResponse(false)}
                                 style={cn('flex-1 rounded-xl overflow-hidden')}
                             >
                                 <LinearGradient

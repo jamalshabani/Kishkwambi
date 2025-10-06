@@ -7,10 +7,11 @@ import { LinearGradient } from 'expo-linear-gradient';
 import * as ImagePicker from 'expo-image-picker';
 import { cn } from '../../lib/tw';
 import { useTheme } from '../../contexts/ThemeContext';
+import TimerDisplay from '../../components/common/TimerDisplay';
 import { API_CONFIG } from '../../lib/config';
 import { Sun, Moon, Eye, X, ArrowLeft, Camera } from 'lucide-react-native';
 
-const StepOneDamagePhotos = ({ onBack, containerData, onNavigateToStepThree }) => {
+const StepOneDamagePhotos = ({ onBack, containerData, onNavigateToStepThree, onNavigateToStepTwo }) => {
     const { isDark, toggleTheme } = useTheme();
     const [permission, requestPermission] = useCameraPermissions();
     const [damagePhotos, setDamagePhotos] = useState([]);
@@ -74,7 +75,7 @@ const StepOneDamagePhotos = ({ onBack, containerData, onNavigateToStepThree }) =
             // Add metadata
             formData.append('tripSegmentNumber', tripSegmentNumber);
             formData.append('containerNumber', containerData?.containerNumber || '');
-            formData.append('damageLocation', 'Back Wall'); // Set damage location to Back Wall
+            formData.append('damageLocation', 'Front Wall'); // Set damage location to Front Wall
 
             console.log('📸 Uploading to:', `${BACKEND_URL}/api/upload/s3-damage-photos`);
             console.log('📸 Trip segment:', tripSegmentNumber);
@@ -230,39 +231,56 @@ const StepOneDamagePhotos = ({ onBack, containerData, onNavigateToStepThree }) =
 
             {/* Header */}
             <View style={cn(`${isDark ? 'bg-gray-900' : 'bg-white/10'} px-6 py-4 border-b ${isDark ? 'border-gray-700' : 'border-gray-300'} flex-row items-center justify-between shadow-sm`)}>
-                {/* Back Button */}
-                <TouchableOpacity
-                    onPress={onBack}
-                    style={cn('mr-4 p-2')}
-                >
-                    <ArrowLeft size={24} color={isDark ? '#F59E0B' : '#1F2937'} />
-                </TouchableOpacity>
-
-                {/* Title */}
-                <Text style={cn(`text-lg font-bold ${isDark ? 'text-gray-100' : 'text-gray-800'} flex-1`)}>
-                    Back Wall Damage
-                </Text>
-
-
-                {/* Theme Switcher */}
-                <Animated.View
-                    style={{
-                        transform: [
-                            { scale: themeButtonScale }
-                        ]
-                    }}
-                >
+                {/* Back Button and Title */}
+                <View style={cn('flex-row items-center flex-1')}>
                     <TouchableOpacity
-                        onPress={handleThemeToggle}
-                        style={cn('p-2')}
+                        onPress={onBack}
+                        style={cn('mr-4 p-2')}
                     >
-                        {isDark ? (
-                            <Sun size={24} color="#6B7280" />
-                        ) : (
-                            <Moon size={24} color="#6B7280" />
-                        )}
+                        <ArrowLeft size={24} color={isDark ? '#F59E0B' : '#1F2937'} />
                     </TouchableOpacity>
-                </Animated.View>
+
+                    {/* Title */}
+                    <Text style={cn(`text-lg font-bold ${isDark ? 'text-gray-100' : 'text-gray-800'}`)}>
+                        Front Wall
+                    </Text>
+                </View>
+
+                {/* Timer Display and Navigation Buttons */}
+                <View style={cn('flex-row items-center')}>
+                    {/* Timer Display */}
+                    <TimerDisplay />
+
+                    {/* Go to Step 2 Button */}
+                    <TouchableOpacity 
+                        onPress={() => onNavigateToStepTwo && onNavigateToStepTwo({})}
+                        style={cn(`mr-3 px-3 py-1 rounded-lg ${isDark ? 'bg-blue-600' : 'bg-blue-500'}`)}
+                    >
+                        <Text style={cn('text-white text-sm font-medium')}>
+                            Go to Step 2
+                        </Text>
+                    </TouchableOpacity>
+
+                    {/* Theme Switcher */}
+                    <Animated.View
+                        style={{
+                            transform: [
+                                { scale: themeButtonScale }
+                            ]
+                        }}
+                    >
+                        <TouchableOpacity
+                            onPress={handleThemeToggle}
+                            style={cn('p-2')}
+                        >
+                            {isDark ? (
+                                <Sun size={24} color="#6B7280" />
+                            ) : (
+                                <Moon size={24} color="#6B7280" />
+                            )}
+                        </TouchableOpacity>
+                    </Animated.View>
+                </View>
             </View>
 
             {!showCamera ? (
@@ -294,7 +312,7 @@ const StepOneDamagePhotos = ({ onBack, containerData, onNavigateToStepThree }) =
                         {/* Damage Photos Section */}
                         <View style={cn(`${isDark ? 'bg-gray-800' : 'bg-white'} rounded-lg shadow-lg p-4 mb-6`)}>
                             <Text style={cn(`text-lg font-bold mb-4 ${isDark ? 'text-white' : 'text-black'}`)}>
-                                Back Wall Damage Photos
+                                Damage Photos
                             </Text>
 
 

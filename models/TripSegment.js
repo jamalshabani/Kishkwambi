@@ -116,6 +116,11 @@ const tripSegmentSchema = new Schema({
         required: false
     },
 
+    inspectionTime: {
+        type: String,
+        required: false
+    },
+
     outwardInspectionDate: {
         type: String,
         required: false
@@ -273,10 +278,11 @@ const tripSegmentSchema = new Schema({
         required: false
     },
 
-    damageDescription: {
+    damageRemarks: {
         type: String,
         required: false
     },
+    
 
     damageReportGeneratedAt: {
         type: Date,

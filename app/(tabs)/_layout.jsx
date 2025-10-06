@@ -21,6 +21,7 @@ import StepSevenLeftSidePhoto from './stepSevenLeftSidePhoto';
 import StepSevenDamagePhotos from './stepSevenDamagePhotos';
 import StepEightInsidePhoto from './stepEightInsidePhoto';
 import StepEightDamagePhotos from './stepEightDamagePhotos';
+import StepEightHalfInspectionRemarks from './stepEightHalfInspectionRemarks';
 import StepNineDriverDetails from './stepNineDriverDetails';
 
 export default function TabLayout() {
@@ -39,6 +40,7 @@ export default function TabLayout() {
     const [leftSideDamagePhotosData, setLeftSideDamagePhotosData] = useState(null);
     const [insidePhotoData, setInsidePhotoData] = useState(null);
     const [insideDamagePhotosData, setInsideDamagePhotosData] = useState(null);
+    const [inspectionRemarksData, setInspectionRemarksData] = useState(null);
     const [driverData, setDriverData] = useState(null);
 
     // Redirect to login if not authenticated
@@ -190,6 +192,11 @@ export default function TabLayout() {
         setActiveTab('stepEightDamagePhotos');
     };
 
+    const navigateToInspectionRemarks = (data) => {
+        setInspectionRemarksData(data);
+        setActiveTab('stepEightHalfInspectionRemarks');
+    };
+
     const navigateToStepNine = (data) => {
         setDriverData(data);
         setActiveTab('stepNineDriverDetails');
@@ -197,6 +204,10 @@ export default function TabLayout() {
 
     const navigateBackToStepEight = () => {
         setActiveTab('stepEightInsidePhoto');
+    };
+
+    const navigateBackToInspectionRemarks = () => {
+        setActiveTab('stepEightHalfInspectionRemarks');
     };
 
     const navigateToComplete = (data) => {
@@ -215,43 +226,46 @@ export default function TabLayout() {
         setLeftSideDamagePhotosData(null);
         setInsidePhotoData(null);
         setInsideDamagePhotosData(null);
+        setInspectionRemarksData(null);
         setDriverData(null);
     };
 
     const renderContent = () => {
         switch (activeTab) {
             case 'dashboard':
-                return <Dashboard onTakePhoto={navigateToStepOne} />;
+                return <Dashboard onTakePhoto={navigateToStepOne} onGoToStepOne={navigateToStepOne} />;
             case 'profile':
                 return <Profile />;
             case 'stepOneContainerPhoto':
-                return <StepOneContainerPhoto onBack={navigateBackToDashboard} onNavigateToStepTwo={navigateToStepTwo} />;
+                return <StepOneContainerPhoto onBack={navigateBackToDashboard} onNavigateToStepTwo={navigateToStepTwo} onNavigateToDamagePhotos={navigateToDamagePhotos} />;
             case 'stepTwoContainerDetails':
-                return <StepTwoContainerDetails onBack={navigateBackToStepOne} containerData={containerData} onNavigateToStepThree={navigateToStepThree} onNavigateToDamagePhotos={navigateToDamagePhotos} />;
+                return <StepTwoContainerDetails onBack={navigateBackToStepOne} containerData={containerData} onNavigateToStepThree={navigateToStepThree} onNavigateToDamagePhotos={navigateToDamagePhotos} onNavigateToStepThreeDirect={navigateToStepThree} />;
             case 'stepOneDamagePhotos':
-                return <StepOneDamagePhotos onBack={navigateBackToStepTwo} containerData={damagePhotosData} onNavigateToStepThree={navigateToStepThree} />;
+                return <StepOneDamagePhotos onBack={navigateBackToStepTwo} containerData={damagePhotosData} onNavigateToStepThree={navigateToStepThree} onNavigateToStepTwo={navigateToStepTwo} />;
             case 'stepThreeTrailerPhoto':
-                return <StepThreeTrailerPhoto onBack={navigateBackToDamagePhotos} containerData={trailerData} onNavigateToStepFour={navigateToStepFour} />;
+                return <StepThreeTrailerPhoto onBack={navigateBackToDamagePhotos} containerData={trailerData} onNavigateToStepFour={navigateToStepFour} onNavigateToStepFourDirect={navigateToStepFour} />;
             case 'stepFourRightSidePhoto':
-                return <StepFourRightSidePhoto onBack={navigateBackToStepThree} containerData={containerData} trailerData={trailerData} onNavigateToStepFive={navigateToStepFive} onNavigateToDamagePhotos={navigateToStepFourDamagePhotos} />;
+                return <StepFourRightSidePhoto onBack={navigateBackToStepThree} containerData={containerData} trailerData={trailerData} onNavigateToStepFive={navigateToStepFive} onNavigateToDamagePhotos={navigateToStepFourDamagePhotos} onNavigateToDamagePhotosDirect={navigateToStepFourDamagePhotos} />;
             case 'stepFourDamagePhotos':
-                return <StepFourDamagePhotos onBack={navigateBackToStepFour} containerData={rightSideDamagePhotosData} onNavigateToStepFive={navigateToStepFive} />;
+                return <StepFourDamagePhotos onBack={navigateBackToStepFour} containerData={rightSideDamagePhotosData} onNavigateToStepFive={navigateToStepFive} onNavigateToStepFiveDirect={navigateToStepFive} />;
             case 'stepFiveDamagePhotos':
-                return <StepFiveDamagePhotos onBack={navigateBackToStepFive} containerData={frontWallDamagePhotosData} onNavigateToStepSix={navigateToStepSix} />;
+                return <StepFiveDamagePhotos onBack={navigateBackToStepFive} containerData={frontWallDamagePhotosData} onNavigateToStepSix={navigateToStepSix} onNavigateToStepSixDirect={navigateToStepSix} />;
             case 'stepFiveBackWallPhoto':
-                return <StepFiveBackWallPhoto onBack={navigateBackToStepFour} containerData={frontWallPhotoData} onNavigateToStepSix={navigateToStepSix} onNavigateToDamagePhotos={navigateToStepFiveDamagePhotos} />;
+                return <StepFiveBackWallPhoto onBack={navigateBackToStepFour} containerData={frontWallPhotoData} onNavigateToStepSix={navigateToStepSix} onNavigateToDamagePhotos={navigateToStepFiveDamagePhotos} onNavigateToDamagePhotosDirect={navigateToStepFiveDamagePhotos} />;
             case 'stepSixTruckPhoto':
-                return <StepSixTruckPhoto onBack={navigateBackToStepFive} containerData={truckPhotoData} onNavigateToStepSeven={navigateToStepSeven} />;
+                return <StepSixTruckPhoto onBack={navigateBackToStepFive} containerData={truckPhotoData} onNavigateToStepSeven={navigateToStepSeven} onNavigateToStepSevenDirect={navigateToStepSeven} />;
             case 'stepSevenLeftSidePhoto':
-                return <StepSevenLeftSidePhoto onBack={navigateBackToStepSix} containerData={leftSidePhotoData} truckData={truckPhotoData} onNavigateToStepEight={navigateToStepEight} onNavigateToDamagePhotos={navigateToStepSevenDamagePhotos} />;
+                return <StepSevenLeftSidePhoto onBack={navigateBackToStepSix} containerData={leftSidePhotoData} truckData={truckPhotoData} onNavigateToStepEight={navigateToStepEight} onNavigateToDamagePhotos={navigateToStepSevenDamagePhotos} onNavigateToDamagePhotosDirect={navigateToStepSevenDamagePhotos} />;
             case 'stepSevenDamagePhotos':
-                return <StepSevenDamagePhotos onBack={navigateBackToStepSeven} containerData={leftSideDamagePhotosData} onNavigateToStepEight={navigateToStepEight} />;
+                return <StepSevenDamagePhotos onBack={navigateBackToStepSeven} containerData={leftSideDamagePhotosData} onNavigateToStepEight={navigateToStepEight} onNavigateToStepEightDirect={navigateToStepEight} />;
             case 'stepEightInsidePhoto':
-                return <StepEightInsidePhoto onBack={navigateBackToStepSeven} containerData={insidePhotoData} onNavigateToStepNine={navigateToStepNine} onNavigateToDamagePhotos={navigateToStepEightDamagePhotos} />;
+                return <StepEightInsidePhoto onBack={navigateBackToStepSeven} containerData={insidePhotoData} onNavigateToStepNine={navigateToStepNine} onNavigateToDamagePhotos={navigateToStepEightDamagePhotos} onNavigateToInspectionRemarks={navigateToInspectionRemarks} onNavigateToDamagePhotosDirect={navigateToStepEightDamagePhotos} />;
             case 'stepEightDamagePhotos':
-                return <StepEightDamagePhotos onBack={navigateBackToStepEight} containerData={insideDamagePhotosData} onNavigateToStepNine={navigateToStepNine} />;
+                return <StepEightDamagePhotos onBack={navigateBackToStepEight} containerData={insideDamagePhotosData} onNavigateToStepNine={navigateToStepNine} onNavigateToInspectionRemarks={navigateToInspectionRemarks} onNavigateToStepNineDirect={navigateToStepNine} />;
+            case 'stepEightHalfInspectionRemarks':
+                return <StepEightHalfInspectionRemarks onBack={navigateBackToStepEight} containerData={inspectionRemarksData} onNavigateToStepNine={navigateToStepNine} />;
             case 'stepNineDriverDetails':
-                return <StepNineDriverDetails onBack={navigateBackToStepEight} containerData={driverData} onComplete={navigateToComplete} />;
+                return <StepNineDriverDetails onBack={navigateBackToInspectionRemarks} containerData={driverData} onComplete={navigateToComplete} />;
             default:
                 return <Dashboard onTakePhoto={navigateToStepOne} />;
         }

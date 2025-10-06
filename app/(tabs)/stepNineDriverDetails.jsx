@@ -6,11 +6,14 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 import { LinearGradient } from 'expo-linear-gradient';
 import { cn } from '../../lib/tw';
 import { useTheme } from '../../contexts/ThemeContext';
+import { useInspectionTimer } from '../../contexts/InspectionTimerContext';
+import TimerDisplay from '../../components/common/TimerDisplay';
 import { Sun, Moon, Eye, X, ArrowLeft, Camera, User, CreditCard, Phone, Mail } from 'lucide-react-native';
 import { API_CONFIG } from '../../lib/config';
 
 const StepNineDriverDetails = ({ onBack, containerData, onComplete }) => {
     const { isDark, toggleTheme } = useTheme();
+    const { stopTimer, resetTimer } = useInspectionTimer();
     const [permission, requestPermission] = useCameraPermissions();
     const [image, setImage] = useState(null);
     const [showZoomModal, setShowZoomModal] = useState(false);
@@ -227,6 +230,10 @@ const StepNineDriverDetails = ({ onBack, containerData, onComplete }) => {
             // Get current timestamp
             const gateInTimeStamp = currentDate.toISOString();
             
+            // Stop the timer and get the inspection time
+            const inspectionTime = stopTimer();
+            console.log('⏱️ Inspection completed in:', inspectionTime);
+            
             // Determine inwardLOLOBalance based on container size
             let inwardLOLOBalance = 150000; // Default for 40ft
             if (containerData?.containerSize === '40ft') {
@@ -244,6 +251,7 @@ const StepNineDriverDetails = ({ onBack, containerData, onComplete }) => {
                 driverPhoneNumber: driverDetails.phoneNumber,
                 containerStatus: "Pending",
                 inspectionDate: inspectionDate,
+                inspectionTime: inspectionTime,
                 finalApproval: false,
                 gateInTimeStamp: gateInTimeStamp,
                 inwardLOLOBalance: inwardLOLOBalance
@@ -336,6 +344,9 @@ const StepNineDriverDetails = ({ onBack, containerData, onComplete }) => {
 
             console.log('✅ Driver details completed and saved to database successfully');
             
+            // Reset the timer after successful completion
+            resetTimer();
+            
             // Navigate to completion
             if (onComplete) {
                 onComplete(completeData);
@@ -390,36 +401,43 @@ const StepNineDriverDetails = ({ onBack, containerData, onComplete }) => {
             <StatusBar style={isDark ? "light" : "dark"} />
             
             {/* Header */}
-            <View style={cn(`${isDark ? 'bg-gray-900' : 'bg-white/10'} px-6 py-4 border-b ${isDark ? 'border-gray-700' : 'border-gray-300'} flex-row items-center shadow-sm`)}>
-                {/* Back Button */}
-                <TouchableOpacity 
-                    onPress={onBack}
-                    style={cn('mr-4 p-2')}
-                >
-                    <ArrowLeft size={24} color={isDark ? "#9CA3AF" : "#6B7280"} />
-                </TouchableOpacity>
-
-                {/* Title */}
-                <Text style={cn(`text-lg font-bold ${isDark ? 'text-gray-100' : 'text-gray-800'} flex-1`)}>
-                    Driver Details
-                </Text>
-
-
-                {/* Theme Switcher */}
-                <Animated.View
-                    style={{
-                        transform: [
-                            { scale: themeButtonScale }
-                        ]
-                    }}
-                >
+            <View style={cn(`${isDark ? 'bg-gray-900' : 'bg-white/10'} px-6 py-4 border-b ${isDark ? 'border-gray-700' : 'border-gray-300'} flex-row items-center justify-between shadow-sm`)}>
+                {/* Back Button and Title */}
+                <View style={cn('flex-row items-center flex-1')}>
                     <TouchableOpacity 
-                        onPress={handleThemeToggle}
-                        style={cn('p-2')}
+                        onPress={onBack}
+                        style={cn('mr-4 p-2')}
                     >
-                        {isDark ? <Sun size={20} color="#9CA3AF" /> : <Moon size={20} color="#6B7280" />}
+                        <ArrowLeft size={24} color={isDark ? "#9CA3AF" : "#6B7280"} />
                     </TouchableOpacity>
-                </Animated.View>
+
+                    {/* Title */}
+                    <Text style={cn(`text-lg font-bold ${isDark ? 'text-gray-100' : 'text-gray-800'}`)}>
+                        Driver Details
+                    </Text>
+                </View>
+
+                {/* Timer Display and Theme Switcher */}
+                <View style={cn('flex-row items-center')}>
+                    {/* Timer Display */}
+                    <TimerDisplay />
+
+                    {/* Theme Switcher */}
+                    <Animated.View
+                        style={{
+                            transform: [
+                                { scale: themeButtonScale }
+                            ]
+                        }}
+                    >
+                        <TouchableOpacity 
+                            onPress={handleThemeToggle}
+                            style={cn('p-2')}
+                        >
+                            {isDark ? <Sun size={20} color="#9CA3AF" /> : <Moon size={20} color="#6B7280" />}
+                        </TouchableOpacity>
+                    </Animated.View>
+                </View>
             </View>
 
             {!showCamera && !showForm ? (

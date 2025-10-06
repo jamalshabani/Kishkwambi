@@ -7,10 +7,11 @@ import { LinearGradient } from 'expo-linear-gradient';
 import * as ImagePicker from 'expo-image-picker';
 import { cn } from '../../lib/tw';
 import { useTheme } from '../../contexts/ThemeContext';
+import TimerDisplay from '../../components/common/TimerDisplay';
 import { Sun, Moon, Eye, X, ImageIcon, ArrowLeft } from 'lucide-react-native';
 import { API_CONFIG } from '../../lib/config';
 
-const StepThreeTrailerPhoto = ({ onBack, containerData, onNavigateToStepFour }) => {
+const StepThreeTrailerPhoto = ({ onBack, containerData, onNavigateToStepFour, onNavigateToStepFourDirect }) => {
     const { isDark, toggleTheme } = useTheme();
     const [permission, requestPermission] = useCameraPermissions();
     const [image, setImage] = useState(null);
@@ -246,6 +247,14 @@ const StepThreeTrailerPhoto = ({ onBack, containerData, onNavigateToStepFour }) 
                 body: JSON.stringify(updateData),
             });
 
+            // Check if response is ok before parsing JSON
+            if (!response.ok) {
+                const errorText = await response.text();
+                console.error('❌ HTTP Error:', response.status, response.statusText);
+                console.error('❌ Error response body:', errorText);
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+
             const result = await response.json();
             console.log('📊 Database update response:', result);
 
@@ -365,38 +374,56 @@ const StepThreeTrailerPhoto = ({ onBack, containerData, onNavigateToStepFour }) 
 
             {/* Header */}
             <View style={cn(`${isDark ? 'bg-gray-900' : 'bg-white/10'} px-6 py-4 border-b ${isDark ? 'border-gray-700' : 'border-gray-300'} flex-row items-center justify-between shadow-sm`)}>
-                {/* Back Button */}
-                <TouchableOpacity 
-                    onPress={onBack}
-                    style={cn('mr-4 p-2')}
-                >
-                    <ArrowLeft size={24} color={isDark ? '#F59E0B' : '#1F2937'} />
-                </TouchableOpacity>
-
-                {/* Title */}
-                <Text style={cn(`text-lg font-bold ${isDark ? 'text-gray-100' : 'text-gray-800'} flex-1`)}>
-                    Trailer Photo
-                </Text>
-
-                {/* Theme Switcher */}
-                <Animated.View
-                    style={{
-                        transform: [
-                            { scale: themeButtonScale }
-                        ]
-                    }}
-                >
-                    <TouchableOpacity
-                        onPress={handleThemeToggle}
-                        style={cn('p-2')}
+                {/* Back Button and Title */}
+                <View style={cn('flex-row items-center flex-1')}>
+                    <TouchableOpacity 
+                        onPress={onBack}
+                        style={cn('mr-4 p-2')}
                     >
-                        {isDark ? (
-                            <Sun size={24} color="#6B7280" />
-                        ) : (
-                            <Moon size={24} color="#6B7280" />
-                        )}
+                        <ArrowLeft size={24} color={isDark ? '#F59E0B' : '#1F2937'} />
                     </TouchableOpacity>
-                </Animated.View>
+
+                    {/* Title */}
+                    <Text style={cn(`text-lg font-bold ${isDark ? 'text-gray-100' : 'text-gray-800'}`)}>
+                        Trailer Photo
+                    </Text>
+                </View>
+
+                {/* Timer Display and Navigation Buttons */}
+                <View style={cn('flex-row items-center')}>
+                    {/* Timer Display */}
+                    <TimerDisplay />
+
+                    {/* Go to Step 4 Button */}
+                    <TouchableOpacity 
+                        onPress={() => onNavigateToStepFourDirect && onNavigateToStepFourDirect({})}
+                        style={cn(`mr-3 px-3 py-1 rounded-lg ${isDark ? 'bg-blue-600' : 'bg-blue-500'}`)}
+                    >
+                        <Text style={cn('text-white text-sm font-medium')}>
+                            Go to Step 4
+                        </Text>
+                    </TouchableOpacity>
+
+                    {/* Theme Switcher */}
+                    <Animated.View
+                        style={{
+                            transform: [
+                                { scale: themeButtonScale }
+                            ]
+                        }}
+                    >
+                        <TouchableOpacity
+                            onPress={handleThemeToggle}
+                            style={cn('p-2')}
+                        >
+                            {isDark ? (
+                                <Sun size={24} color="#6B7280" />
+                            ) : (
+                                <Moon size={24} color="#6B7280" />
+                            )}
+                        </TouchableOpacity>
+                    </Animated.View>
+                </View>
             </View>
 
             {!image ? (

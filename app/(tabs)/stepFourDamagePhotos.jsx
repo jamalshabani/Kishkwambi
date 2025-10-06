@@ -10,7 +10,7 @@ import { useTheme } from '../../contexts/ThemeContext';
 import { API_CONFIG } from '../../lib/config';
 import { Sun, Moon, Eye, X, ArrowLeft, Camera } from 'lucide-react-native';
 
-const StepFourDamagePhotos = ({ onBack, containerData, onNavigateToStepFive }) => {
+const StepFourDamagePhotos = ({ onBack, containerData, onNavigateToStepFive, onNavigateToStepFiveDirect }) => {
     const { isDark, toggleTheme } = useTheme();
     const [permission, requestPermission] = useCameraPermissions();
     const [damagePhotos, setDamagePhotos] = useState([]);
@@ -238,8 +238,18 @@ const StepFourDamagePhotos = ({ onBack, containerData, onNavigateToStepFive }) =
 
                 {/* Title */}
                 <Text style={cn(`text-lg font-bold ${isDark ? 'text-gray-100' : 'text-gray-800'} flex-1`)}>
-                    Right Side Damage
+                    Right Side
                 </Text>
+
+                {/* Go to Step 5 Button */}
+                <TouchableOpacity 
+                    onPress={() => onNavigateToStepFiveDirect && onNavigateToStepFiveDirect({})}
+                    style={cn(`mr-3 px-3 py-1 rounded-lg ${isDark ? 'bg-blue-600' : 'bg-blue-500'}`)}
+                >
+                    <Text style={cn('text-white text-sm font-medium')}>
+                        Go to Step 5
+                    </Text>
+                </TouchableOpacity>
 
                 {/* Theme Switcher */}
                 <Animated.View
@@ -291,7 +301,7 @@ const StepFourDamagePhotos = ({ onBack, containerData, onNavigateToStepFive }) =
                         {/* Damage Photos Section */}
                         <View style={cn(`${isDark ? 'bg-gray-800' : 'bg-white'} rounded-lg shadow-lg p-4 mb-6`)}>
                             <Text style={cn(`text-lg font-bold mb-4 ${isDark ? 'text-white' : 'text-black'}`)}>
-                                Right Side Damage Photos
+                                Damage Photos
                             </Text>
 
 

@@ -6,11 +6,13 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { cn } from '../../lib/tw';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTheme } from '../../contexts/ThemeContext';
-import { Sun, Moon, Check, CircleCheck, Zap } from 'lucide-react-native';
+import { useInspectionTimer } from '../../contexts/InspectionTimerContext';
+import { Sun, Moon, Check, CircleCheck, Zap, Clock } from 'lucide-react-native';
 
-const Dashboard = ({ onTakePhoto }) => {
+const Dashboard = ({ onTakePhoto, onGoToStepOne }) => {
     const { user, isAuthenticated, loading } = useAuth();
     const { theme, toggleTheme, isDark } = useTheme();
+    const { isRunning, formattedTime, startTimer } = useInspectionTimer();
     const [containerNumber, setContainerNumber] = useState('');
 
     // Animation values
@@ -44,6 +46,15 @@ const Dashboard = ({ onTakePhoto }) => {
         toggleTheme();
     };
 
+    const handleStartInspection = () => {
+        // Start the timer
+        startTimer();
+        
+        // Call the original onTakePhoto function
+        onTakePhoto();
+    };
+
+
     if (loading) {
         return (
             <View style={cn('flex-1 justify-center items-center bg-gray-100')}>
@@ -74,25 +85,48 @@ const Dashboard = ({ onTakePhoto }) => {
                     Arrival Inspection
                 </Text>
 
-                {/* Theme Switcher */}
-                <Animated.View
-                    style={{
-                        transform: [
-                            { scale: themeButtonScale }
-                        ]
-                    }}
-                >
+                {/* Timer Display and Navigation Buttons */}
+                <View style={cn('flex-row items-center')}>
+                    {/* Timer Display */}
+                    {isRunning && (
+                        <View style={cn('flex-row items-center mr-4')}>
+                            <Clock size={20} color={isDark ? "#10b981" : "#059669"} />
+                            <Text style={cn(`text-lg font-bold ml-2 ${isDark ? 'text-green-400' : 'text-green-600'}`)}>
+                                {formattedTime}
+                            </Text>
+                        </View>
+                    )}
+
+                    {/* Go to Step 1 Button */}
                     <TouchableOpacity 
-                        onPress={handleThemeToggle}
-                        style={cn('p-2')}
+                        onPress={onGoToStepOne}
+                        style={cn(`mr-3 px-3 py-1 rounded-lg ${isDark ? 'bg-blue-600' : 'bg-blue-500'}`)}
                     >
-                        {isDark ? (
-                            <Sun size={24} color="#6B7280" />
-                        ) : (
-                            <Moon size={24} color="#6B7280" />
-                        )}
+                        <Text style={cn('text-white text-sm font-medium')}>
+                            Go to Step 1
+                        </Text>
                     </TouchableOpacity>
-                </Animated.View>
+
+                    {/* Theme Switcher */}
+                    <Animated.View
+                        style={{
+                            transform: [
+                                { scale: themeButtonScale }
+                            ]
+                        }}
+                    >
+                        <TouchableOpacity 
+                            onPress={handleThemeToggle}
+                            style={cn('p-2')}
+                        >
+                            {isDark ? (
+                                <Sun size={24} color="#6B7280" />
+                            ) : (
+                                <Moon size={24} color="#6B7280" />
+                            )}
+                        </TouchableOpacity>
+                    </Animated.View>
+                </View>
             </View>
             
             {/* Main Content */}
@@ -146,19 +180,18 @@ const Dashboard = ({ onTakePhoto }) => {
 
                         {/* Check Button */}
                         <TouchableOpacity
-                            onPress={() => {
-                                onTakePhoto();
-                            }}
-                            style={cn('w-full rounded-lg overflow-hidden')}
+                            onPress={handleStartInspection}
+                            disabled={isRunning}
+                            style={cn(`w-full rounded-lg overflow-hidden ${isRunning ? 'opacity-50' : ''}`)}
                         >
                             <LinearGradient
-                                colors={['#000000', '#F59E0B']}
+                                colors={isRunning ? ['#6B7280', '#4B5563'] : ['#000000', '#F59E0B']}
                                 start={{ x: 0, y: 0 }}
                                 end={{ x: 1, y: 0 }}
                                 style={cn('p-4 items-center')}
                             >
                                 <Text style={cn('text-white font-bold text-lg')}>
-                                    Start Arrival Inspection
+                                    {isRunning ? `Inspection Running... ${formattedTime}` : 'Start Arrival Inspection'}
                                 </Text>
                             </LinearGradient>
                         </TouchableOpacity>

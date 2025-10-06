@@ -10,7 +10,7 @@ import { useTheme } from '../../contexts/ThemeContext';
 import { API_CONFIG } from '../../lib/config';
 import { Sun, Moon, Eye, X, ArrowLeft, Camera } from 'lucide-react-native';
 
-const StepEightDamagePhotos = ({ onBack, containerData, onNavigateToStepNine }) => {
+const StepEightDamagePhotos = ({ onBack, containerData, onNavigateToStepNine, onNavigateToInspectionRemarks, onNavigateToStepNineDirect }) => {
     const { isDark, toggleTheme } = useTheme();
     const [permission, requestPermission] = useCameraPermissions();
     const [damagePhotos, setDamagePhotos] = useState([]);
@@ -167,9 +167,9 @@ const StepEightDamagePhotos = ({ onBack, containerData, onNavigateToStepNine }) 
                 // Save damage data to state for navigation
                 setDamageData(damageData);
 
-                // Navigate to Step Nine screen
-                if (onNavigateToStepNine) {
-                    onNavigateToStepNine(damageData);
+                // Navigate to Inspection Remarks screen (since there are damages)
+                if (onNavigateToInspectionRemarks) {
+                    onNavigateToInspectionRemarks(damageData);
                 }
             } else {
                 Alert.alert('Upload Failed', `Failed to upload damage photos: ${uploadResult.error}`);
@@ -408,6 +408,16 @@ const StepEightDamagePhotos = ({ onBack, containerData, onNavigateToStepNine }) 
                 <Text style={cn(`text-lg font-bold ${isDark ? 'text-gray-100' : 'text-gray-800'} flex-1`)}>
                     Inside Damage
                 </Text>
+
+                {/* Go to Step 9 Button */}
+                <TouchableOpacity 
+                    onPress={() => onNavigateToStepNineDirect && onNavigateToStepNineDirect({})}
+                    style={cn(`mr-3 px-3 py-1 rounded-lg ${isDark ? 'bg-blue-600' : 'bg-blue-500'}`)}
+                >
+                    <Text style={cn('text-white text-sm font-medium')}>
+                        Go to Step 9
+                    </Text>
+                </TouchableOpacity>
 
                 {/* Theme Switcher */}
                 <Animated.View

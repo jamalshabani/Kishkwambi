@@ -6,10 +6,11 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 import { LinearGradient } from 'expo-linear-gradient';
 import { cn } from '../../lib/tw';
 import { useTheme } from '../../contexts/ThemeContext';
+import TimerDisplay from '../../components/common/TimerDisplay';
 import { API_CONFIG } from '../../lib/config';
 import { Moon, Sun, Camera, ArrowLeft, Eye, X } from 'lucide-react-native';
 
-export default function StepFourRightSidePhoto({ containerData, trailerData, onBack, onNavigateToStepFive, onNavigateToDamagePhotos }) {
+export default function StepFourRightSidePhoto({ containerData, trailerData, onBack, onNavigateToStepFive, onNavigateToDamagePhotos, onNavigateToDamagePhotosDirect }) {
     const { isDark, toggleTheme } = useTheme();
     const [facing, setFacing] = useState('back');
     const [image, setImage] = useState(null);
@@ -208,7 +209,7 @@ export default function StepFourRightSidePhoto({ containerData, trailerData, onB
             
             {/* Header */}
             <View style={cn(`flex-row items-center justify-between px-4 py-3 ${isDark ? 'bg-gray-900' : 'bg-white/10'} border-b ${isDark ? 'border-gray-700' : 'border-gray-200'}`)}>
-                <View style={cn('flex-row items-center')}>
+                <View style={cn('flex-row items-center flex-1')}>
                     {/* Back Button */}
                     <TouchableOpacity 
                         onPress={onBack}
@@ -222,9 +223,24 @@ export default function StepFourRightSidePhoto({ containerData, trailerData, onB
                     </Text>
                 </View>
                 
-                <TouchableOpacity onPress={toggleTheme} style={cn('p-2')}>
-                    {isDark ? <Sun size={24} color="#F59E0B" /> : <Moon size={24} color="#1F2937" />}
-                </TouchableOpacity>
+                <View style={cn('flex-row items-center')}>
+                    {/* Timer Display */}
+                    <TimerDisplay />
+                    
+                    {/* Go to Damage Photos Button */}
+                    <TouchableOpacity 
+                        onPress={() => onNavigateToDamagePhotosDirect && onNavigateToDamagePhotosDirect({})}
+                        style={cn(`mr-3 px-3 py-1 rounded-lg ${isDark ? 'bg-red-600' : 'bg-red-500'}`)}
+                    >
+                        <Text style={cn('text-white text-sm font-medium')}>
+                            Go to Damage Photos
+                        </Text>
+                    </TouchableOpacity>
+                    
+                    <TouchableOpacity onPress={toggleTheme} style={cn('p-2')}>
+                        {isDark ? <Sun size={24} color="#F59E0B" /> : <Moon size={24} color="#1F2937" />}
+                    </TouchableOpacity>
+                </View>
             </View>
 
             {!image ? (

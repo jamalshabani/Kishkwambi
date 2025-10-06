@@ -10,7 +10,7 @@ import { useTheme } from '../../contexts/ThemeContext';
 import { API_CONFIG } from '../../lib/config';
 import { Sun, Moon, Eye, X, ArrowLeft, Camera } from 'lucide-react-native';
 
-const StepFiveDamagePhotos = ({ onBack, containerData, onNavigateToStepSix }) => {
+const StepFiveDamagePhotos = ({ onBack, containerData, onNavigateToStepSix, onNavigateToStepSixDirect }) => {
     const { isDark, toggleTheme } = useTheme();
     const [permission, requestPermission] = useCameraPermissions();
     const [damagePhotos, setDamagePhotos] = useState([]);
@@ -73,7 +73,7 @@ const StepFiveDamagePhotos = ({ onBack, containerData, onNavigateToStepSix }) =>
             // Add metadata
             formData.append('tripSegmentNumber', tripSegmentNumber);
             formData.append('containerNumber', containerData?.containerNumber || '');
-            formData.append('damageLocation', 'Front Wall'); // Set damage location to Front Wall
+            formData.append('damageLocation', 'Back Wall'); // Set damage location to Back Wall
 
             console.log('📸 Uploading to:', `${BACKEND_URL}/api/upload/s3-damage-photos`);
             console.log('📸 Trip segment:', tripSegmentNumber);
@@ -227,7 +227,7 @@ const StepFiveDamagePhotos = ({ onBack, containerData, onNavigateToStepSix }) =>
 
                     {/* Title */}
                     <Text style={cn(`text-lg font-bold ${isDark ? 'text-gray-100' : 'text-gray-800'} flex-1`)}>
-                        Front Wall Damage Photo
+                        Back Wall Damage
                     </Text>
 
                     {/* Theme Switcher */}
@@ -292,7 +292,7 @@ const StepFiveDamagePhotos = ({ onBack, containerData, onNavigateToStepSix }) =>
                             {/* Damage Rectangle Outline */}
                             <View
                                 style={[
-                                    cn('border-2 border-red-500 bg-red-500/10'),
+                                    cn('border-2 border-green-500'),
                                     {
                                         width: 280,
                                         height: 420,
@@ -311,8 +311,8 @@ const StepFiveDamagePhotos = ({ onBack, containerData, onNavigateToStepSix }) =>
                                         height: 20,
                                         borderTopWidth: 3,
                                         borderLeftWidth: 3,
-                                        borderTopColor: '#EF4444',
-                                        borderLeftColor: '#EF4444',
+                                        borderTopColor: '#10b981',
+                                        borderLeftColor: '#10b981',
                                     }
                                 ]}
                             />
@@ -325,8 +325,8 @@ const StepFiveDamagePhotos = ({ onBack, containerData, onNavigateToStepSix }) =>
                                         height: 20,
                                         borderTopWidth: 3,
                                         borderRightWidth: 3,
-                                        borderTopColor: '#EF4444',
-                                        borderRightColor: '#EF4444',
+                                        borderTopColor: '#10b981',
+                                        borderRightColor: '#10b981',
                                     }
                                 ]}
                             />
@@ -339,8 +339,8 @@ const StepFiveDamagePhotos = ({ onBack, containerData, onNavigateToStepSix }) =>
                                         height: 20,
                                         borderBottomWidth: 3,
                                         borderLeftWidth: 3,
-                                        borderBottomColor: '#EF4444',
-                                        borderLeftColor: '#EF4444',
+                                        borderBottomColor: '#10b981',
+                                        borderLeftColor: '#10b981',
                                     }
                                 ]}
                             />
@@ -353,19 +353,13 @@ const StepFiveDamagePhotos = ({ onBack, containerData, onNavigateToStepSix }) =>
                                         height: 20,
                                         borderBottomWidth: 3,
                                         borderRightWidth: 3,
-                                        borderBottomColor: '#EF4444',
-                                        borderRightColor: '#EF4444',
+                                        borderBottomColor: '#10b981',
+                                        borderRightColor: '#10b981',
                                     }
                                 ]}
                             />
                         </View>
-
-                        {/* Instruction Text */}
-                        <View style={cn('absolute bottom-32 left-4 right-4')}>
-                            <Text style={cn('text-white text-center text-lg font-bold bg-black/50 px-4 py-2 rounded-lg')}>
-                                Position damage within the red frame
-                            </Text>
-                        </View>
+                        
                     </View>
 
                     {/* Camera Controls Overlay */}
@@ -406,8 +400,18 @@ const StepFiveDamagePhotos = ({ onBack, containerData, onNavigateToStepSix }) =>
 
                 {/* Title */}
                 <Text style={cn(`text-lg font-bold ${isDark ? 'text-gray-100' : 'text-gray-800'} flex-1`)}>
-                    Front Wall Damage
+                    Back Wall Damage
                 </Text>
+
+                {/* Go to Step 6 Button */}
+                <TouchableOpacity 
+                    onPress={() => onNavigateToStepSixDirect && onNavigateToStepSixDirect({})}
+                    style={cn(`mr-3 px-3 py-1 rounded-lg ${isDark ? 'bg-blue-600' : 'bg-blue-500'}`)}
+                >
+                    <Text style={cn('text-white text-sm font-medium')}>
+                        Go to Step 6
+                    </Text>
+                </TouchableOpacity>
 
                 {/* Theme Switcher */}
                 <Animated.View
@@ -460,7 +464,7 @@ const StepFiveDamagePhotos = ({ onBack, containerData, onNavigateToStepSix }) =>
                         {/* Damage Photos Section */}
                         <View style={cn(`${isDark ? 'bg-gray-800' : 'bg-white'} rounded-lg shadow-lg p-4 mb-6`)}>
                             <Text style={cn(`text-lg font-bold mb-4 ${isDark ? 'text-white' : 'text-black'}`)}>
-                                Front Wall Damage Photos
+                                Damage Photos
                             </Text>
 
 

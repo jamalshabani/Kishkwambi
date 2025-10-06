@@ -1309,6 +1309,54 @@ app.post('/api/upload/s3-container-photos', uploadS3.array('photos', 10), async 
     }
 });
 
+// Get damage status endpoint
+app.get('/api/trip-segments/:tripSegmentNumber/damage-status', async (req, res) => {
+    try {
+        const { tripSegmentNumber } = req.params;
+        
+        console.log('🔍 Checking damage status for:', tripSegmentNumber);
+
+        if (!tripSegmentNumber) {
+            return res.status(400).json({
+                success: false,
+                error: 'Trip segment number is required'
+            });
+        }
+
+        if (!db) {
+            throw new Error('Database not connected');
+        }
+
+        const collection = db.collection('tripsegments');
+        
+        const tripSegment = await collection.findOne({ tripSegmentNumber: tripSegmentNumber });
+
+        if (!tripSegment) {
+            console.log(`❌ Trip segment ${tripSegmentNumber} not found`);
+            return res.status(404).json({
+                success: false,
+                error: `Trip segment ${tripSegmentNumber} not found`
+            });
+        }
+
+        console.log(`✅ Found trip segment ${tripSegmentNumber}, hasDamages: ${tripSegment.hasDamages}`);
+
+        res.json({
+            success: true,
+            tripSegmentNumber: tripSegmentNumber,
+            hasDamages: tripSegment.hasDamages || 'No',
+            damageLocations: tripSegment.damageLocations || []
+        });
+
+    } catch (error) {
+        console.error('❌ Error checking damage status:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message || 'Failed to check damage status'
+        });
+    }
+});
+
 // Update damage status endpoint
 app.post('/api/update-damage-status', async (req, res) => {
     try {
@@ -1377,6 +1425,66 @@ app.post('/api/update-damage-status', async (req, res) => {
         res.status(500).json({
             success: false,
             error: error.message || 'Failed to update damage status'
+        });
+    }
+});
+
+// Update damage remarks endpoint
+app.post('/api/update-damage-remarks', async (req, res) => {
+    try {
+        const { tripSegmentNumber, damageRemarks } = req.body;
+        
+        console.log('📝 Received damage remarks update:', {
+            tripSegmentNumber,
+            damageRemarks: damageRemarks ? 'Present' : 'Not provided'
+        });
+
+        if (!tripSegmentNumber) {
+            return res.status(400).json({
+                success: false,
+                error: 'Trip segment number is required'
+            });
+        }
+
+        if (!db) {
+            throw new Error('Database not connected');
+        }
+
+        const collection = db.collection('tripsegments');
+        
+        const updateResult = await collection.updateOne(
+            { tripSegmentNumber: tripSegmentNumber },
+            {
+                $set: {
+                    damageRemarks: damageRemarks || '',
+                    lastUpdated: new Date().toISOString()
+                }
+            },
+            { upsert: false }
+        );
+
+        if (updateResult.matchedCount === 0) {
+            console.log(`❌ Trip segment ${tripSegmentNumber} not found`);
+            return res.status(404).json({
+                success: false,
+                error: `Trip segment ${tripSegmentNumber} not found`
+            });
+        }
+
+        console.log(`✅ Updated trip segment ${tripSegmentNumber} with damage remarks`);
+
+        res.json({
+            success: true,
+            message: 'Damage remarks updated successfully',
+            tripSegmentNumber: tripSegmentNumber,
+            damageRemarks: damageRemarks
+        });
+
+    } catch (error) {
+        console.error('❌ Damage remarks update error:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message || 'Failed to update damage remarks'
         });
     }
 });
@@ -2719,7 +2827,12 @@ async function startServer() {
                 driverLicenceNumber, 
                 driverPhoneNumber, 
                 containerStatus,
-                driverPhoto 
+                driverPhoto,
+                inspectionDate,
+                inspectionTime,
+                finalApproval,
+                gateInTimeStamp,
+                inwardLOLOBalance
             } = req.body;
 
             console.log('📊 Update data:', {
@@ -2730,7 +2843,12 @@ async function startServer() {
                 driverLicenceNumber,
                 driverPhoneNumber,
                 containerStatus,
-                driverPhoto: driverPhoto ? 'Present' : 'Not provided'
+                driverPhoto: driverPhoto ? 'Present' : 'Not provided',
+                inspectionDate,
+                inspectionTime,
+                finalApproval,
+                gateInTimeStamp,
+                inwardLOLOBalance
             });
 
             // Validate required fields
@@ -2752,6 +2870,23 @@ async function startServer() {
                 driverPhoneNumber: driverPhoneNumber || '',
                 containerStatus: containerStatus || 'Arrived'
             };
+
+            // Add additional inspection fields if provided
+            if (inspectionDate) {
+                updateData.inspectionDate = inspectionDate;
+            }
+            if (inspectionTime) {
+                updateData.inspectionTime = inspectionTime;
+            }
+            if (finalApproval !== undefined) {
+                updateData.finalApproval = finalApproval;
+            }
+            if (gateInTimeStamp) {
+                updateData.gateInTimeStamp = gateInTimeStamp;
+            }
+            if (inwardLOLOBalance) {
+                updateData.inwardLOLOBalance = inwardLOLOBalance;
+            }
 
             // Add driver photo if provided
             if (driverPhoto) {
@@ -2797,10 +2932,172 @@ async function startServer() {
         }
     });
 
+    // API endpoint to update trip segment with trailer details
+    app.put('/api/trip-segments/update-trailer-details', async (req, res) => {
+        try {
+            console.log('🚗 Received trailer details update request');
+            const { 
+                tripSegmentNumber, 
+                trailerNumber, 
+                trailerPhoto 
+            } = req.body;
+
+            console.log('📊 Update data:', {
+                tripSegmentNumber,
+                trailerNumber,
+                trailerPhoto: trailerPhoto ? 'Present' : 'Not provided'
+            });
+
+            // Validate required fields
+            if (!tripSegmentNumber) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'Trip segment number is required'
+                });
+            }
+
+            // Update TripSegment document with trailer details
+            const tripsegmentsCollection = db.collection('tripsegments');
+            
+            const updateData = {};
+
+            // Add trailer number if provided
+            if (trailerNumber) {
+                updateData.trailerNumber = trailerNumber;
+            }
+
+            // Add trailer photo if provided
+            if (trailerPhoto) {
+                updateData.trailerPhoto = trailerPhoto;
+            }
+
+            const updateResult = await tripsegmentsCollection.updateOne(
+                { tripSegmentNumber: tripSegmentNumber },
+                { $set: updateData }
+            );
+
+            if (updateResult.matchedCount === 0) {
+                console.log(`❌ Trip segment ${tripSegmentNumber} not found`);
+                return res.status(404).json({
+                    success: false,
+                    error: 'Trip segment not found'
+                });
+            }
+
+            if (updateResult.modifiedCount === 0) {
+                console.log(`⚠️ Trip segment ${tripSegmentNumber} found but no changes made`);
+                return res.status(200).json({
+                    success: true,
+                    message: 'Trip segment found but no changes were needed'
+                });
+            }
+
+            console.log(`✅ Trip segment ${tripSegmentNumber} updated successfully with trailer details`);
+            
+            res.json({
+                success: true,
+                message: 'Trailer details updated successfully',
+                tripSegmentNumber: tripSegmentNumber,
+                updatedFields: Object.keys(updateData)
+            });
+
+        } catch (error) {
+            console.error('❌ Error updating trip segment with trailer details:', error);
+            res.status(500).json({
+                success: false,
+                error: error.message || 'Failed to update trip segment'
+            });
+        }
+    });
+
+    // API endpoint to update trip segment with truck details
+    app.put('/api/trip-segments/update-truck-details', async (req, res) => {
+        try {
+            console.log('🚛 Received truck details update request');
+            const { 
+                tripSegmentNumber, 
+                truckNumber, 
+                truckPhoto 
+            } = req.body;
+
+            console.log('📊 Update data:', {
+                tripSegmentNumber,
+                truckNumber,
+                truckPhoto: truckPhoto ? 'Present' : 'Not provided'
+            });
+
+            // Validate required fields
+            if (!tripSegmentNumber) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'Trip segment number is required'
+                });
+            }
+
+            // Update TripSegment document with truck details
+            const tripsegmentsCollection = db.collection('tripsegments');
+            
+            const updateData = {};
+
+            // Add truck number if provided
+            if (truckNumber) {
+                updateData.truckNumber = truckNumber;
+            }
+
+            // Add truck photo if provided
+            if (truckPhoto) {
+                updateData.truckPhoto = truckPhoto;
+            }
+
+            const updateResult = await tripsegmentsCollection.updateOne(
+                { tripSegmentNumber: tripSegmentNumber },
+                { $set: updateData }
+            );
+
+            if (updateResult.matchedCount === 0) {
+                console.log(`❌ Trip segment ${tripSegmentNumber} not found`);
+                return res.status(404).json({
+                    success: false,
+                    error: 'Trip segment not found'
+                });
+            }
+
+            if (updateResult.modifiedCount === 0) {
+                console.log(`⚠️ Trip segment ${tripSegmentNumber} found but no changes made`);
+                return res.status(200).json({
+                    success: true,
+                    message: 'Trip segment found but no changes were needed'
+                });
+            }
+
+            console.log(`✅ Trip segment ${tripSegmentNumber} updated successfully with truck details`);
+            
+            res.json({
+                success: true,
+                message: 'Truck details updated successfully',
+                tripSegmentNumber: tripSegmentNumber,
+                updatedFields: Object.keys(updateData)
+            });
+
+        } catch (error) {
+            console.error('❌ Error updating trip segment with truck details:', error);
+            res.status(500).json({
+                success: false,
+                error: error.message || 'Failed to update trip segment'
+            });
+        }
+    });
+
     await connectToDatabase();
 
+    // Test endpoint to verify server is working
+    app.get('/api/test', (req, res) => {
+        res.json({ message: 'Server is running', timestamp: new Date().toISOString() });
+    });
+
     app.listen(PORT, '0.0.0.0', () => {
-        // Server started
+        console.log(`🚀 Server running on port ${PORT}`);
+        console.log(`📡 API endpoints available at http://localhost:${PORT}/api/`);
     });
 }
 

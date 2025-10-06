@@ -6,10 +6,11 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 import { LinearGradient } from 'expo-linear-gradient';
 import { cn } from '../../lib/tw';
 import { useTheme } from '../../contexts/ThemeContext';
+import TimerDisplay from '../../components/common/TimerDisplay';
 import { Sun, Moon, Eye, X, ArrowLeft } from 'lucide-react-native';
 import { API_CONFIG } from '../../lib/config';
 
-const StepFiveBackWallPhoto = ({ onBack, containerData, onNavigateToStepSix, onNavigateToDamagePhotos }) => {
+const StepFiveBackWallPhoto = ({ onBack, containerData, onNavigateToStepSix, onNavigateToDamagePhotos, onNavigateToDamagePhotosDirect }) => {
     const { isDark, toggleTheme } = useTheme();
     const [permission, requestPermission] = useCameraPermissions();
     const [image, setImage] = useState(null);
@@ -287,35 +288,53 @@ const StepFiveBackWallPhoto = ({ onBack, containerData, onNavigateToStepSix, onN
             <StatusBar style={isDark ? "light" : "dark"} />
             
             {/* Header */}
-            <View style={cn(`${isDark ? 'bg-gray-900' : 'bg-white/10'} px-6 py-4 border-b ${isDark ? 'border-gray-700' : 'border-gray-300'} flex-row items-center shadow-sm`)}>
-                {/* Back Button */}
-                <TouchableOpacity 
-                    onPress={onBack}
-                    style={cn('mr-4 p-2')}
-                >
-                    <ArrowLeft size={24} color={isDark ? "#9CA3AF" : "#6B7280"} />
-                </TouchableOpacity>
-
-                {/* Title */}
-                <Text style={cn(`text-lg font-bold ${isDark ? 'text-gray-100' : 'text-gray-800'} flex-1`)}>
-                    Back Wall Photo
-                </Text>
-
-                {/* Theme Switcher */}
-                <Animated.View
-                    style={{
-                        transform: [
-                            { scale: themeButtonScale }
-                        ]
-                    }}
-                >
+            <View style={cn(`${isDark ? 'bg-gray-900' : 'bg-white/10'} px-6 py-4 border-b ${isDark ? 'border-gray-700' : 'border-gray-300'} flex-row items-center justify-between shadow-sm`)}>
+                {/* Back Button and Title */}
+                <View style={cn('flex-row items-center flex-1')}>
                     <TouchableOpacity 
-                        onPress={handleThemeToggle}
-                        style={cn('p-2')}
+                        onPress={onBack}
+                        style={cn('mr-4 p-2')}
                     >
-                        {isDark ? <Sun size={20} color="#9CA3AF" /> : <Moon size={20} color="#6B7280" />}
+                        <ArrowLeft size={24} color={isDark ? "#9CA3AF" : "#6B7280"} />
                     </TouchableOpacity>
-                </Animated.View>
+
+                    {/* Title */}
+                    <Text style={cn(`text-lg font-bold ${isDark ? 'text-gray-100' : 'text-gray-800'}`)}>
+                        Back Wall Photo
+                    </Text>
+                </View>
+
+                {/* Timer Display and Navigation Buttons */}
+                <View style={cn('flex-row items-center')}>
+                    {/* Timer Display */}
+                    <TimerDisplay />
+
+                    {/* Go to Damage Photos Button */}
+                    <TouchableOpacity 
+                        onPress={() => onNavigateToDamagePhotosDirect && onNavigateToDamagePhotosDirect({})}
+                        style={cn(`mr-3 px-3 py-1 rounded-lg ${isDark ? 'bg-red-600' : 'bg-red-500'}`)}
+                    >
+                        <Text style={cn('text-white text-sm font-medium')}>
+                            Go to Damage Photos
+                        </Text>
+                    </TouchableOpacity>
+
+                    {/* Theme Switcher */}
+                    <Animated.View
+                        style={{
+                            transform: [
+                                { scale: themeButtonScale }
+                            ]
+                        }}
+                    >
+                        <TouchableOpacity 
+                            onPress={handleThemeToggle}
+                            style={cn('p-2')}
+                        >
+                            {isDark ? <Sun size={20} color="#9CA3AF" /> : <Moon size={20} color="#6B7280" />}
+                        </TouchableOpacity>
+                    </Animated.View>
+                </View>
             </View>
 
             {!image ? (
