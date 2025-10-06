@@ -85,7 +85,7 @@ const StepSevenDamagePhotos = ({ onBack, containerData, onNavigateToStepEight, o
             // Add metadata
             formData.append('tripSegmentNumber', tripSegmentNumber);
             formData.append('containerNumber', containerData?.containerNumber || '');
-            formData.append('damageLocation', 'Left Side'); // Set damage location to Left Side
+            formData.append('damageLocation', 'Left Wall'); // Set damage location to Left Wall
 
             console.log('📸 Uploading to:', `${BACKEND_URL}/api/upload/s3-damage-photos`);
             console.log('📸 Trip segment:', tripSegmentNumber);

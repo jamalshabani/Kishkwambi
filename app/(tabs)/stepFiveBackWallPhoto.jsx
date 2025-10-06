@@ -208,7 +208,7 @@ const StepFiveBackWallPhoto = ({ onBack, containerData, onNavigateToStepSix, onN
             formData.append('tripSegmentNumber', containerData?.tripSegmentNumber || '');
             formData.append('containerNumber', containerData?.containerNumber || '');
             formData.append('photoType', 'container');
-            formData.append('containerPhotoLocation', 'Back Wall');
+            formData.append('containerPhotoLocation', 'Container Back Wall');
             
             console.log('📊 File data created for upload');
             
