@@ -120,12 +120,17 @@ const StepFiveFrontWallPhoto = ({ onBack, containerData, onNavigateToStepSix, on
     };
 
     const handleDamageResponse = async (isDamaged) => {
-        try {
-            if (isDamaged) {
-                // Update damage status in database
+        setShowDamageModal(false);
+        
+        if (isDamaged) {
+            // Update hasDamages in database to "Yes"
+            try {
+                console.log('🔧 Updating damage status in database...');
+                
                 const BACKEND_URL = API_CONFIG.getBackendUrl();
                 
-                const response = await fetch(`${BACKEND_URL}/api/update-damage-status`, {
+                // Update damage status to "Yes"
+                const updateResponse = await fetch(`${BACKEND_URL}/api/update-damage-status`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -136,42 +141,42 @@ const StepFiveFrontWallPhoto = ({ onBack, containerData, onNavigateToStepSix, on
                         damageLocation: 'Front Wall'
                     }),
                 });
-
-                const result = await response.json();
                 
-                if (result.success) {
-                    console.log('✅ Updated damage status to Yes for Front Wall');
-                    
-                    // Navigate to damage photos screen
-                    const damageData = {
-                        ...containerData,
-                        frontWallPhoto: image
-                    };
-                    
-                    if (onNavigateToDamagePhotos) {
-                        onNavigateToDamagePhotos(damageData);
-                    }
+                const updateResult = await updateResponse.json();
+                
+                if (updateResult.success) {
+                    console.log('✅ Damage status updated successfully:', updateResult);
                 } else {
-                    console.error('❌ Failed to update damage status:', result.error);
-                    Alert.alert('Error', 'Failed to update damage status. Please try again.');
+                    console.error('❌ Failed to update damage status:', updateResult.error);
                 }
-            } else {
-                // No damage, proceed to next step
-                const frontWallData = {
-                    ...containerData,
-                    frontWallPhoto: image
+                
+                // Use the already uploaded photo data
+                const finalPhotoData = {
+                    ...frontWallPhotoData,
+                    hasFrontWallDamage: 'Yes'
                 };
                 
-                if (onNavigateToStepSix) {
-                    onNavigateToStepSix(frontWallData);
+                // Navigate to damage photos screen instead of next step
+                if (onNavigateToDamagePhotos) {
+                    onNavigateToDamagePhotos(finalPhotoData);
                 }
+                
+            } catch (error) {
+                console.error('❌ Error updating damage status:', error);
+                Alert.alert('Error', 'Failed to update damage status. Please try again.');
             }
-        } catch (error) {
-            console.error('❌ Error handling damage response:', error);
-            Alert.alert('Error', 'An error occurred. Please try again.');
+        } else {
+            // No damage - proceed normally using the already uploaded photo data
+            const finalPhotoData = {
+                ...frontWallPhotoData,
+                hasFrontWallDamage: 'No'
+            };
+
+            // Navigate to next step
+            if (onNavigateToStepSix) {
+                onNavigateToStepSix(finalPhotoData);
+            }
         }
-        
-        setShowDamageModal(false);
     };
 
     const handleNext = async () => {
@@ -180,8 +185,71 @@ const StepFiveFrontWallPhoto = ({ onBack, containerData, onNavigateToStepSix, on
             return;
         }
 
-        // Show damage check popup
-        setShowDamageModal(true);
+        try {
+            setIsProcessing(true);
+            console.log('📸 Starting front wall photo upload...');
+            
+            const BACKEND_URL = API_CONFIG.getBackendUrl();
+            
+            console.log('📊 Base64 data length:', image?.length);
+            
+            // Create form data for upload - React Native compatible approach
+            const formData = new FormData();
+            
+            // Create a file-like object from base64 data
+            const fileData = {
+                uri: `data:image/jpeg;base64,${image}`,
+                type: 'image/jpeg',
+                name: 'front_wall_photo.jpg',
+            };
+            
+            formData.append('photos', fileData);
+            formData.append('tripSegmentNumber', containerData?.tripSegmentNumber || '');
+            formData.append('containerNumber', containerData?.containerNumber || '');
+            formData.append('photoType', 'container');
+            formData.append('containerPhotoLocation', 'Front Wall');
+            
+            console.log('📊 File data created for upload');
+            
+            // Upload to Backblaze B2 and save to database
+            const uploadResponse = await fetch(`${BACKEND_URL}/api/upload/s3-container-photos`, {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'Content-Type': 'multipart/form-data',
+                },
+            });
+            
+            const uploadResult = await uploadResponse.json();
+            
+            if (uploadResult.success) {
+                console.log('✅ Front wall photo uploaded successfully:', uploadResult);
+                
+                // Calculate file size from base64 data (approximate)
+                const fileSize = Math.round((image.length * 3) / 4);
+                console.log('📊 Estimated file size:', fileSize, 'bytes');
+                
+                // Store the upload result for later use
+                setFrontWallPhotoData({
+                    ...containerData,
+                    frontWallPhoto: image,
+                    frontWallPhotoUploadResult: uploadResult,
+                    frontWallPhotoSize: fileSize
+                });
+                
+                // Show damage check modal after successful upload
+                setShowDamageModal(true);
+            } else {
+                console.error('❌ Failed to upload front wall photo:', uploadResult.error);
+                Alert.alert('Upload Error', 'Failed to upload front wall photo. Please try again.');
+            }
+            
+        } catch (error) {
+            console.error('❌ Error uploading front wall photo:', error);
+            Alert.alert('Error', 'An error occurred while uploading the photo. Please try again.');
+        } finally {
+            setIsProcessing(false);
+        }
     };
 
     if (!permission) {

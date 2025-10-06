@@ -217,6 +217,24 @@ const StepNineDriverDetails = ({ onBack, containerData, onComplete }) => {
             
             const BACKEND_URL = API_CONFIG.getBackendUrl();
             
+            // Get current date in dd/mm/yyyy format
+            const currentDate = new Date();
+            const day = String(currentDate.getDate()).padStart(2, '0');
+            const month = String(currentDate.getMonth() + 1).padStart(2, '0');
+            const year = currentDate.getFullYear();
+            const inspectionDate = `${day}/${month}/${year}`;
+            
+            // Get current timestamp
+            const gateInTimeStamp = currentDate.toISOString();
+            
+            // Determine inwardLOLOBalance based on container size
+            let inwardLOLOBalance = 150000; // Default for 40ft
+            if (containerData?.containerSize === '40ft') {
+                inwardLOLOBalance = 150000;
+            } else if (containerData?.containerSize === '20ft') {
+                inwardLOLOBalance = 75000;
+            }
+            
             const updateData = {
                 tripSegmentNumber: tripSegmentNumber,
                 transporterName: "Local Transporter",
@@ -224,7 +242,11 @@ const StepNineDriverDetails = ({ onBack, containerData, onComplete }) => {
                 driverLastName: driverDetails.lastName,
                 driverLicenceNumber: driverDetails.licenseNumber,
                 driverPhoneNumber: driverDetails.phoneNumber,
-                containerStatus: "Pending"
+                containerStatus: "Pending",
+                inspectionDate: inspectionDate,
+                finalApproval: false,
+                gateInTimeStamp: gateInTimeStamp,
+                inwardLOLOBalance: inwardLOLOBalance
             };
 
             // Add driver photo if available

@@ -201,6 +201,49 @@ const StepSixTruckPhoto = ({ onBack, containerData, onNavigateToStepSeven }) => 
         }
     };
 
+    const saveTruckDetailsToDatabase = async (tripSegmentNumber, truckNumber, truckPhotoUrl) => {
+        try {
+            console.log('💾 Saving truck details to database...');
+            
+            const BACKEND_URL = API_CONFIG.getBackendUrl();
+            
+            const updateData = {
+                tripSegmentNumber: tripSegmentNumber,
+                truckNumber: truckNumber
+            };
+
+            // Add truck photo if available
+            if (truckPhotoUrl) {
+                updateData.truckPhoto = truckPhotoUrl;
+            }
+
+            console.log('📊 Update data:', updateData);
+
+            const response = await fetch(`${BACKEND_URL}/api/trip-segments/update-truck-details`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(updateData),
+            });
+
+            const result = await response.json();
+            console.log('📊 Database update response:', result);
+
+            if (result.success) {
+                console.log('✅ Truck details saved to database successfully');
+                return { success: true };
+            } else {
+                console.error('❌ Failed to save truck details to database:', result.error);
+                return { success: false, error: result.error };
+            }
+
+        } catch (error) {
+            console.error('❌ Error saving truck details to database:', error);
+            return { success: false, error: error.message };
+        }
+    };
+
     const handleNext = async () => {
         if (!image) {
             Alert.alert('Missing Photo', 'Please take a truck photo before proceeding.');
@@ -222,6 +265,18 @@ const StepSixTruckPhoto = ({ onBack, containerData, onNavigateToStepSeven }) => 
             if (uploadResult.success) {
                 console.log('✅ Truck photo uploaded to S3 successfully');
                 
+                // Save truck details to database
+                const saveResult = await saveTruckDetailsToDatabase(
+                    containerData?.tripSegmentNumber, 
+                    currentTruckNumber, 
+                    uploadResult.truckPhoto
+                );
+                
+                if (!saveResult.success) {
+                    Alert.alert('Database Error', 'Failed to save truck details. Please try again.');
+                    return;
+                }
+                
                 // Prepare truck data for next step with S3 reference
                 const truckData = {
                     ...containerData,
@@ -231,6 +286,8 @@ const StepSixTruckPhoto = ({ onBack, containerData, onNavigateToStepSeven }) => 
                 
                 // Save truck photo data to state for navigation
                 setTruckPhotoData(truckData);
+
+                console.log('✅ Truck details completed and saved to database successfully');
 
                 // Navigate to next step
                 if (onNavigateToStepSeven) {

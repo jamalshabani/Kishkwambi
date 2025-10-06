@@ -97,7 +97,7 @@ const StepThreeTrailerPhoto = ({ onBack, containerData, onNavigateToStepFour }) 
             setIsRecognizingPlate(true);
             console.log('🚗 Calling PlateRecognizer API...');
 
-            const BACKEND_URL = 'http://192.168.1.144:3001'; // Update with your backend URL
+            const BACKEND_URL = 'http://192.168.12.132:3001'; // Update with your backend URL
 
             const response = await fetch(`${BACKEND_URL}/api/plate-recognizer/recognize`, {
                 method: 'POST',
@@ -220,6 +220,49 @@ const StepThreeTrailerPhoto = ({ onBack, containerData, onNavigateToStepFour }) 
         }
     };
 
+    const saveTrailerDetailsToDatabase = async (tripSegmentNumber, trailerNumber, trailerPhotoUrl) => {
+        try {
+            console.log('💾 Saving trailer details to database...');
+            
+            const BACKEND_URL = API_CONFIG.getBackendUrl();
+            
+            const updateData = {
+                tripSegmentNumber: tripSegmentNumber,
+                trailerNumber: trailerNumber
+            };
+
+            // Add trailer photo if available
+            if (trailerPhotoUrl) {
+                updateData.trailerPhoto = trailerPhotoUrl;
+            }
+
+            console.log('📊 Update data:', updateData);
+
+            const response = await fetch(`${BACKEND_URL}/api/trip-segments/update-trailer-details`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(updateData),
+            });
+
+            const result = await response.json();
+            console.log('📊 Database update response:', result);
+
+            if (result.success) {
+                console.log('✅ Trailer details saved to database successfully');
+                return { success: true };
+            } else {
+                console.error('❌ Failed to save trailer details to database:', result.error);
+                return { success: false, error: result.error };
+            }
+
+        } catch (error) {
+            console.error('❌ Error saving trailer details to database:', error);
+            return { success: false, error: error.message };
+        }
+    };
+
     const handleNext = async () => {
         const licencePlateText = licencePlate.join('').trim();
 
@@ -242,6 +285,18 @@ const StepThreeTrailerPhoto = ({ onBack, containerData, onNavigateToStepFour }) 
             if (uploadResult.success) {
                 console.log('✅ Trailer photo uploaded to S3 successfully');
                 
+                // Save trailer details to database
+                const saveResult = await saveTrailerDetailsToDatabase(
+                    containerData?.tripSegmentNumber, 
+                    licencePlateText, 
+                    uploadResult.trailerPhoto
+                );
+                
+                if (!saveResult.success) {
+                    Alert.alert('Database Error', 'Failed to save trailer details. Please try again.');
+                    return;
+                }
+                
                 // Prepare trailer data for next step with S3 reference
                 const trailerData = {
                     ...containerData,
@@ -251,6 +306,8 @@ const StepThreeTrailerPhoto = ({ onBack, containerData, onNavigateToStepFour }) 
                 
                 // Save trailer data to state for navigation
                 setTrailerData(trailerData);
+
+                console.log('✅ Trailer details completed and saved to database successfully');
 
                 // Navigate to next step
                 if (onNavigateToStepFour) {

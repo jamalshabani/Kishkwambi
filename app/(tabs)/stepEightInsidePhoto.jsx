@@ -17,7 +17,6 @@ const StepEightInsidePhoto = ({ onBack, containerData, onNavigateToStepNine, onN
     const [isProcessing, setIsProcessing] = useState(false);
     const [facing, setFacing] = useState('back');
     const [insidePhotoData, setInsidePhotoData] = useState(null);
-    const [showLoadStatusModal, setShowLoadStatusModal] = useState(false);
     const [showDamageModal, setShowDamageModal] = useState(false);
     const cameraRef = useRef(null);
 
@@ -120,52 +119,105 @@ const StepEightInsidePhoto = ({ onBack, containerData, onNavigateToStepNine, onN
         }
     };
 
-    const handleNext = () => {
+    const handleNext = async () => {
         if (!image) {
             Alert.alert('Missing Information', 'Please take a photo of the container inside.');
             return;
         }
 
-        // Show container load status modal
-        setShowLoadStatusModal(true);
-    };
-
-    const handleLoadStatusResponse = async (isEmpty) => {
-        setShowLoadStatusModal(false);
-        
         try {
-            console.log('🔧 Updating container load status in database...');
+            setIsProcessing(true);
+            console.log('📸 Starting inside photo upload...');
             
             const BACKEND_URL = API_CONFIG.getBackendUrl();
             
-            // Update container load status
-            const updateResponse = await fetch(`${BACKEND_URL}/api/update-container-load-status`, {
+            console.log('📊 Base64 data length:', image?.length);
+            
+            // Create form data for upload - React Native compatible approach
+            const formData = new FormData();
+            
+            // Create a file-like object from base64 data
+            const fileData = {
+                uri: `data:image/jpeg;base64,${image}`,
+                type: 'image/jpeg',
+                name: 'inside_photo.jpg',
+            };
+            
+            formData.append('photos', fileData);
+            formData.append('tripSegmentNumber', containerData?.tripSegmentNumber || '');
+            formData.append('containerNumber', containerData?.containerNumber || '');
+            formData.append('photoType', 'container');
+            formData.append('containerPhotoLocation', 'Container Inside');
+            
+            console.log('📊 File data created for upload');
+            
+            // Upload to Backblaze B2 and save to database
+            const uploadResponse = await fetch(`${BACKEND_URL}/api/upload/s3-container-photos`, {
                 method: 'POST',
+                body: formData,
                 headers: {
-                    'Content-Type': 'application/json',
+                    'Content-Type': 'multipart/form-data',
                 },
-                body: JSON.stringify({
-                    tripSegmentNumber: containerData?.tripSegmentNumber,
-                    containerLoadStatus: isEmpty ? 'Empty' : 'Not Empty'
-                }),
             });
             
-            const updateResult = await updateResponse.json();
+            const uploadResult = await uploadResponse.json();
             
-            if (updateResult.success) {
-                console.log('✅ Container load status updated successfully:', updateResult);
+            if (uploadResult.success) {
+                console.log('✅ Inside photo uploaded successfully:', uploadResult);
+                
+                // Calculate file size from base64 data (approximate)
+                const fileSize = Math.round((image.length * 3) / 4);
+                console.log('📊 Estimated file size:', fileSize, 'bytes');
+                
+                // Store the upload result for later use
+                setInsidePhotoData({
+                    ...containerData,
+                    insidePhoto: image,
+                    insidePhotoUploadResult: uploadResult,
+                    insidePhotoSize: fileSize
+                });
+                
+                // Automatically set container load status to "Empty" in database
+                try {
+                    console.log('🔧 Setting container load status to Empty...');
+                    
+                    const loadStatusResponse = await fetch(`${BACKEND_URL}/api/update-container-load-status`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            tripSegmentNumber: containerData?.tripSegmentNumber,
+                            containerLoadStatus: 'Empty'
+                        }),
+                    });
+                    
+                    const loadStatusResult = await loadStatusResponse.json();
+                    
+                    if (loadStatusResult.success) {
+                        console.log('✅ Container load status set to Empty successfully:', loadStatusResult);
+                    } else {
+                        console.error('❌ Failed to set container load status:', loadStatusResult.error);
+                    }
+                } catch (error) {
+                    console.error('❌ Error setting container load status:', error);
+                }
+                
+                // Show damage check modal after successful upload
+                setShowDamageModal(true);
             } else {
-                console.error('❌ Failed to update container load status:', updateResult.error);
+                console.error('❌ Failed to upload inside photo:', uploadResult.error);
+                Alert.alert('Upload Error', 'Failed to upload inside photo. Please try again.');
             }
             
-            // After updating load status, show damage check modal
-            setShowDamageModal(true);
-            
         } catch (error) {
-            console.error('❌ Error updating container load status:', error);
-            Alert.alert('Error', 'Failed to update container load status. Please try again.');
+            console.error('❌ Error uploading inside photo:', error);
+            Alert.alert('Error', 'An error occurred while uploading the photo. Please try again.');
+        } finally {
+            setIsProcessing(false);
         }
     };
+
 
     const handleDamageResponse = async (isDamaged) => {
         setShowDamageModal(false);
@@ -186,7 +238,7 @@ const StepEightInsidePhoto = ({ onBack, containerData, onNavigateToStepNine, onN
                     body: JSON.stringify({
                         tripSegmentNumber: containerData?.tripSegmentNumber,
                         hasDamages: 'Yes',
-                        damageLocation: 'Inside'
+                        damageLocation: 'Container Inside'
                     }),
                 });
                 
@@ -198,67 +250,31 @@ const StepEightInsidePhoto = ({ onBack, containerData, onNavigateToStepNine, onN
                     console.error('❌ Failed to update damage status:', updateResult.error);
                 }
                 
-                // Upload inside photo to S3
-                setIsProcessing(true);
-                const uploadResult = await uploadInsidePhotoToS3(image, containerData?.tripSegmentNumber);
+                // Use the already uploaded photo data
+                const finalPhotoData = {
+                    ...insidePhotoData,
+                    hasInsideDamage: 'Yes'
+                };
                 
-                if (uploadResult.success) {
-                    // Navigate to damage photos screen
-                    const insidePhotoData = {
-                        ...containerData,
-                        insidePhoto: uploadResult.insidePhoto,
-                        hasInsideDamage: 'Yes'
-                    };
-                    
-                    setInsidePhotoData(insidePhotoData);
-                    
-                    // Navigate to damage photos screen instead of next step
-                    if (onNavigateToDamagePhotos) {
-                        onNavigateToDamagePhotos(insidePhotoData);
-                    } else if (onNavigateToStepNine) {
-                        onNavigateToStepNine(insidePhotoData);
-                    }
-                } else {
-                    Alert.alert('Upload Failed', `Failed to upload inside photo: ${uploadResult.error}`);
-                    console.error('❌ S3 upload failed:', uploadResult.error);
+                // Navigate to damage photos screen instead of next step
+                if (onNavigateToDamagePhotos) {
+                    onNavigateToDamagePhotos(finalPhotoData);
                 }
                 
             } catch (error) {
                 console.error('❌ Error updating damage status:', error);
                 Alert.alert('Error', 'Failed to update damage status. Please try again.');
-            } finally {
-                setIsProcessing(false);
             }
         } else {
-            // No damage - proceed normally
-            setIsProcessing(true);
-            
-            try {
-                // Upload inside photo to S3
-                const uploadResult = await uploadInsidePhotoToS3(image, containerData?.tripSegmentNumber);
-                
-                if (uploadResult.success) {
-                    const insidePhotoData = {
-                        ...containerData,
-                        insidePhoto: uploadResult.insidePhoto,
-                        hasInsideDamage: 'No'
-                    };
-                    
-                    setInsidePhotoData(insidePhotoData);
+            // No damage - proceed normally using the already uploaded photo data
+            const finalPhotoData = {
+                ...insidePhotoData,
+                hasInsideDamage: 'No'
+            };
 
-                    // Navigate to next step
-                    if (onNavigateToStepNine) {
-                        onNavigateToStepNine(insidePhotoData);
-                    }
-                } else {
-                    Alert.alert('Upload Failed', `Failed to upload inside photo: ${uploadResult.error}`);
-                    console.error('❌ S3 upload failed:', uploadResult.error);
-                }
-            } catch (error) {
-                Alert.alert('Upload Error', 'An error occurred while uploading inside photo. Please try again.');
-                console.error('❌ Error in handleDamageResponse:', error);
-            } finally {
-                setIsProcessing(false);
+            // Navigate to next step
+            if (onNavigateToStepNine) {
+                onNavigateToStepNine(finalPhotoData);
             }
         }
     };
@@ -567,63 +583,6 @@ const StepEightInsidePhoto = ({ onBack, containerData, onNavigateToStepNine, onN
                 </View>
             </Modal>
 
-            {/* Container Load Status Modal */}
-            <Modal
-                visible={showLoadStatusModal}
-                transparent={true}
-                animationType="fade"
-                onRequestClose={() => setShowLoadStatusModal(false)}
-            >
-                <View style={cn('flex-1 justify-center items-center bg-black/50')}>
-                    <View style={cn(`${isDark ? 'bg-gray-800' : 'bg-white'} rounded-3xl mx-8 p-6`)}>
-                        
-                        {/* Question Text */}
-                        <View style={cn('mb-6')}>
-                            <Text style={cn(`text-xl font-bold text-center ${isDark ? 'text-white' : 'text-black'} mb-2`)}>
-                                Container Load Status
-                            </Text>
-                            <Text style={cn(`text-lg font-semibold text-center ${isDark ? 'text-gray-300' : 'text-gray-600'}`)}>
-                                Is the Container Empty?
-                            </Text>
-                        </View>
-                        
-                        {/* Yes/No Buttons */}
-                        <View style={cn('flex-row gap-3')}>
-                            <TouchableOpacity
-                                onPress={() => handleLoadStatusResponse(true)}
-                                style={cn('flex-1 rounded-xl overflow-hidden')}
-                            >
-                                <LinearGradient
-                                    colors={['#10B981', '#059669']}
-                                    start={{ x: 0, y: 0 }}
-                                    end={{ x: 1, y: 0 }}
-                                    style={cn('py-4 items-center')}
-                                >
-                                    <Text style={cn('text-white font-bold text-lg')}>
-                                        Yes
-                                    </Text>
-                                </LinearGradient>
-                            </TouchableOpacity>
-                            
-                            <TouchableOpacity
-                                onPress={() => handleLoadStatusResponse(false)}
-                                style={cn('flex-1 rounded-xl overflow-hidden')}
-                            >
-                                <LinearGradient
-                                    colors={['#EF4444', '#DC2626']}
-                                    start={{ x: 0, y: 0 }}
-                                    end={{ x: 1, y: 0 }}
-                                    style={cn('py-4 items-center')}
-                                >
-                                    <Text style={cn('text-white font-bold text-lg')}>
-                                        No
-                                    </Text>
-                                </LinearGradient>
-                            </TouchableOpacity>
-                        </View>
-                    </View>
-                </View>
-            </Modal>
 
             {/* Damage Check Modal */}
             <Modal

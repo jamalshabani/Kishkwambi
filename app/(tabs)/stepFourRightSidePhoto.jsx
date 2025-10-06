@@ -66,14 +66,78 @@ export default function StepFourRightSidePhoto({ containerData, trailerData, onB
         setImage(null);
     };
 
-    const handleNext = () => {
+    const handleNext = async () => {
         if (!image) {
             Alert.alert('Missing Information', 'Please take a photo of the container right side.');
             return;
         }
 
-        // Show damage check modal
-        setShowDamageModal(true);
+        try {
+            setIsProcessing(true);
+            console.log('📸 Starting right side photo upload...');
+            
+            const BACKEND_URL = API_CONFIG.getBackendUrl();
+            
+            console.log('📊 Base64 data length:', image?.length);
+            
+            // Create form data for upload - React Native compatible approach
+            const formData = new FormData();
+            
+            // Create a file-like object from base64 data
+            const fileData = {
+                uri: `data:image/jpeg;base64,${image}`,
+                type: 'image/jpeg',
+                name: 'right_side_photo.jpg',
+            };
+            
+            formData.append('photos', fileData);
+            formData.append('tripSegmentNumber', containerData?.tripSegmentNumber || '');
+            formData.append('containerNumber', containerData?.containerNumber || '');
+            formData.append('photoType', 'container');
+            formData.append('containerPhotoLocation', 'Container Right Wall');
+            
+            console.log('📊 File data created for upload');
+            
+            // Upload to Backblaze B2 and save to database
+            const uploadResponse = await fetch(`${BACKEND_URL}/api/upload/s3-container-photos`, {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'Content-Type': 'multipart/form-data',
+                },
+            });
+            
+            const uploadResult = await uploadResponse.json();
+            
+            if (uploadResult.success) {
+                console.log('✅ Right side photo uploaded successfully:', uploadResult);
+                
+                // Calculate file size from base64 data (approximate)
+                const fileSize = Math.round((image.length * 3) / 4);
+                console.log('📊 Estimated file size:', fileSize, 'bytes');
+                
+                // Store the upload result for later use
+                setRightSidePhotoData({
+                    ...containerData,
+                    ...trailerData,
+                    rightSidePhoto: image,
+                    rightSidePhotoUploadResult: uploadResult,
+                    rightSidePhotoSize: fileSize
+                });
+                
+                // Show damage check modal after successful upload
+                setShowDamageModal(true);
+            } else {
+                console.error('❌ Failed to upload right side photo:', uploadResult.error);
+                Alert.alert('Upload Error', 'Failed to upload right side photo. Please try again.');
+            }
+            
+        } catch (error) {
+            console.error('❌ Error uploading right side photo:', error);
+            Alert.alert('Error', 'An error occurred while uploading the photo. Please try again.');
+        } finally {
+            setIsProcessing(false);
+        }
     };
 
     const handleDamageResponse = async (isDamaged) => {
@@ -95,7 +159,7 @@ export default function StepFourRightSidePhoto({ containerData, trailerData, onB
                     body: JSON.stringify({
                         tripSegmentNumber: containerData?.tripSegmentNumber,
                         hasDamages: 'Yes',
-                        damageLocation: 'Right Side'
+                        damageLocation: 'Container Right Wall'
                     }),
                 });
                 
@@ -107,21 +171,17 @@ export default function StepFourRightSidePhoto({ containerData, trailerData, onB
                     console.error('❌ Failed to update damage status:', updateResult.error);
                 }
                 
-                // Navigate to damage photos screen
-                const rightSidePhotoData = {
-                    ...containerData,
-                    ...trailerData,
-                    rightSidePhoto: image,
+                // Use the already uploaded photo data
+                const finalPhotoData = {
+                    ...rightSidePhotoData,
                     hasRightSideDamage: 'Yes'
                 };
                 
-                setRightSidePhotoData(rightSidePhotoData);
-                
                 // Navigate to damage photos screen instead of next step
                 if (onNavigateToDamagePhotos) {
-                    onNavigateToDamagePhotos(rightSidePhotoData);
+                    onNavigateToDamagePhotos(finalPhotoData);
                 } else if (onNavigateToStepFive) {
-                    onNavigateToStepFive(rightSidePhotoData);
+                    onNavigateToStepFive(finalPhotoData);
                 }
                 
             } catch (error) {
@@ -129,19 +189,15 @@ export default function StepFourRightSidePhoto({ containerData, trailerData, onB
                 Alert.alert('Error', 'Failed to update damage status. Please try again.');
             }
         } else {
-            // No damage - proceed normally
-            const rightSidePhotoData = {
-                ...containerData,
-                ...trailerData,
-                rightSidePhoto: image,
+            // No damage - proceed normally using the already uploaded photo data
+            const finalPhotoData = {
+                ...rightSidePhotoData,
                 hasRightSideDamage: 'No'
             };
-            
-            setRightSidePhotoData(rightSidePhotoData);
 
             // Navigate to next step
             if (onNavigateToStepFive) {
-                onNavigateToStepFive(rightSidePhotoData);
+                onNavigateToStepFive(finalPhotoData);
             }
         }
     };
