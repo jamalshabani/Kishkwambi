@@ -8,14 +8,14 @@ import { cn } from '../../lib/tw';
 import { useTheme } from '../../contexts/ThemeContext';
 import TimerDisplay from '../../components/common/TimerDisplay';
 import { API_CONFIG } from '../../lib/config';
-import { Moon, Sun, Camera, ArrowLeft, Eye, X } from 'lucide-react-native';
+import { Moon, Sun, Camera, Eye, X } from 'lucide-react-native';
 
 export default function StepFourRightSidePhoto({ containerData, trailerData, onBack, onNavigateToStepFive, onNavigateToDamagePhotos, onNavigateToDamagePhotosDirect }) {
     const { isDark, toggleTheme } = useTheme();
     const [facing, setFacing] = useState('back');
     const [image, setImage] = useState(null);
     const [showZoomModal, setShowZoomModal] = useState(false);
-    const [rightSidePhotoData, setRightSidePhotoData] = useState(null);
+    const [rightWallPhotoData, setRightWallPhotoData] = useState(null);
     const [isProcessing, setIsProcessing] = useState(false);
     const [showDamageModal, setShowDamageModal] = useState(false);
     const cameraRef = useRef(null);
@@ -52,10 +52,10 @@ export default function StepFourRightSidePhoto({ containerData, trailerData, onB
 
             if (photo?.uri) {
                 setImage(photo.base64);
-                console.log('📸 Right side photo taken successfully');
+                console.log('📸 Right wall photo taken successfully');
             }
         } catch (error) {
-            console.error('❌ Error taking right side photo:', error);
+            console.error('❌ Error taking right wall photo:', error);
             Alert.alert('Error', 'Failed to take photo. Please try again.');
         } finally {
             setIsProcessing(false);
@@ -69,13 +69,13 @@ export default function StepFourRightSidePhoto({ containerData, trailerData, onB
 
     const handleNext = async () => {
         if (!image) {
-            Alert.alert('Missing Information', 'Please take a photo of the container right side.');
+            Alert.alert('Missing Information', 'Please take a photo of the container right wall.');
             return;
         }
 
         try {
             setIsProcessing(true);
-            console.log('📸 Starting right side photo upload...');
+            console.log('📸 Starting right wall photo upload...');
             
             const BACKEND_URL = API_CONFIG.getBackendUrl();
             
@@ -88,7 +88,7 @@ export default function StepFourRightSidePhoto({ containerData, trailerData, onB
             const fileData = {
                 uri: `data:image/jpeg;base64,${image}`,
                 type: 'image/jpeg',
-                name: 'right_side_photo.jpg',
+                name: 'right_wall_photo.jpg',
             };
             
             formData.append('photos', fileData);
@@ -111,30 +111,30 @@ export default function StepFourRightSidePhoto({ containerData, trailerData, onB
             const uploadResult = await uploadResponse.json();
             
             if (uploadResult.success) {
-                console.log('✅ Right side photo uploaded successfully:', uploadResult);
+                console.log('✅ Right wall photo uploaded successfully:', uploadResult);
                 
                 // Calculate file size from base64 data (approximate)
                 const fileSize = Math.round((image.length * 3) / 4);
                 console.log('📊 Estimated file size:', fileSize, 'bytes');
                 
                 // Store the upload result for later use
-                setRightSidePhotoData({
+                setRightWallPhotoData({
                     ...containerData,
                     ...trailerData,
-                    rightSidePhoto: image,
-                    rightSidePhotoUploadResult: uploadResult,
-                    rightSidePhotoSize: fileSize
+                    rightWallPhoto: image,
+                    rightWallPhotoUploadResult: uploadResult,
+                    rightWallPhotoSize: fileSize
                 });
                 
                 // Show damage check modal after successful upload
                 setShowDamageModal(true);
             } else {
-                console.error('❌ Failed to upload right side photo:', uploadResult.error);
-                Alert.alert('Upload Error', 'Failed to upload right side photo. Please try again.');
+                console.error('❌ Failed to upload right wall photo:', uploadResult.error);
+                Alert.alert('Upload Error', 'Failed to upload right wall photo. Please try again.');
             }
             
         } catch (error) {
-            console.error('❌ Error uploading right side photo:', error);
+            console.error('❌ Error uploading right wall photo:', error);
             Alert.alert('Error', 'An error occurred while uploading the photo. Please try again.');
         } finally {
             setIsProcessing(false);
@@ -174,8 +174,8 @@ export default function StepFourRightSidePhoto({ containerData, trailerData, onB
                 
                 // Use the already uploaded photo data
                 const finalPhotoData = {
-                    ...rightSidePhotoData,
-                    hasRightSideDamage: 'Yes'
+                    ...rightWallPhotoData,
+                    hasRightWallDamage: 'Yes'
                 };
                 
                 // Navigate to damage photos screen instead of next step
@@ -192,8 +192,8 @@ export default function StepFourRightSidePhoto({ containerData, trailerData, onB
         } else {
             // No damage - proceed normally using the already uploaded photo data
             const finalPhotoData = {
-                ...rightSidePhotoData,
-                hasRightSideDamage: 'No'
+                ...rightWallPhotoData,
+                hasRightWallDamage: 'No'
             };
 
             // Navigate to next step
@@ -210,16 +210,8 @@ export default function StepFourRightSidePhoto({ containerData, trailerData, onB
             {/* Header */}
             <View style={cn(`flex-row items-center justify-between px-4 py-3 ${isDark ? 'bg-gray-900' : 'bg-white/10'} border-b ${isDark ? 'border-gray-700' : 'border-gray-200'}`)}>
                 <View style={cn('flex-row items-center flex-1')}>
-                    {/* Back Button */}
-                    <TouchableOpacity 
-                        onPress={onBack}
-                        style={cn('mr-4 p-2')}
-                    >
-                        <ArrowLeft size={24} color={isDark ? '#F59E0B' : '#1F2937'} />
-                    </TouchableOpacity>
-                    
-                    <Text style={cn(`text-xl font-bold ${isDark ? 'text-white' : 'text-black'}`)}>
-                        Right Side Photo
+                    <Text style={cn(`text-lg font-bold ${isDark ? 'text-white' : 'text-black'}`)}>
+                        Right Wall
                     </Text>
                 </View>
                 
@@ -288,7 +280,7 @@ export default function StepFourRightSidePhoto({ containerData, trailerData, onB
                                     cn('border-2 border-green-500 bg-green-500/10'),
                                     {
                                         width: 280,
-                                        height: 420, // Further increased height for optimal container right side framing
+                                        height: 420, // Further increased height for optimal container right wall framing
                                         borderRadius: 8,
                                     }
                                 ]}
@@ -401,7 +393,7 @@ export default function StepFourRightSidePhoto({ containerData, trailerData, onB
                         {/* Photo Preview Section */}
                         <View style={cn(`${isDark ? 'bg-gray-800' : 'bg-white'} rounded-lg shadow-lg p-4 mb-6`)}>
                             <Text style={cn(`text-lg font-bold mb-4 ${isDark ? 'text-white' : 'text-black'}`)}>
-                                Right Side Photo
+                                Right Wall Photo
                             </Text>
                             
                             <TouchableOpacity
@@ -497,7 +489,7 @@ export default function StepFourRightSidePhoto({ containerData, trailerData, onB
                                 Damage Check
                             </Text>
                             <Text style={cn(`text-lg font-semibold text-center ${isDark ? 'text-gray-300' : 'text-gray-600'}`)}>
-                                Is the Right Side damaged?
+                                Is the Right Wall damaged?
                             </Text>
                         </View>
                         

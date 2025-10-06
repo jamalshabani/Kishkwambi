@@ -7,7 +7,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { cn } from '../../lib/tw';
 import { useTheme } from '../../contexts/ThemeContext';
 import TimerDisplay from '../../components/common/TimerDisplay';
-import { Sun, Moon, Eye, X, ArrowLeft } from 'lucide-react-native';
+import { Sun, Moon, Eye, X } from 'lucide-react-native';
 import { API_CONFIG } from '../../lib/config';
 
 const StepEightInsidePhoto = ({ onBack, containerData, onNavigateToStepNine, onNavigateToDamagePhotos, onNavigateToInspectionRemarks, onNavigateToDamagePhotosDirect }) => {
@@ -361,18 +361,10 @@ const StepEightInsidePhoto = ({ onBack, containerData, onNavigateToStepNine, onN
             
             {/* Header */}
             <View style={cn(`${isDark ? 'bg-gray-900' : 'bg-white/10'} px-6 py-4 border-b ${isDark ? 'border-gray-700' : 'border-gray-300'} flex-row items-center justify-between shadow-sm`)}>
-                {/* Back Button and Title */}
+                {/* Title */}
                 <View style={cn('flex-row items-center flex-1')}>
-                    <TouchableOpacity 
-                        onPress={onBack}
-                        style={cn('mr-4 p-2')}
-                    >
-                        <ArrowLeft size={24} color={isDark ? "#9CA3AF" : "#6B7280"} />
-                    </TouchableOpacity>
-
-                    {/* Title */}
                     <Text style={cn(`text-lg font-bold ${isDark ? 'text-gray-100' : 'text-gray-800'}`)}>
-                        Inside Photo
+                        Inside
                     </Text>
                 </View>
 

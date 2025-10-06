@@ -21,6 +21,7 @@ const StepFourDamagePhotos = ({ onBack, containerData, onNavigateToStepFive, onN
     const [showCamera, setShowCamera] = useState(false);
     const cameraRef = useRef(null);
     const [damageData, setDamageData] = useState(null);
+    const [hasDamages, setHasDamages] = useState(containerData?.hasDamages === 'Yes');
 
     // Animation values for theme switcher
     const themeIconRotation = useRef(new Animated.Value(0)).current;
@@ -52,6 +53,16 @@ const StepFourDamagePhotos = ({ onBack, containerData, onNavigateToStepFive, onN
         toggleTheme();
     };
 
+    const handleDamageToggle = (value) => {
+        setHasDamages(value);
+        if (!value) {
+            // If user selects "No", navigate to next screen
+            if (onNavigateToStepFiveDirect) {
+                onNavigateToStepFiveDirect({});
+            }
+        }
+    };
+
     const uploadDamagePhotosToS3 = async (photos, tripSegmentNumber) => {
         try {
             console.log('📸 Starting S3 upload for damage photos...');
@@ -73,7 +84,7 @@ const StepFourDamagePhotos = ({ onBack, containerData, onNavigateToStepFive, onN
             // Add metadata
             formData.append('tripSegmentNumber', tripSegmentNumber);
             formData.append('containerNumber', containerData?.containerNumber || '');
-            formData.append('damageLocation', 'Right Side'); // Set damage location to Right Side
+            formData.append('damageLocation', 'Right Wall'); // Set damage location to Right Wall
 
             console.log('📸 Uploading to:', `${BACKEND_URL}/api/upload/s3-damage-photos`);
             console.log('📸 Trip segment:', tripSegmentNumber);
@@ -126,7 +137,7 @@ const StepFourDamagePhotos = ({ onBack, containerData, onNavigateToStepFive, onN
                 };
 
                 setDamagePhotos(prev => [...prev, newPhoto]);
-                console.log('📸 Right side damage photo taken successfully');
+                console.log('📸 Right wall damage photo taken successfully');
                 setShowCamera(false);
             }
         } catch (error) {
@@ -154,7 +165,7 @@ const StepFourDamagePhotos = ({ onBack, containerData, onNavigateToStepFive, onN
             const uploadResult = await uploadDamagePhotosToS3(damagePhotos, containerData?.tripSegmentNumber);
 
             if (uploadResult.success) {
-                console.log('✅ Right side damage photos uploaded to S3 successfully');
+                console.log('✅ Right wall damage photos uploaded to S3 successfully');
 
                 // Prepare damage data for next step with damage photo objects
                 const damageData = {
@@ -238,7 +249,7 @@ const StepFourDamagePhotos = ({ onBack, containerData, onNavigateToStepFive, onN
 
                 {/* Title */}
                 <Text style={cn(`text-lg font-bold ${isDark ? 'text-gray-100' : 'text-gray-800'} flex-1`)}>
-                    Right Side
+                    Right Wall
                 </Text>
 
                 {/* Go to Step 5 Button */}
@@ -295,6 +306,50 @@ const StepFourDamagePhotos = ({ onBack, containerData, onNavigateToStepFive, onN
                                         {containerData?.tripSegmentNumber || 'N/A'}
                                     </Text>
                                 </View>
+                            </View>
+                        </View>
+
+                        {/* Damage Toggle Button */}
+                        <View style={cn(`${isDark ? 'bg-gray-800' : 'bg-white'} rounded-lg shadow-lg p-4 mb-6`)}>
+                            <Text style={cn(`text-lg font-bold mb-4 ${isDark ? 'text-white' : 'text-black'}`)}>
+                                Right Wall Damage   
+                            </Text>
+                            
+                            {/* Toggle Buttons */}
+                            <View style={cn('flex-row gap-3')}>
+                                <TouchableOpacity
+                                    onPress={() => handleDamageToggle(true)}
+                                    style={cn(`flex-1 py-3 px-4 rounded-lg border-2 ${
+                                        hasDamages 
+                                            ? `${isDark ? 'bg-green-600 border-green-500' : 'bg-green-500 border-green-400'}` 
+                                            : `${isDark ? 'bg-gray-700 border-gray-600' : 'bg-gray-200 border-gray-300'}`
+                                    }`)}
+                                >
+                                    <Text style={cn(`text-center font-semibold text-lg ${
+                                        hasDamages 
+                                            ? 'text-white' 
+                                            : `${isDark ? 'text-gray-400' : 'text-gray-600'}`
+                                    }`)}>
+                                        Yes
+                                    </Text>
+                                </TouchableOpacity>
+                                
+                                <TouchableOpacity
+                                    onPress={() => handleDamageToggle(false)}
+                                    style={cn(`flex-1 py-3 px-4 rounded-lg border-2 ${
+                                        !hasDamages 
+                                            ? `${isDark ? 'bg-red-600 border-red-500' : 'bg-red-500 border-red-400'}` 
+                                            : `${isDark ? 'bg-gray-700 border-gray-600' : 'bg-gray-200 border-gray-300'}`
+                                    }`)}
+                                >
+                                    <Text style={cn(`text-center font-semibold text-lg ${
+                                        !hasDamages 
+                                            ? 'text-white' 
+                                            : `${isDark ? 'text-gray-400' : 'text-gray-600'}`
+                                    }`)}>
+                                        No
+                                    </Text>
+                                </TouchableOpacity>
                             </View>
                         </View>
 

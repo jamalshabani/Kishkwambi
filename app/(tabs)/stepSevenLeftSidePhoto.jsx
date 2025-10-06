@@ -8,7 +8,7 @@ import { cn } from '../../lib/tw';
 import { useTheme } from '../../contexts/ThemeContext';
 import TimerDisplay from '../../components/common/TimerDisplay';
 import { API_CONFIG } from '../../lib/config';
-import { Moon, Sun, Camera, ArrowLeft, Eye, X } from 'lucide-react-native';
+import { Moon, Sun, Camera, Eye, X } from 'lucide-react-native';
 
 const StepSevenLeftSidePhoto = ({ containerData, truckData, onBack, onNavigateToStepEight, onNavigateToDamagePhotos, onNavigateToDamagePhotosDirect }) => {
     const { isDark, toggleTheme } = useTheme();
@@ -51,10 +51,10 @@ const StepSevenLeftSidePhoto = ({ containerData, truckData, onBack, onNavigateTo
 
             if (photo?.uri) {
                 setImage(photo.base64);
-                console.log('📸 Left side photo taken successfully');
+                console.log('📸 Left Wall Photo taken successfully');
             }
         } catch (error) {
-            console.error('❌ Error taking left side photo:', error);
+            console.error('❌ Error taking left Wall Photo:', error);
             Alert.alert('Error', 'Failed to take photo. Please try again.');
         } finally {
             setIsProcessing(false);
@@ -63,7 +63,7 @@ const StepSevenLeftSidePhoto = ({ containerData, truckData, onBack, onNavigateTo
 
     const uploadLeftSidePhotoToS3 = async (imageBase64, tripSegmentNumber) => {
         try {
-            console.log('📸 Uploading left side photo to S3...');
+            console.log('📸 Uploading left Wall Photo to S3...');
             
             const BACKEND_URL = API_CONFIG.getBackendUrl();
             
@@ -95,15 +95,15 @@ const StepSevenLeftSidePhoto = ({ containerData, truckData, onBack, onNavigateTo
             const result = await uploadResponse.json();
             
             if (result.success) {
-                console.log('✅ Left side photo uploaded successfully to S3:', result.leftSidePhoto);
+                console.log('✅ Left Wall Photo uploaded successfully to S3:', result.leftSidePhoto);
                 return { success: true, leftSidePhoto: result.leftSidePhoto };
             } else {
-                console.error('❌ Failed to upload left side photo to S3:', result.error);
+                console.error('❌ Failed to upload left Wall Photo to S3:', result.error);
                 return { success: false, error: result.error };
             }
             
         } catch (error) {
-            console.error('❌ Error uploading left side photo to S3:', error);
+            console.error('❌ Error uploading left Wall Photo to S3:', error);
             return { success: false, error: error.message };
         }
     };
@@ -116,7 +116,7 @@ const StepSevenLeftSidePhoto = ({ containerData, truckData, onBack, onNavigateTo
 
         try {
             setIsProcessing(true);
-            console.log('📸 Starting left side photo upload...');
+            console.log('📸 Starting left Wall Photo upload...');
             
             const BACKEND_URL = API_CONFIG.getBackendUrl();
             
@@ -152,7 +152,7 @@ const StepSevenLeftSidePhoto = ({ containerData, truckData, onBack, onNavigateTo
             const uploadResult = await uploadResponse.json();
             
             if (uploadResult.success) {
-                console.log('✅ Left side photo uploaded successfully:', uploadResult);
+                console.log('✅ Left Wall Photo uploaded successfully:', uploadResult);
                 
                 // Calculate file size from base64 data (approximate)
                 const fileSize = Math.round((image.length * 3) / 4);
@@ -170,12 +170,12 @@ const StepSevenLeftSidePhoto = ({ containerData, truckData, onBack, onNavigateTo
                 // Show damage check modal after successful upload
                 setShowDamageModal(true);
             } else {
-                console.error('❌ Failed to upload left side photo:', uploadResult.error);
-                Alert.alert('Upload Error', 'Failed to upload left side photo. Please try again.');
+                console.error('❌ Failed to upload left Wall Photo:', uploadResult.error);
+                Alert.alert('Upload Error', 'Failed to upload left Wall Photo. Please try again.');
             }
             
         } catch (error) {
-            console.error('❌ Error uploading left side photo:', error);
+            console.error('❌ Error uploading left Wall Photo:', error);
             Alert.alert('Error', 'An error occurred while uploading the photo. Please try again.');
         } finally {
             setIsProcessing(false);
@@ -250,16 +250,8 @@ const StepSevenLeftSidePhoto = ({ containerData, truckData, onBack, onNavigateTo
             {/* Header */}
             <View style={cn(`flex-row items-center justify-between px-4 py-3 ${isDark ? 'bg-gray-900' : 'bg-white/10'} border-b ${isDark ? 'border-gray-700' : 'border-gray-200'}`)}>
                 <View style={cn('flex-row items-center flex-1')}>
-                    {/* Back Button */}
-                    <TouchableOpacity 
-                        onPress={onBack}
-                        style={cn('mr-4 p-2')}
-                    >
-                        <ArrowLeft size={24} color={isDark ? '#F59E0B' : '#1F2937'} />
-                    </TouchableOpacity>
-                    
-                    <Text style={cn(`text-xl font-bold ${isDark ? 'text-white' : 'text-black'}`)}>
-                        Left Side Photo
+                    <Text style={cn(`text-lg font-bold ${isDark ? 'text-white' : 'text-black'}`)}>
+                        Left Wall
                     </Text>
                 </View>
                 
@@ -440,7 +432,7 @@ const StepSevenLeftSidePhoto = ({ containerData, truckData, onBack, onNavigateTo
                         {/* Photo Preview Section */}
                         <View style={cn(`${isDark ? 'bg-gray-800' : 'bg-white'} rounded-lg shadow-lg p-4 mb-6`)}>
                             <Text style={cn(`text-lg font-bold mb-4 ${isDark ? 'text-white' : 'text-black'}`)}>
-                                Left Side Photo
+                                Left Wall Photo
                             </Text>
                             
                             <TouchableOpacity

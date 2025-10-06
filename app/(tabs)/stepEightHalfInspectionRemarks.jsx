@@ -7,7 +7,7 @@ import { cn } from '../../lib/tw';
 import { useTheme } from '../../contexts/ThemeContext';
 import { API_CONFIG } from '../../lib/config';
 import TimerDisplay from '../../components/common/TimerDisplay';
-import { Sun, Moon, ArrowLeft, Check } from 'lucide-react-native';
+import { Sun, Moon, Check } from 'lucide-react-native';
 
 const StepEightHalfInspectionRemarks = ({ onBack, containerData, onNavigateToStepNine }) => {
     const { isDark, toggleTheme } = useTheme();
@@ -102,16 +102,8 @@ const StepEightHalfInspectionRemarks = ({ onBack, containerData, onNavigateToSte
 
             {/* Header */}
             <View style={cn(`${isDark ? 'bg-gray-900' : 'bg-white/10'} px-6 py-4 border-b ${isDark ? 'border-gray-700' : 'border-gray-300'} flex-row items-center justify-between shadow-sm`)}>
-                {/* Back Button and Title */}
+                {/* Title */}
                 <View style={cn('flex-row items-center flex-1')}>
-                    <TouchableOpacity
-                        onPress={onBack}
-                        style={cn('mr-4 p-2')}
-                    >
-                        <ArrowLeft size={24} color={isDark ? '#F59E0B' : '#1F2937'} />
-                    </TouchableOpacity>
-
-                    {/* Title */}
                     <Text style={cn(`text-lg font-bold ${isDark ? 'text-gray-100' : 'text-gray-800'}`)}>
                         Inspection Remarks
                     </Text>

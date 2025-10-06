@@ -8,7 +8,7 @@ import { cn } from '../../lib/tw';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useInspectionTimer } from '../../contexts/InspectionTimerContext';
 import TimerDisplay from '../../components/common/TimerDisplay';
-import { Sun, Moon, Eye, X, ArrowLeft, Camera, User, CreditCard, Phone, Mail } from 'lucide-react-native';
+import { Sun, Moon, Eye, X, Camera, User, CreditCard, Phone, Mail } from 'lucide-react-native';
 import { API_CONFIG } from '../../lib/config';
 
 const StepNineDriverDetails = ({ onBack, containerData, onComplete }) => {
@@ -387,9 +387,16 @@ const StepNineDriverDetails = ({ onBack, containerData, onComplete }) => {
                     </Text>
                     <TouchableOpacity
                         onPress={requestPermission}
-                        style={cn('bg-blue-500 px-6 py-3 rounded-lg')}
+                        style={cn('rounded-lg overflow-hidden')}
                     >
-                        <Text style={cn('text-white font-semibold')}>Grant Permission</Text>
+                        <LinearGradient
+                            colors={['#3B82F6', '#1D4ED8']}
+                            start={{ x: 0, y: 0 }}
+                            end={{ x: 1, y: 0 }}
+                            style={cn('px-6 py-3 items-center')}
+                        >
+                            <Text style={cn('text-white font-semibold')}>Grant Permission</Text>
+                        </LinearGradient>
                     </TouchableOpacity>
                 </View>
             </SafeAreaView>
@@ -402,16 +409,8 @@ const StepNineDriverDetails = ({ onBack, containerData, onComplete }) => {
             
             {/* Header */}
             <View style={cn(`${isDark ? 'bg-gray-900' : 'bg-white/10'} px-6 py-4 border-b ${isDark ? 'border-gray-700' : 'border-gray-300'} flex-row items-center justify-between shadow-sm`)}>
-                {/* Back Button and Title */}
+                {/* Title */}
                 <View style={cn('flex-row items-center flex-1')}>
-                    <TouchableOpacity 
-                        onPress={onBack}
-                        style={cn('mr-4 p-2')}
-                    >
-                        <ArrowLeft size={24} color={isDark ? "#9CA3AF" : "#6B7280"} />
-                    </TouchableOpacity>
-
-                    {/* Title */}
                     <Text style={cn(`text-lg font-bold ${isDark ? 'text-gray-100' : 'text-gray-800'}`)}>
                         Driver Details
                     </Text>
@@ -442,9 +441,9 @@ const StepNineDriverDetails = ({ onBack, containerData, onComplete }) => {
 
             {!showCamera && !showForm ? (
                 // Initial Selection Screen
-                <View style={cn('flex-1 items-center px-6 pt-4')}>
+                <View style={cn('flex-1 items-center p-6')}>
                     {/* Container Number and Trip Segment Display */}
-                    <View style={cn(`mb-8 p-4 rounded-lg ${isDark ? 'bg-gray-700 border-gray-600' : 'bg-gray-50 border-gray-200'} border w-full`)}>
+                    <View style={cn(`mb-8 p-6 rounded-lg ${isDark ? 'bg-gray-700 border-gray-600' : 'bg-gray-50 border-gray-200'} border w-full`)}>
                         <View style={cn('flex-row items-center justify-between')}>
                             <View style={cn('flex-1')}>
                                 <Text style={cn(`text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-600'} mb-1`)}>
@@ -695,16 +694,17 @@ const StepNineDriverDetails = ({ onBack, containerData, onComplete }) => {
                                     
                                     <View style={cn('flex-row mt-4 gap-2')}>
                                         <TouchableOpacity
-                                            onPress={() => setImage(null)}
-                                            style={cn('flex-1 bg-red-500 px-4 py-2 rounded-lg items-center')}
-                                        >
-                                            <Text style={cn('text-white font-semibold')}>Remove Photo</Text>
-                                        </TouchableOpacity>
-                                        <TouchableOpacity
                                             onPress={openCamera}
-                                            style={cn('flex-1 bg-blue-500 px-4 py-2 rounded-lg items-center')}
+                                            style={cn('flex-1 rounded-lg overflow-hidden')}
                                         >
-                                            <Text style={cn('text-white font-semibold')}>Retake Photo</Text>
+                                            <LinearGradient
+                                                colors={['#000000', '#F59E0B']}
+                                                start={{ x: 0, y: 0 }}
+                                                end={{ x: 1, y: 0 }}
+                                                style={cn('p-4 items-center')}
+                                            >
+                                                <Text style={cn('text-white font-semibold')}>Retake Photo</Text>
+                                            </LinearGradient>
                                         </TouchableOpacity>
                                     </View>
 
@@ -831,7 +831,7 @@ const StepNineDriverDetails = ({ onBack, containerData, onComplete }) => {
                                 </View>
 
 
-                                                            {/* Action Buttons */}
+                            {/* Action Buttons */}
                             <View style={cn('flex-row gap-4 mb-6')}>
                                 <TouchableOpacity
                                     onPress={() => setShowForm(false)}

@@ -8,7 +8,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { cn } from '../../lib/tw';
 import { useTheme } from '../../contexts/ThemeContext';
 import TimerDisplay from '../../components/common/TimerDisplay';
-import { Sun, Moon, Eye, X, ImageIcon, ArrowLeft } from 'lucide-react-native';
+import { Sun, Moon, Eye, X, ImageIcon } from 'lucide-react-native';
 import { API_CONFIG } from '../../lib/config';
 
 const StepThreeTrailerPhoto = ({ onBack, containerData, onNavigateToStepFour, onNavigateToStepFourDirect }) => {
@@ -374,16 +374,8 @@ const StepThreeTrailerPhoto = ({ onBack, containerData, onNavigateToStepFour, on
 
             {/* Header */}
             <View style={cn(`${isDark ? 'bg-gray-900' : 'bg-white/10'} px-6 py-4 border-b ${isDark ? 'border-gray-700' : 'border-gray-300'} flex-row items-center justify-between shadow-sm`)}>
-                {/* Back Button and Title */}
+                {/* Title */}
                 <View style={cn('flex-row items-center flex-1')}>
-                    <TouchableOpacity 
-                        onPress={onBack}
-                        style={cn('mr-4 p-2')}
-                    >
-                        <ArrowLeft size={24} color={isDark ? '#F59E0B' : '#1F2937'} />
-                    </TouchableOpacity>
-
-                    {/* Title */}
                     <Text style={cn(`text-lg font-bold ${isDark ? 'text-gray-100' : 'text-gray-800'}`)}>
                         Trailer Photo
                     </Text>
@@ -439,7 +431,7 @@ const StepThreeTrailerPhoto = ({ onBack, containerData, onNavigateToStepFour, on
                     {/* Container Guide Overlay */}
                     <View style={cn('absolute inset-0 justify-center items-center')}>
                         {/* Container Number and Trip Segment Display */}
-                        <View style={cn('absolute top-2 left-4 right-4')}>
+                        <View style={cn('absolute top-4 left-4 right-4')}>
                             <View style={cn(`p-4 rounded-lg ${isDark ? 'bg-gray-700 border-gray-600' : 'bg-gray-50 border-gray-200'} border`)}>
                                 <View style={cn('flex-row items-center justify-between')}>
                                     <View style={cn('flex-1')}>
@@ -463,37 +455,6 @@ const StepThreeTrailerPhoto = ({ onBack, containerData, onNavigateToStepFour, on
                         </View>
 
 
-                        {/* Skip Photo Button */}
-                        <View style={cn('absolute top-36 left-4 right-4 items-center')}>
-                            <TouchableOpacity
-                                onPress={() => {
-                                    // Set test licence plate data
-                                    const testPlate = 'T123ABC';
-                                    const plateArray = testPlate.split('');
-                                    const newLicencePlate = Array(7).fill('');
-                                    
-                                    for (let i = 0; i < Math.min(plateArray.length, 7); i++) {
-                                        newLicencePlate[i] = plateArray[i];
-                                    }
-                                    
-                                    setLicencePlate(newLicencePlate);
-                                    setImage('test-image'); // Set a placeholder image
-                                    console.log('📸 Skipped photo - Using test data:', testPlate);
-                                }}
-                                style={cn('rounded-lg overflow-hidden')}
-                            >
-                                <LinearGradient
-                                    colors={['#F59E0B', '#000000']}
-                                    start={{ x: 0, y: 0 }}
-                                    end={{ x: 1, y: 0 }}
-                                    style={cn('px-6 py-3')}
-                                >
-                                    <Text style={cn('text-white font-bold text-center')}>
-                                        Skip Photo - Use Test Data
-                                    </Text>
-                                </LinearGradient>
-                            </TouchableOpacity>
-                        </View>
 
                         {/* Container Guide Frame */}
                         <View style={cn('relative')}>

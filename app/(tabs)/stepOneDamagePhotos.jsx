@@ -9,7 +9,7 @@ import { cn } from '../../lib/tw';
 import { useTheme } from '../../contexts/ThemeContext';
 import TimerDisplay from '../../components/common/TimerDisplay';
 import { API_CONFIG } from '../../lib/config';
-import { Sun, Moon, Eye, X, ArrowLeft, Camera } from 'lucide-react-native';
+import { Sun, Moon, Eye, X, Camera } from 'lucide-react-native';
 
 const StepOneDamagePhotos = ({ onBack, containerData, onNavigateToStepThree, onNavigateToStepTwo }) => {
     const { isDark, toggleTheme } = useTheme();
@@ -22,6 +22,7 @@ const StepOneDamagePhotos = ({ onBack, containerData, onNavigateToStepThree, onN
     const [showCamera, setShowCamera] = useState(false);
     const cameraRef = useRef(null);
     const [damageData, setDamageData] = useState(null);
+    const [hasDamages, setHasDamages] = useState(containerData?.hasDamages === 'Yes');
 
     // Animation values for theme switcher
     const themeIconRotation = useRef(new Animated.Value(0)).current;
@@ -51,6 +52,16 @@ const StepOneDamagePhotos = ({ onBack, containerData, onNavigateToStepThree, onN
 
         // Toggle theme
         toggleTheme();
+    };
+
+    const handleDamageToggle = (value) => {
+        setHasDamages(value);
+        if (!value) {
+            // If user selects "No", navigate to next screen
+            if (onNavigateToStepTwo) {
+                onNavigateToStepTwo({});
+            }
+        }
     };
 
     // Function to upload damage photos to S3
@@ -231,16 +242,8 @@ const StepOneDamagePhotos = ({ onBack, containerData, onNavigateToStepThree, onN
 
             {/* Header */}
             <View style={cn(`${isDark ? 'bg-gray-900' : 'bg-white/10'} px-6 py-4 border-b ${isDark ? 'border-gray-700' : 'border-gray-300'} flex-row items-center justify-between shadow-sm`)}>
-                {/* Back Button and Title */}
+                {/* Title */}
                 <View style={cn('flex-row items-center flex-1')}>
-                    <TouchableOpacity
-                        onPress={onBack}
-                        style={cn('mr-4 p-2')}
-                    >
-                        <ArrowLeft size={24} color={isDark ? '#F59E0B' : '#1F2937'} />
-                    </TouchableOpacity>
-
-                    {/* Title */}
                     <Text style={cn(`text-lg font-bold ${isDark ? 'text-gray-100' : 'text-gray-800'}`)}>
                         Front Wall
                     </Text>
@@ -306,6 +309,50 @@ const StepOneDamagePhotos = ({ onBack, containerData, onNavigateToStepThree, onN
                                         {containerData?.tripSegmentNumber || 'N/A'}
                                     </Text>
                                 </View>
+                            </View>
+                        </View>
+
+                        {/* Damage Toggle Button */}
+                        <View style={cn(`${isDark ? 'bg-gray-800' : 'bg-white'} rounded-lg shadow-lg p-4 mb-6`)}>
+                            <Text style={cn(`text-lg font-bold mb-4 ${isDark ? 'text-white' : 'text-black'}`)}>
+                                Front Wall Damage   
+                            </Text>
+                            
+                            {/* Toggle Buttons */}
+                            <View style={cn('flex-row gap-3')}>
+                                <TouchableOpacity
+                                    onPress={() => handleDamageToggle(true)}
+                                    style={cn(`flex-1 py-3 px-4 rounded-lg border-2 ${
+                                        hasDamages 
+                                            ? `${isDark ? 'bg-green-600 border-green-500' : 'bg-green-500 border-green-400'}` 
+                                            : `${isDark ? 'bg-gray-700 border-gray-600' : 'bg-gray-200 border-gray-300'}`
+                                    }`)}
+                                >
+                                    <Text style={cn(`text-center font-semibold text-lg ${
+                                        hasDamages 
+                                            ? 'text-white' 
+                                            : `${isDark ? 'text-gray-400' : 'text-gray-600'}`
+                                    }`)}>
+                                        Yes
+                                    </Text>
+                                </TouchableOpacity>
+                                
+                                <TouchableOpacity
+                                    onPress={() => handleDamageToggle(false)}
+                                    style={cn(`flex-1 py-3 px-4 rounded-lg border-2 ${
+                                        !hasDamages 
+                                            ? `${isDark ? 'bg-red-600 border-red-500' : 'bg-red-500 border-red-400'}` 
+                                            : `${isDark ? 'bg-gray-700 border-gray-600' : 'bg-gray-200 border-gray-300'}`
+                                    }`)}
+                                >
+                                    <Text style={cn(`text-center font-semibold text-lg ${
+                                        !hasDamages 
+                                            ? 'text-white' 
+                                            : `${isDark ? 'text-gray-400' : 'text-gray-600'}`
+                                    }`)}>
+                                        No
+                                    </Text>
+                                </TouchableOpacity>
                             </View>
                         </View>
 
