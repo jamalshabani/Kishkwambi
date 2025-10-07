@@ -1,9 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator, TextInput } from 'react-native';
 import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
+import { Eye, EyeOff } from 'lucide-react-native';
 import { cn } from '../../lib/tw';
-import InputFieldWithNoLabel from '../common/InputFieldWithNoLabel';
 import Button from '../common/Button';
 import GridShape from './GridShape';
 import { useAuth } from '../../contexts/AuthContext';
@@ -16,6 +16,8 @@ const LoginForm = () => {
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
     const [forceRender, setForceRender] = useState(0);
+    const [focusedField, setFocusedField] = useState(null);
+    const [showPassword, setShowPassword] = useState(false);
     const { signIn, loading, isAuthenticated, setLoadingState } = useAuth();
     const errorRef = useRef('');
 
@@ -163,16 +165,27 @@ const LoginForm = () => {
                                 <Text style={cn('text-sm font-bold text-gray-800 mb-2')}>
                                     Email <Text style={cn('text-red-500')}>*</Text>
                                 </Text>
-                                <InputFieldWithNoLabel
-                                    placeholder="Email"
-                                    value={email}
-                                    onChangeText={(text) => {
-                                        setEmail(text);
-                                    }}
-                                    keyboardType="email-address"
-                                    autoCapitalize="none"
-                                    autoCorrect={false}
-                                />
+                                <View style={cn('rounded-lg overflow-hidden')}>
+                                    <LinearGradient
+                                        colors={focusedField === 'email' ? ['#000000', '#F59E0B'] : ['transparent', 'transparent']}
+                                        start={{ x: 0, y: 0 }}
+                                        end={{ x: 1, y: 0 }}
+                                        style={cn('p-[2px] rounded-lg')}
+                                    >
+                                        <TextInput
+                                            style={cn(`px-3 py-3 rounded-lg bg-gray-50 text-black ${focusedField === 'email' ? '' : 'border'} ${focusedField === 'email' ? '' : 'border-gray-300'}`)}
+                                            placeholder="Email"
+                                            placeholderTextColor="#6B7280"
+                                            value={email}
+                                            onChangeText={setEmail}
+                                            onFocus={() => setFocusedField('email')}
+                                            onBlur={() => setFocusedField(null)}
+                                            keyboardType="email-address"
+                                            autoCapitalize="none"
+                                            autoCorrect={false}
+                                        />
+                                    </LinearGradient>
+                                </View>
                             </View>
 
                             {/* Password Field */}
@@ -180,14 +193,37 @@ const LoginForm = () => {
                                 <Text style={cn('text-sm font-bold text-gray-800 mb-2')}>
                                     Password <Text style={cn('text-red-500')}>*</Text>
                                 </Text>
-                                <InputFieldWithNoLabel
-                                    placeholder="Password"
-                                    value={password}
-                                    onChangeText={(text) => {
-                                        setPassword(text);
-                                    }}
-                                    secureTextEntry
-                                />
+                                <View style={cn('rounded-lg overflow-hidden')}>
+                                    <LinearGradient
+                                        colors={focusedField === 'password' ? ['#000000', '#F59E0B'] : ['transparent', 'transparent']}
+                                        start={{ x: 0, y: 0 }}
+                                        end={{ x: 1, y: 0 }}
+                                        style={cn('p-[2px] rounded-lg')}
+                                    >
+                                        <View style={cn('relative')}>
+                                            <TextInput
+                                                style={cn(`px-3 py-3 pr-12 rounded-lg bg-gray-50 text-black ${focusedField === 'password' ? '' : 'border'} ${focusedField === 'password' ? '' : 'border-gray-300'}`)}
+                                                placeholder="Password"
+                                                placeholderTextColor="#6B7280"
+                                                value={password}
+                                                onChangeText={setPassword}
+                                                onFocus={() => setFocusedField('password')}
+                                                onBlur={() => setFocusedField(null)}
+                                                secureTextEntry={!showPassword}
+                                            />
+                                            <TouchableOpacity
+                                                onPress={() => setShowPassword(!showPassword)}
+                                                style={cn('absolute right-3 top-1/2 -translate-y-1/2 p-1')}
+                                            >
+                                                {showPassword ? (
+                                                    <EyeOff size={20} color="#6B7280" />
+                                                ) : (
+                                                    <Eye size={20} color="#6B7280" />
+                                                )}
+                                            </TouchableOpacity>
+                                        </View>
+                                    </LinearGradient>
+                                </View>
                             </View>
 
 
@@ -224,15 +260,6 @@ const LoginForm = () => {
                                         'Login'
                                     )}
                                 </Button>
-                            </View>
-
-                            {/* Forgot Password Link */}
-                            <View style={cn('items-start mb-4')}>
-                                <TouchableOpacity onPress={() => router.push('/forgot-password')}>
-                                    <Text style={cn('text-sm text-black')}>
-                                        Forgot password?
-                                    </Text>
-                                </TouchableOpacity>
                             </View>
 
                             {/* Direct Dashboard Button */}
