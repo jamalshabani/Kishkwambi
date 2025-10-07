@@ -11,7 +11,7 @@ import TimerDisplay from '../../components/common/TimerDisplay';
 import { Sun, Moon, Eye, X, Camera, User, CreditCard, Phone, Mail } from 'lucide-react-native';
 import { API_CONFIG } from '../../lib/config';
 
-const StepNineDriverDetails = ({ onBack, containerData, onComplete }) => {
+const StepNineDriverDetails = ({ onBack, containerData, onComplete, onShowSuccess }) => {
     const { isDark, toggleTheme } = useTheme();
     const { stopTimer, resetTimer } = useInspectionTimer();
     const [permission, requestPermission] = useCameraPermissions();
@@ -347,9 +347,9 @@ const StepNineDriverDetails = ({ onBack, containerData, onComplete }) => {
             // Reset the timer after successful completion
             resetTimer();
             
-            // Navigate to completion
-            if (onComplete) {
-                onComplete(completeData);
+            // Show success screen
+            if (onShowSuccess) {
+                onShowSuccess(completeData);
             }
         } catch (error) {
             Alert.alert('Error', 'An error occurred while completing driver details. Please try again.');

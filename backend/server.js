@@ -1,5 +1,5 @@
 const express = require('express');
-const { MongoClient } = require('mongodb');
+const { MongoClient, ObjectId } = require('mongodb');
 const cors = require('cors');
 const multer = require('multer');
 const path = require('path');
@@ -251,6 +251,89 @@ app.post('/api/auth/login', async (req, res) => {
             user: userData
         });
     } catch (error) {
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+
+// Change password endpoint
+app.post('/api/auth/change-password', async (req, res) => {
+    try {
+        const { userId, currentPassword, newPassword } = req.body;
+
+        if (!userId || !currentPassword || !newPassword) {
+            return res.status(400).json({
+                success: false,
+                error: 'User ID, current password, and new password are required'
+            });
+        }
+
+        if (newPassword.length < 6) {
+            return res.status(400).json({
+                success: false,
+                error: 'New password must be at least 6 characters long'
+            });
+        }
+
+        if (!db) {
+            throw new Error('Database not connected');
+        }
+
+        const collection = db.collection(COLLECTION_NAME);
+        
+        // Find user by ID
+        const user = await collection.findOne({ _id: new ObjectId(userId) });
+
+        if (!user) {
+            return res.status(404).json({
+                success: false,
+                error: 'User not found'
+            });
+        }
+
+        if (user.isActive !== 'Yes') {
+            return res.status(401).json({
+                success: false,
+                error: 'Account is deactivated. Please contact administrator.'
+            });
+        }
+
+        // Verify current password
+        const bcrypt = require('bcryptjs');
+        const isCurrentPasswordValid = await bcrypt.compare(currentPassword, user.password);
+
+        if (!isCurrentPasswordValid) {
+            return res.status(401).json({
+                success: false,
+                error: 'Current password is incorrect'
+            });
+        }
+
+        // Hash the new password
+        const saltRounds = 12;
+        const hashedNewPassword = await bcrypt.hash(newPassword, saltRounds);
+
+        // Update user's password
+        const result = await collection.updateOne(
+            { _id: new ObjectId(userId) },
+            { $set: { password: hashedNewPassword } }
+        );
+
+        if (result.modifiedCount === 1) {
+            res.json({
+                success: true,
+                message: 'Password changed successfully'
+            });
+        } else {
+            res.status(500).json({
+                success: false,
+                error: 'Failed to update password'
+            });
+        }
+    } catch (error) {
+        console.error('Change password error:', error);
         res.status(500).json({
             success: false,
             error: error.message

@@ -86,11 +86,24 @@ export const AuthProvider = ({ children }) => {
         setLoading(loadingState);
     };
 
+    const changePassword = async (currentPassword, newPassword) => {
+        try {
+            const result = await auth.changePassword(currentPassword, newPassword);
+            return result;
+        } catch (error) {
+            return {
+                success: false,
+                error: 'Failed to change password'
+            };
+        }
+    };
+
     const value = {
         user,
         loading,
         signIn,
         signOut,
+        changePassword,
         setLoadingState,
         isAuthenticated: !!user
     };

@@ -1,22 +1,27 @@
 import React, { useState, useRef } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, TextInput, Modal, Animated } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, TextInput, Modal, Animated, KeyboardAvoidingView, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { cn } from '../../lib/tw';
-import Button from '../../components/common/Button';
-import InputFieldWithNoLabel from '../../components/common/InputFieldWithNoLabel';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTheme } from '../../contexts/ThemeContext';
-import { Sun, Moon, User } from 'lucide-react-native';
+import { Sun, Moon, User, Eye, EyeOff } from 'lucide-react-native';
 
 const Profile = () => {
-    const { user, signOut, loading } = useAuth();
+    const { user, signOut, loading, changePassword } = useAuth();
     const { theme, toggleTheme, isDark } = useTheme();
     
     // Password change states
     const [currentPassword, setCurrentPassword] = useState('');
     const [newPassword, setNewPassword] = useState('');
     const [passwordLoading, setPasswordLoading] = useState(false);
+    const [focusedField, setFocusedField] = useState(null);
+    const [showCurrentPassword, setShowCurrentPassword] = useState(false);
+    const [showNewPassword, setShowNewPassword] = useState(false);
+    const [showPasswordErrorModal, setShowPasswordErrorModal] = useState(false);
+    const [passwordErrorMessage, setPasswordErrorMessage] = useState('');
+    const [showPasswordSuccessModal, setShowPasswordSuccessModal] = useState(false);
 
     // Animation values for theme switcher
     const themeIconRotation = useRef(new Animated.Value(0)).current;
@@ -27,15 +32,30 @@ const Profile = () => {
             return;
         }
 
+        if (newPassword.length < 6) {
+            setPasswordErrorMessage('New password must be at least 6 characters long');
+            setShowPasswordErrorModal(true);
+            return;
+        }
+
         setPasswordLoading(true);
         try {
-            // Simulate password change API call
-            await new Promise(resolve => setTimeout(resolve, 1500));
-            console.log('Password change request:', { currentPassword, newPassword });
-            // Reset fields after successful change
-            setCurrentPassword('');
-            setNewPassword('');
+            const result = await changePassword(currentPassword, newPassword);
+            
+            if (result.success) {
+                setShowPasswordSuccessModal(true);
+                // Reset fields after successful change
+                setCurrentPassword('');
+                setNewPassword('');
+                setShowCurrentPassword(false);
+                setShowNewPassword(false);
+            } else {
+                setPasswordErrorMessage(result.error || 'Failed to change password');
+                setShowPasswordErrorModal(true);
+            }
         } catch (error) {
+            setPasswordErrorMessage('An error occurred while changing password');
+            setShowPasswordErrorModal(true);
             console.error('Password change error:', error);
         } finally {
             setPasswordLoading(false);
@@ -69,7 +89,7 @@ const Profile = () => {
     };
 
     return (
-        <SafeAreaView style={cn(`flex-1 ${isDark ? 'bg-gray-900' : 'bg-gray-100'}`)}>
+        <SafeAreaView style={cn(`flex-1 ${isDark ? 'bg-gray-900' : 'bg-gray-100'}`)} edges={['top']}>
             <StatusBar style={isDark ? "light" : "dark"} />
             
             {/* Header */}
@@ -101,8 +121,16 @@ const Profile = () => {
             </View>
 
             {/* Main Content */}
-            <View style={cn(`flex-1 ${isDark ? 'bg-gray-900' : 'bg-gray-100'}`)}>
-                <View style={cn('p-6')}>
+            <KeyboardAvoidingView 
+                style={cn('flex-1')}
+                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            >
+                <ScrollView 
+                    style={cn('flex-1')}
+                    keyboardShouldPersistTaps="handled"
+                    showsVerticalScrollIndicator={false}
+                >
+                    <View style={cn('p-6')}>
                     {/* User Information Card */}
                     <View style={cn(`${isDark ? 'bg-gray-800' : 'bg-white'} rounded-lg shadow-lg overflow-hidden`)}>
                         {/* Username */}
@@ -111,7 +139,7 @@ const Profile = () => {
                                 Full name
                             </Text>
                             <Text style={cn(`text-base font-semibold ${isDark ? 'text-gray-100' : 'text-black'}`)}>
-                                {user?.name || "Laura Rivas"}
+                                {user?.name || "Simba Terminals"}
                             </Text>
                         </View>
 
@@ -121,7 +149,7 @@ const Profile = () => {
                                 Email
                             </Text>
                             <Text style={cn(`text-base font-semibold ${isDark ? 'text-gray-100' : 'text-black'}`)}>
-                                {user?.email || "laura@gmail.com"}
+                                {user?.email || "info@sscs.co.tz"}
                             </Text>
                         </View>
 
@@ -131,7 +159,7 @@ const Profile = () => {
                                 Role
                             </Text>
                             <Text style={cn(`text-base font-semibold ${isDark ? 'text-gray-100' : 'text-black'}`)}>
-                                {user?.role || "Inspector"}
+                                {user?.role || "Admin"}
                             </Text>
                         </View>
                     </View>
@@ -147,12 +175,37 @@ const Profile = () => {
                             <Text style={cn(`text-sm font-bold ${isDark ? 'text-gray-100' : 'text-black'} mb-2`)}>
                                 Current Password <Text style={cn('text-red-500')}>*</Text>
                             </Text>
-                            <InputFieldWithNoLabel
-                                placeholder="Current Password"
-                                value={currentPassword}
-                                onChangeText={setCurrentPassword}
-                                secureTextEntry={true}
-                            />
+                            <View style={cn('rounded-lg overflow-hidden')}>
+                                <LinearGradient
+                                    colors={focusedField === 'currentPassword' ? ['#000000', '#F59E0B'] : ['transparent', 'transparent']}
+                                    start={{ x: 0, y: 0 }}
+                                    end={{ x: 1, y: 0 }}
+                                    style={cn('p-[2px] rounded-lg')}
+                                >
+                                    <View style={cn(`flex-row items-center rounded-lg ${isDark ? 'bg-gray-700' : 'bg-gray-50'} ${focusedField === 'currentPassword' ? '' : 'border'} ${focusedField === 'currentPassword' ? '' : (isDark ? 'border-gray-600' : 'border-gray-300')}`)}>
+                                        <TextInput
+                                            style={cn(`flex-1 px-3 py-3 ${isDark ? 'text-white' : 'text-black'}`)}
+                                            placeholder="Current Password"
+                                            placeholderTextColor={isDark ? '#9CA3AF' : '#6B7280'}
+                                            value={currentPassword}
+                                            onChangeText={setCurrentPassword}
+                                            onFocus={() => setFocusedField('currentPassword')}
+                                            onBlur={() => setFocusedField(null)}
+                                            secureTextEntry={!showCurrentPassword}
+                                        />
+                                        <TouchableOpacity
+                                            onPress={() => setShowCurrentPassword(!showCurrentPassword)}
+                                            style={cn('px-3 py-3')}
+                                        >
+                                            {showCurrentPassword ? (
+                                                <EyeOff size={20} color={isDark ? '#9CA3AF' : '#6B7280'} />
+                                            ) : (
+                                                <Eye size={20} color={isDark ? '#9CA3AF' : '#6B7280'} />
+                                            )}
+                                        </TouchableOpacity>
+                                    </View>
+                                </LinearGradient>
+                            </View>
                         </View>
 
                         {/* New Password */}
@@ -160,30 +213,61 @@ const Profile = () => {
                             <Text style={cn(`text-sm font-bold ${isDark ? 'text-gray-100' : 'text-black'} mb-2`)}>
                                 New Password <Text style={cn('text-red-500')}>*</Text>
                             </Text>
-                            <InputFieldWithNoLabel
-                                placeholder="New Password"
-                                value={newPassword}
-                                onChangeText={setNewPassword}
-                                secureTextEntry={true}
-                            />
+                            <View style={cn('rounded-lg overflow-hidden')}>
+                                <LinearGradient
+                                    colors={focusedField === 'newPassword' ? ['#000000', '#F59E0B'] : ['transparent', 'transparent']}
+                                    start={{ x: 0, y: 0 }}
+                                    end={{ x: 1, y: 0 }}
+                                    style={cn('p-[2px] rounded-lg')}
+                                >
+                                    <View style={cn(`flex-row items-center rounded-lg ${isDark ? 'bg-gray-700' : 'bg-gray-50'} ${focusedField === 'newPassword' ? '' : 'border'} ${focusedField === 'newPassword' ? '' : (isDark ? 'border-gray-600' : 'border-gray-300')}`)}>
+                                        <TextInput
+                                            style={cn(`flex-1 px-3 py-3 ${isDark ? 'text-white' : 'text-black'}`)}
+                                            placeholder="New Password"
+                                            placeholderTextColor={isDark ? '#9CA3AF' : '#6B7280'}
+                                            value={newPassword}
+                                            onChangeText={setNewPassword}
+                                            onFocus={() => setFocusedField('newPassword')}
+                                            onBlur={() => setFocusedField(null)}
+                                            secureTextEntry={!showNewPassword}
+                                        />
+                                        <TouchableOpacity
+                                            onPress={() => setShowNewPassword(!showNewPassword)}
+                                            style={cn('px-3 py-3')}
+                                        >
+                                            {showNewPassword ? (
+                                                <EyeOff size={20} color={isDark ? '#9CA3AF' : '#6B7280'} />
+                                            ) : (
+                                                <Eye size={20} color={isDark ? '#9CA3AF' : '#6B7280'} />
+                                            )}
+                                        </TouchableOpacity>
+                                    </View>
+                                </LinearGradient>
+                            </View>
                         </View>
 
                         {/* Change Password Button */}
-                        <Button
+                        <TouchableOpacity
                             onPress={handleChangePassword}
                             disabled={passwordLoading || !currentPassword || !newPassword}
-                            className="w-full rounded-lg"
-                            style={{
-                                background: 'linear-gradient(90deg, #F59E0B 0%, #92400E 100%)',
-                            }}
+                            style={cn(`w-full rounded-lg overflow-hidden ${(passwordLoading || !currentPassword || !newPassword) ? 'opacity-50' : ''}`)}
                         >
-                            {passwordLoading ? 'Changing...' : 'Change Password'}
-                        </Button>
+                            <LinearGradient
+                                colors={['#F59E0B', '#000000']}
+                                start={{ x: 0, y: 0 }}
+                                end={{ x: 1, y: 0 }}
+                                style={cn('px-6 py-4 items-center justify-center')}
+                            >
+                                <Text style={cn('text-white font-semibold text-base')}>
+                                    {passwordLoading ? 'Changing...' : 'Change Password'}
+                                </Text>
+                            </LinearGradient>
+                        </TouchableOpacity>
 
 
                     {/* Logout Button */}
                     <View style={cn('mt-6')}>
-                        <Button
+                        <TouchableOpacity
                             onPress={async () => {
                                 try {
                                     const result = await signOut();
@@ -197,18 +281,101 @@ const Profile = () => {
                                 }
                             }}
                             disabled={loading}
-                            className="w-full rounded-lg"
-                            style={{
-                                background: 'linear-gradient(90deg, #F59E0B 0%, #92400E 100%)',
-                            }}
+                            style={cn(`w-full rounded-lg overflow-hidden ${loading ? 'opacity-50' : ''}`)}
                         >
-                            {loading ? 'Logging out...' : 'Logout'}
-                        </Button>
-                    </View>
+                            <LinearGradient
+                                colors={['#F59E0B', '#000000']}
+                                start={{ x: 0, y: 0 }}
+                                end={{ x: 1, y: 0 }}
+                                style={cn('px-6 py-4 items-center justify-center')}
+                            >
+                                <Text style={cn('text-white font-semibold text-base')}>
+                                    {loading ? 'Logging out...' : 'Logout'}
+                                </Text>
+                            </LinearGradient>
+                        </TouchableOpacity>
                     </View>
 
+                    </View>
+
+                    </View>
+
+                </ScrollView>
+            </KeyboardAvoidingView>
+
+            {/* Password Error Modal */}
+            <Modal
+                visible={showPasswordErrorModal}
+                transparent={true}
+                animationType="fade"
+                onRequestClose={() => setShowPasswordErrorModal(false)}
+            >
+                <View style={cn('flex-1 bg-black/50 items-center justify-center px-6')}>
+                    <View style={cn('bg-white rounded-2xl p-8 items-center max-w-sm w-full relative')}>
+                        {/* Red Error Icon */}
+                        <View style={cn('absolute -top-8 w-16 h-16 bg-red-500 rounded-full items-center justify-center shadow-lg')}>
+                            <Text style={cn('text-white text-2xl font-bold')}>✕</Text>
+                        </View>
+                        
+                        {/* Error Message */}
+                        <Text style={cn('text-black text-lg font-semibold text-center mt-4 mb-2')}>
+                            Password Change Failed
+                        </Text>
+                        
+                        {/* Additional Message */}
+                        <Text style={cn('text-gray-600 text-sm text-center mb-6 font-semibold')}>
+                            {passwordErrorMessage}
+                        </Text>
+                        
+                        {/* OK Button */}
+                        <TouchableOpacity
+                            onPress={() => setShowPasswordErrorModal(false)}
+                            style={cn('bg-red-500 px-8 py-3 rounded-lg w-full')}
+                        >
+                            <Text style={cn('text-white text-lg font-semibold text-center')}>
+                                OK
+                            </Text>
+                        </TouchableOpacity>
+                    </View>
                 </View>
-            </View>
+            </Modal>
+
+            {/* Password Success Modal */}
+            <Modal
+                visible={showPasswordSuccessModal}
+                transparent={true}
+                animationType="fade"
+                onRequestClose={() => setShowPasswordSuccessModal(false)}
+            >
+                <View style={cn('flex-1 bg-black/50 items-center justify-center px-6')}>
+                    <View style={cn('bg-white rounded-2xl p-8 items-center max-w-sm w-full relative')}>
+                        {/* Green Success Icon */}
+                        <View style={cn('absolute -top-8 w-16 h-16 bg-green-500 rounded-full items-center justify-center shadow-lg')}>
+                            <Text style={cn('text-white text-2xl font-bold')}>✓</Text>
+                        </View>
+                        
+                        {/* Success Message */}
+                        <Text style={cn('text-black text-lg font-semibold text-center mt-4 mb-2')}>
+                            Password Changed Successfully
+                        </Text>
+                        
+                        {/* Additional Message */}
+                        <Text style={cn('text-gray-600 text-sm text-center mb-6 font-semibold')}>
+                            Your password has been updated successfully
+                        </Text>
+                        
+                        {/* OK Button */}
+                        <TouchableOpacity
+                            onPress={() => setShowPasswordSuccessModal(false)}
+                            style={cn('bg-green-500 px-8 py-3 rounded-lg w-full')}
+                        >
+                            <Text style={cn('text-white text-lg font-semibold text-center')}>
+                                OK
+                            </Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </Modal>
         </SafeAreaView>
     );
 };

@@ -55,6 +55,7 @@ const Dashboard = ({ onTakePhoto, onGoToStepOne }) => {
     };
 
 
+
     if (loading) {
         return (
             <View style={cn('flex-1 justify-center items-center bg-gray-100')}>

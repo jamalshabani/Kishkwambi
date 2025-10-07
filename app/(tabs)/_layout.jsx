@@ -23,6 +23,7 @@ import StepEightInsidePhoto from './stepEightInsidePhoto';
 import StepEightDamagePhotos from './stepEightDamagePhotos';
 import StepEightHalfInspectionRemarks from './stepEightHalfInspectionRemarks';
 import StepNineDriverDetails from './stepNineDriverDetails';
+import InspectionSuccess from './inspectionSuccess';
 
 export default function TabLayout() {
     const { isDark } = useTheme();
@@ -42,6 +43,8 @@ export default function TabLayout() {
     const [insideDamagePhotosData, setInsideDamagePhotosData] = useState(null);
     const [inspectionRemarksData, setInspectionRemarksData] = useState(null);
     const [driverData, setDriverData] = useState(null);
+    const [showSuccessScreen, setShowSuccessScreen] = useState(false);
+    const [inspectionData, setInspectionData] = useState(null);
 
     // Redirect to login if not authenticated
     useEffect(() => {
@@ -95,7 +98,7 @@ export default function TabLayout() {
         setActiveTab('stepOneContainerPhoto');
     };
 
-    const navigateBackToDashboard = () => {
+    const navigateBackToDashboardFromStepOne = () => {
         setActiveTab('dashboard');
         setContainerData(null);
     };
@@ -230,14 +233,45 @@ export default function TabLayout() {
         setDriverData(null);
     };
 
+    const navigateToSuccess = (data) => {
+        setInspectionData(data);
+        setShowSuccessScreen(true);
+    };
+
+    const navigateBackToDashboard = () => {
+        setShowSuccessScreen(false);
+        setInspectionData(null);
+        setActiveTab('dashboard');
+        // Reset all data
+        setContainerData(null);
+        setDamagePhotosData(null);
+        setTrailerData(null);
+        setRightSidePhotoData(null);
+        setRightSideDamagePhotosData(null);
+        setFrontWallDamagePhotosData(null);
+        setFrontWallPhotoData(null);
+        setTruckPhotoData(null);
+        setLeftSidePhotoData(null);
+        setLeftSideDamagePhotosData(null);
+        setInsidePhotoData(null);
+        setInsideDamagePhotosData(null);
+        setInspectionRemarksData(null);
+        setDriverData(null);
+    };
+
     const renderContent = () => {
+        // Show success screen if active
+        if (showSuccessScreen) {
+            return <InspectionSuccess onBackToDashboard={navigateBackToDashboard} inspectionData={inspectionData} />;
+        }
+
         switch (activeTab) {
             case 'dashboard':
                 return <Dashboard onTakePhoto={navigateToStepOne} onGoToStepOne={navigateToStepOne} />;
             case 'profile':
                 return <Profile />;
             case 'stepOneContainerPhoto':
-                return <StepOneContainerPhoto onBack={navigateBackToDashboard} onNavigateToStepTwo={navigateToStepTwo} onNavigateToDamagePhotos={navigateToDamagePhotos} />;
+                return <StepOneContainerPhoto onBack={navigateBackToDashboardFromStepOne} onNavigateToStepTwo={navigateToStepTwo} onNavigateToDamagePhotos={navigateToDamagePhotos} />;
             case 'stepTwoContainerDetails':
                 return <StepTwoContainerDetails onBack={navigateBackToStepOne} containerData={containerData} onNavigateToStepThree={navigateToStepThree} onNavigateToDamagePhotos={navigateToDamagePhotos} onNavigateToStepThreeDirect={navigateToStepThree} />;
             case 'stepOneDamagePhotos':
@@ -265,7 +299,7 @@ export default function TabLayout() {
             case 'stepEightHalfInspectionRemarks':
                 return <StepEightHalfInspectionRemarks onBack={navigateBackToStepEight} containerData={inspectionRemarksData} onNavigateToStepNine={navigateToStepNine} />;
             case 'stepNineDriverDetails':
-                return <StepNineDriverDetails onBack={navigateBackToInspectionRemarks} containerData={driverData} onComplete={navigateToComplete} />;
+                return <StepNineDriverDetails onBack={navigateBackToInspectionRemarks} containerData={driverData} onComplete={navigateToComplete} onShowSuccess={navigateToSuccess} />;
             default:
                 return <Dashboard onTakePhoto={navigateToStepOne} />;
         }
@@ -278,8 +312,8 @@ export default function TabLayout() {
                 {renderContent()}
             </View>
 
-            {/* Tab Bar - Hidden for all step screens */}
-            {!activeTab.startsWith('step') && (
+            {/* Tab Bar - Hidden for all step screens and success screen */}
+            {!activeTab.startsWith('step') && !showSuccessScreen && (
                 <View style={cn(`border-t ${isDark ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-white'} shadow-lg`)}>
                     <View style={cn('flex-row h-24 px-5')}>
                         {renderTabIcon(
