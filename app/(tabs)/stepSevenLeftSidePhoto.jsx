@@ -64,6 +64,14 @@ const StepSevenLeftSidePhoto = ({ containerData, truckData, onBack, onNavigateTo
         fetchTruckNumber();
     }, [containerData?.tripSegmentNumber]);
 
+    // Restore left side photo when navigating back
+    useEffect(() => {
+        if (containerData?.leftSidePhotoBase64) {
+            console.log('📸 Restoring left side photo from previous data');
+            setImage(containerData.leftSidePhotoBase64);
+        }
+    }, [containerData]);
+
     if (!permission) {
         // Camera permissions are still loading
         return <View />;
@@ -205,6 +213,7 @@ const StepSevenLeftSidePhoto = ({ containerData, truckData, onBack, onNavigateTo
                     ...containerData,
                     ...truckData,
                     leftSidePhoto: image,
+                    leftSidePhotoBase64: image, // Store base64 for back navigation preview
                     leftSidePhotoUploadResult: uploadResult,
                     leftSidePhotoSize: fileSize
                 });
@@ -293,7 +302,15 @@ const StepSevenLeftSidePhoto = ({ containerData, truckData, onBack, onNavigateTo
             <View style={cn(`flex-row items-center justify-between px-4 py-3 ${isDark ? 'bg-gray-900' : 'bg-white/10'} border-b ${isDark ? 'border-gray-700' : 'border-gray-200'}`)}>
                 <View style={cn('flex-row items-center flex-1')}>
                     <TouchableOpacity 
-                        onPress={onBack}
+                        onPress={() => {
+                            // Pass containerData and truckData back for data persistence
+                            if (onBack) {
+                                onBack({
+                                    ...containerData,
+                                    ...truckData
+                                });
+                            }
+                        }}
                         style={cn('mr-3 p-1')}
                     >
                         <ArrowLeft size={24} color={isDark ? '#F3F4F6' : '#1F2937'} />

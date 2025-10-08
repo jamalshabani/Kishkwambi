@@ -48,6 +48,26 @@ const StepSixTruckPhoto = ({ onBack, onBackToBackWallDamage, containerData, onNa
         fetchTrailerNumber();
     }, [containerData?.tripSegmentNumber]);
 
+    // Restore truck photo and truck number when navigating back
+    useEffect(() => {
+        if (containerData?.truckPhotoBase64) {
+            console.log('📸 Restoring truck photo from previous data');
+            setImage(containerData.truckPhotoBase64);
+        }
+        
+        if (containerData?.truckNumber) {
+            console.log('🚛 Restoring truck number from previous data:', containerData.truckNumber);
+            // Convert truck number string to array for the inputs
+            const truckNumberArray = containerData.truckNumber.split('');
+            // Pad with empty strings if needed
+            while (truckNumberArray.length < 7) {
+                truckNumberArray.push('');
+            }
+            setTruckNumber(truckNumberArray);
+            setExtractedData({ truckNumber: containerData.truckNumber });
+        }
+    }, [containerData]);
+
     // Conditional back navigation - check if Back Wall damage exists
     const handleBackNavigation = async () => {
         try {
@@ -357,6 +377,7 @@ const StepSixTruckPhoto = ({ onBack, onBackToBackWallDamage, containerData, onNa
                 const truckData = {
                     ...containerData,
                     truckPhoto: uploadResult.truckPhoto, // Use S3 reference instead of base64
+                    truckPhotoBase64: image, // Store base64 for back navigation preview
                     truckNumber: currentTruckNumber
                 };
                 

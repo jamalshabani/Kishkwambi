@@ -202,7 +202,11 @@ export default function TabLayout() {
         setActiveTab('stepSevenDamagePhotos');
     };
 
-    const navigateBackToStepSix = () => {
+    const navigateBackToStepSix = (data) => {
+        // Update truck photo data if provided for persistence
+        if (data) {
+            setTruckPhotoData(data);
+        }
         setActiveTab('stepSixTruckPhoto');
     };
 
@@ -211,8 +215,20 @@ export default function TabLayout() {
         setActiveTab('stepEightInsidePhoto');
     };
 
-    const navigateBackToStepSeven = () => {
+    const navigateBackToStepSeven = (data) => {
+        // Update left side photo data if provided for persistence
+        if (data) {
+            setLeftSidePhotoData(data);
+        }
         setActiveTab('stepSevenLeftSidePhoto');
+    };
+
+    const navigateBackToLeftWallDamage = (data) => {
+        // Update left side damage photos data if provided for persistence
+        if (data) {
+            setLeftSideDamagePhotosData(data);
+        }
+        setActiveTab('stepSevenDamagePhotos');
     };
 
     const navigateToStepEightDamagePhotos = (data) => {
@@ -325,7 +341,7 @@ export default function TabLayout() {
             case 'stepSevenDamagePhotos':
                 return <StepSevenDamagePhotos onBack={navigateBackToStepSeven} containerData={leftSideDamagePhotosData} onNavigateToStepEight={navigateToStepEight} onNavigateToStepEightDirect={navigateToStepEight} />;
             case 'stepEightInsidePhoto':
-                return <StepEightInsidePhoto onBack={navigateBackToStepSeven} containerData={insidePhotoData} onNavigateToStepNine={navigateToStepNine} onNavigateToDamagePhotos={navigateToStepEightDamagePhotos} onNavigateToInspectionRemarks={navigateToInspectionRemarks} onNavigateToDamagePhotosDirect={navigateToStepEightDamagePhotos} />;
+                return <StepEightInsidePhoto onBack={navigateBackToStepSeven} onBackToLeftWallDamage={navigateBackToLeftWallDamage} containerData={insidePhotoData} onNavigateToStepNine={navigateToStepNine} onNavigateToDamagePhotos={navigateToStepEightDamagePhotos} onNavigateToInspectionRemarks={navigateToInspectionRemarks} onNavigateToDamagePhotosDirect={navigateToStepEightDamagePhotos} />;
             case 'stepEightDamagePhotos':
                 return <StepEightDamagePhotos onBack={navigateBackToStepEight} containerData={insideDamagePhotosData} onNavigateToStepNine={navigateToStepNine} onNavigateToInspectionRemarks={navigateToInspectionRemarks} onNavigateToStepNineDirect={navigateToStepNine} />;
             case 'stepEightHalfInspectionRemarks':

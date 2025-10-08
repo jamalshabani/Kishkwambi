@@ -270,8 +270,8 @@ const StepEightHalfInspectionRemarks = ({ onBack, containerData, onNavigateToSte
                                 style={cn(`
                                     w-full h-32 p-4 rounded-lg border text-base
                                     ${isDark
-                                        ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400'
-                                        : 'bg-gray-50 border-gray-300 text-black placeholder-gray-500'
+                                        ? 'bg-gray-700 border-gray-600 text-white'
+                                        : 'bg-gray-50 border-gray-300 text-black'
                                     }
                                 `)}
                                 placeholder="Enter damage remarks..."

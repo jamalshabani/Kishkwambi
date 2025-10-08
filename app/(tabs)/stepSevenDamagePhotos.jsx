@@ -64,6 +64,25 @@ const StepSevenDamagePhotos = ({ onBack, containerData, onNavigateToStepEight, o
         fetchTruckNumber();
     }, [containerData?.tripSegmentNumber]);
 
+    // Restore damage photos when navigating back
+    useEffect(() => {
+        if (containerData?.localLeftSideDamagePhotos && containerData.localLeftSideDamagePhotos.length > 0) {
+            console.log('📸 Restoring Left Side damage photos from previous data');
+            console.log('📸 Number of photos to restore:', containerData.localLeftSideDamagePhotos.length);
+            // Convert stored photos back to format expected by the component
+            const restoredPhotos = containerData.localLeftSideDamagePhotos.map((photo, index) => ({
+                id: photo.id || Date.now() + index, // Ensure each photo has a unique id
+                uri: photo.uri || `data:image/jpeg;base64,${photo.base64}`,
+                base64: photo.base64,
+                timestamp: photo.timestamp || new Date().toISOString()
+            }));
+            setDamagePhotos(restoredPhotos);
+            console.log('✅ Damage photos restored successfully');
+        } else {
+            console.log('⚠️ No Left Side damage photos to restore');
+        }
+    }, [containerData]);
+
     // Animation values for theme switcher
     const themeIconRotation = useRef(new Animated.Value(0)).current;
     const themeButtonScale = useRef(new Animated.Value(1)).current;

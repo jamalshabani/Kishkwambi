@@ -10,7 +10,7 @@ import TimerDisplay from '../../components/common/TimerDisplay';
 import { Sun, Moon, Eye, X, ArrowLeft } from 'lucide-react-native';
 import { API_CONFIG } from '../../lib/config';
 
-const StepEightInsidePhoto = ({ onBack, containerData, onNavigateToStepNine, onNavigateToDamagePhotos, onNavigateToInspectionRemarks, onNavigateToDamagePhotosDirect }) => {
+const StepEightInsidePhoto = ({ onBack, onBackToLeftWallDamage, containerData, onNavigateToStepNine, onNavigateToDamagePhotos, onNavigateToInspectionRemarks, onNavigateToDamagePhotosDirect }) => {
     const { isDark, toggleTheme } = useTheme();
     const [permission, requestPermission] = useCameraPermissions();
     const [image, setImage] = useState(null);
@@ -62,6 +62,60 @@ const StepEightInsidePhoto = ({ onBack, containerData, onNavigateToStepNine, onN
         };
         fetchTruckNumber();
     }, [containerData?.tripSegmentNumber]);
+
+    // Conditional back navigation - check if Left Wall damage exists
+    const handleBackNavigation = async () => {
+        try {
+            console.log('🔙 Checking damage locations for conditional navigation...');
+            const BACKEND_URL = API_CONFIG.getBackendUrl();
+            
+            // Fetch trip segment damage status to check damage locations
+            const response = await fetch(`${BACKEND_URL}/api/trip-segments/${containerData?.tripSegmentNumber}/damage-status`, {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+            });
+            
+            if (!response.ok) {
+                throw new Error('Failed to fetch trip segment damage status');
+            }
+            
+            const result = await response.json();
+            
+            if (result.success) {
+                const damageLocations = result.damageLocations || [];
+                console.log('📊 Damage locations:', damageLocations);
+                
+                // Check if "Left Wall" is in damage locations
+                if (damageLocations.includes('Left Wall')) {
+                    console.log('✅ Left Wall damage found - navigating to Left Wall damage photos');
+                    // Navigate to Left Wall damage photos with containerData
+                    if (onBackToLeftWallDamage) {
+                        onBackToLeftWallDamage(containerData);
+                    }
+                } else {
+                    console.log('❌ No Left Wall damage - navigating to step seven (Left Wall photo)');
+                    // Navigate to step seven (Left Wall photo preview)
+                    if (onBack) {
+                        onBack(containerData);
+                    }
+                }
+            } else {
+                // If no data or error, default to step seven
+                console.log('⚠️ No trip segment data found - defaulting to step seven');
+                if (onBack) {
+                    onBack(containerData);
+                }
+            }
+        } catch (error) {
+            console.error('❌ Error checking damage locations:', error);
+            // On error, default to step seven
+            if (onBack) {
+                onBack(containerData);
+            }
+        }
+    };
 
     // Animation values for theme switcher
     const themeIconRotation = useRef(new Animated.Value(0)).current;
@@ -406,7 +460,7 @@ const StepEightInsidePhoto = ({ onBack, containerData, onNavigateToStepNine, onN
                 {/* Title */}
                 <View style={cn('flex-row items-center flex-1')}>
                     <TouchableOpacity 
-                        onPress={onBack}
+                        onPress={handleBackNavigation}
                         style={cn('mr-3 p-1')}
                     >
                         <ArrowLeft size={24} color={isDark ? '#F3F4F6' : '#1F2937'} />
@@ -499,7 +553,7 @@ const StepEightInsidePhoto = ({ onBack, containerData, onNavigateToStepNine, onN
                             {/* Container Rectangle Outline */}
                             <View
                                 style={[
-                                    cn('border-2 border-green-500 bg-green-500/10'),
+                                    cn('border-2 border-green-500 bg-green-500/10 mt-8'),
                                     {
                                         width: 280,
                                         height: 420,

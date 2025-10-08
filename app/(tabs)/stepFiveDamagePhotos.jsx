@@ -47,6 +47,7 @@ const StepFiveDamagePhotos = ({ onBack, containerData, onNavigateToStepSix, onNa
     useEffect(() => {
         if (containerData?.backWallDamagePhotos && containerData.backWallDamagePhotos.length > 0) {
             console.log('📸 Restoring Back Wall damage photos from previous data');
+            console.log('📸 Number of photos to restore:', containerData.backWallDamagePhotos.length);
             // Convert stored photos back to format expected by the component
             const restoredPhotos = containerData.backWallDamagePhotos.map((photo, index) => ({
                 id: photo.id || Date.now() + index, // Ensure each photo has a unique id
@@ -55,8 +56,11 @@ const StepFiveDamagePhotos = ({ onBack, containerData, onNavigateToStepSix, onNa
                 timestamp: photo.timestamp || new Date().toISOString()
             }));
             setDamagePhotos(restoredPhotos);
+            console.log('✅ Damage photos restored successfully');
+        } else {
+            console.log('⚠️ No Back Wall damage photos to restore');
         }
-    }, []);
+    }, [containerData]);
 
     // Animation values for theme switcher
     const themeIconRotation = useRef(new Animated.Value(0)).current;
