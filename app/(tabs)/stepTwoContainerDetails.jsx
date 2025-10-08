@@ -54,16 +54,16 @@ const StepTwoContainerDetails = ({ onBack, containerData, onNavigateToStepThree,
 
     // Color options for SelectList
     const colorOptions = [
-        { key: 'Blue', value: 'Blue', hexColor: '#0000FF' },
-        { key: 'Red', value: 'Red', hexColor: '#FF0000' },
-        { key: 'Green', value: 'Green', hexColor: '#008000' },
-        { key: 'Yellow', value: 'Yellow', hexColor: '#FFFF00' },
-        { key: 'White', value: 'White', hexColor: '#FFFFFF' },
-        { key: 'Black', value: 'Black', hexColor: '#000000' },
-        { key: 'Gray', value: 'Gray', hexColor: '#808080' },
-        { key: 'Orange', value: 'Orange', hexColor: '#FFA500' },
-        { key: 'Brown', value: 'Brown', hexColor: '#A52A2A' },
-        { key: 'Silver', value: 'Silver', hexColor: '#C0C0C0' },
+        { key: 'Blue', value: 'Blue', hexColor: '#0B4FA3' },
+        { key: 'Red', value: 'Red', hexColor: '#C62C28' },
+        { key: 'Green', value: 'Green', hexColor: '#187822' },
+        { key: 'Yellow', value: 'Yellow', hexColor: '#EECC4C' },
+        { key: 'White', value: 'White', hexColor: '#E7E7E7' },
+        { key: 'Black', value: 'Black', hexColor: '#1D1D1D' },
+        { key: 'Gray', value: 'Gray', hexColor: '#6E6E70' },
+        { key: 'Orange', value: 'Orange', hexColor: '#F68400' },
+        { key: 'Brown', value: 'Brown', hexColor: '#9F5750' },
+        { key: 'Silver', value: 'Silver', hexColor: '#A3B2C0' },
         { key: 'Other', value: 'Other', hexColor: '#666666' }
     ];
 
