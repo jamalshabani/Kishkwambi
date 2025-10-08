@@ -5,6 +5,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { cn } from '../../lib/tw';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useAuth } from '../../contexts/AuthContext';
+import { useInspectionTimer } from '../../contexts/InspectionTimerContext';
 import { ArrowBigRight, User } from 'lucide-react-native';
 import Dashboard from './dashboard';
 import Profile from './profile';
@@ -28,6 +29,7 @@ import InspectionSuccess from './inspectionSuccess';
 export default function TabLayout() {
     const { isDark } = useTheme();
     const { isAuthenticated, loading } = useAuth();
+    const { resetTimer } = useInspectionTimer();
     const [activeTab, setActiveTab] = useState('dashboard');
     const [containerData, setContainerData] = useState(null);
     const [damagePhotosData, setDamagePhotosData] = useState(null);
@@ -99,6 +101,9 @@ export default function TabLayout() {
     };
 
     const navigateBackToDashboardFromStepOne = () => {
+        // Reset the inspection timer when returning to dashboard
+        resetTimer();
+        console.log('⏱️ Timer reset - navigating back to dashboard');
         setActiveTab('dashboard');
         setContainerData(null);
     };
@@ -126,7 +131,11 @@ export default function TabLayout() {
         setActiveTab('stepTwoContainerDetails');
     };
 
-    const navigateBackToDamagePhotos = () => {
+    const navigateBackToDamagePhotos = (data) => {
+        // Update damage photos data if provided for persistence
+        if (data) {
+            setDamagePhotosData(data);
+        }
         setActiveTab('stepOneDamagePhotos');
     };
 
@@ -140,8 +149,24 @@ export default function TabLayout() {
         setActiveTab('stepFourDamagePhotos');
     };
 
+    const navigateBackToRightWallDamage = (data) => {
+        // Update right side damage photos data if provided for persistence
+        if (data) {
+            setRightSideDamagePhotosData(data);
+        }
+        setActiveTab('stepFourDamagePhotos');
+    };
+
     const navigateToStepFiveDamagePhotos = (data) => {
         setFrontWallDamagePhotosData(data);
+        setActiveTab('stepFiveDamagePhotos');
+    };
+
+    const navigateBackToBackWallDamage = (data) => {
+        // Update front wall damage photos data if provided for persistence
+        if (data) {
+            setFrontWallDamagePhotosData(data);
+        }
         setActiveTab('stepFiveDamagePhotos');
     };
 
@@ -215,6 +240,9 @@ export default function TabLayout() {
 
     const navigateToComplete = (data) => {
         // Handle completion - could show summary or redirect to dashboard
+        // Reset the inspection timer
+        resetTimer();
+        console.log('⏱️ Timer reset - inspection completed');
         setActiveTab('dashboard');
         // Reset all data
         setContainerData(null);
@@ -239,6 +267,9 @@ export default function TabLayout() {
     };
 
     const navigateBackToDashboard = () => {
+        // Reset the inspection timer when returning from success screen
+        resetTimer();
+        console.log('⏱️ Timer reset - returning to dashboard from success screen');
         setShowSuccessScreen(false);
         setInspectionData(null);
         setActiveTab('dashboard');
@@ -277,17 +308,18 @@ export default function TabLayout() {
             case 'stepOneDamagePhotos':
                 return <StepOneDamagePhotos onBack={navigateBackToStepTwo} containerData={damagePhotosData} onNavigateToStepThree={navigateToStepThree} onNavigateToStepTwo={navigateToStepTwo} />;
             case 'stepThreeTrailerPhoto':
-                return <StepThreeTrailerPhoto onBack={navigateBackToDamagePhotos} containerData={trailerData} onNavigateToStepFour={navigateToStepFour} onNavigateToStepFourDirect={navigateToStepFour} />;
+                // Use rightSidePhotoData if available (when coming back from step 4), otherwise use trailerData
+                return <StepThreeTrailerPhoto onBack={navigateBackToStepTwo} onBackToDamagePhotos={navigateBackToDamagePhotos} containerData={rightSidePhotoData || trailerData} onNavigateToStepFour={navigateToStepFour} onNavigateToStepFourDirect={navigateToStepFour} />;
             case 'stepFourRightSidePhoto':
-                return <StepFourRightSidePhoto onBack={navigateBackToStepThree} containerData={containerData} trailerData={trailerData} onNavigateToStepFive={navigateToStepFive} onNavigateToDamagePhotos={navigateToStepFourDamagePhotos} onNavigateToDamagePhotosDirect={navigateToStepFourDamagePhotos} />;
+                return <StepFourRightSidePhoto onBack={navigateBackToStepThree} containerData={rightSidePhotoData || containerData} trailerData={rightSidePhotoData || trailerData} onNavigateToStepFive={navigateToStepFive} onNavigateToDamagePhotos={navigateToStepFourDamagePhotos} onNavigateToDamagePhotosDirect={navigateToStepFourDamagePhotos} />;
             case 'stepFourDamagePhotos':
                 return <StepFourDamagePhotos onBack={navigateBackToStepFour} containerData={rightSideDamagePhotosData} onNavigateToStepFive={navigateToStepFive} onNavigateToStepFiveDirect={navigateToStepFive} />;
             case 'stepFiveDamagePhotos':
                 return <StepFiveDamagePhotos onBack={navigateBackToStepFive} containerData={frontWallDamagePhotosData} onNavigateToStepSix={navigateToStepSix} onNavigateToStepSixDirect={navigateToStepSix} />;
             case 'stepFiveBackWallPhoto':
-                return <StepFiveBackWallPhoto onBack={navigateBackToStepFour} containerData={frontWallPhotoData} onNavigateToStepSix={navigateToStepSix} onNavigateToDamagePhotos={navigateToStepFiveDamagePhotos} onNavigateToDamagePhotosDirect={navigateToStepFiveDamagePhotos} />;
+                return <StepFiveBackWallPhoto onBack={navigateBackToStepFour} onBackToRightWallDamage={navigateBackToRightWallDamage} containerData={frontWallPhotoData} onNavigateToStepSix={navigateToStepSix} onNavigateToDamagePhotos={navigateToStepFiveDamagePhotos} onNavigateToDamagePhotosDirect={navigateToStepFiveDamagePhotos} />;
             case 'stepSixTruckPhoto':
-                return <StepSixTruckPhoto onBack={navigateBackToStepFive} containerData={truckPhotoData} onNavigateToStepSeven={navigateToStepSeven} onNavigateToStepSevenDirect={navigateToStepSeven} />;
+                return <StepSixTruckPhoto onBack={navigateBackToStepFive} onBackToBackWallDamage={navigateBackToBackWallDamage} containerData={truckPhotoData} onNavigateToStepSeven={navigateToStepSeven} onNavigateToStepSevenDirect={navigateToStepSeven} />;
             case 'stepSevenLeftSidePhoto':
                 return <StepSevenLeftSidePhoto onBack={navigateBackToStepSix} containerData={leftSidePhotoData} truckData={truckPhotoData} onNavigateToStepEight={navigateToStepEight} onNavigateToDamagePhotos={navigateToStepSevenDamagePhotos} onNavigateToDamagePhotosDirect={navigateToStepSevenDamagePhotos} />;
             case 'stepSevenDamagePhotos':

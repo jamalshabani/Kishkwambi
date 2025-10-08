@@ -595,11 +595,6 @@ const StepOneContainerPhoto = ({ onBack, onNavigateToStepTwo, onNavigateToDamage
             const endTime = Date.now();
             const processingTime = ((endTime - startTime) / 1000).toFixed(2);
             
-            console.log('⏱️ Total processing time:', processingTime + 's');
-            console.log('📊 === COMPARISON RESULTS ===');
-            console.log('🔹 PARKROW API RESULT:', parkrowResponse);
-            console.log('🔸 GOOGLE VISION AI RESULT:', googleVisionResponse);
-            
             // Store comparison results
             setComparisonResults({
                 parkrow: parkrowResponse.data || { containerNumber: '', isoCode: '' },
@@ -727,6 +722,12 @@ const StepOneContainerPhoto = ({ onBack, onNavigateToStepTwo, onNavigateToDamage
             <View style={cn(`${isDark ? 'bg-gray-900' : 'bg-white/10'} px-6 py-4 border-b ${isDark ? 'border-gray-700' : 'border-gray-300'} flex-row items-center justify-between shadow-sm`)}>
                 {/* Title */}
                 <View style={cn('flex-row items-center flex-1')}>
+                    <TouchableOpacity 
+                        onPress={onBack}
+                        style={cn('mr-3 p-1')}
+                    >
+                        <ArrowLeft size={24} color={isDark ? '#F3F4F6' : '#1F2937'} />
+                    </TouchableOpacity>
                     <Text style={cn(`text-lg font-bold ${isDark ? 'text-gray-100' : 'text-gray-800'}`)}>
                         Front Wall
                     </Text>
@@ -798,64 +799,6 @@ const StepOneContainerPhoto = ({ onBack, onNavigateToStepTwo, onNavigateToDamage
                                         width: 320,
                                         height: 298, // Adjusted for 2.44m × 2.59m ratio (0.94:1)
                                         borderRadius: 8,
-                                    }
-                                ]}
-                            />
-                            
-                            {/* Corner Brackets */}
-                            {/* Top Left */}
-                            <View 
-                                style={[
-                                    cn('absolute -top-2 -left-2'),
-                                    {
-                                        width: 20,
-                                        height: 20,
-                                        borderTopWidth: 3,
-                                        borderLeftWidth: 3,
-                                        borderTopColor: '#10b981',
-                                        borderLeftColor: '#10b981',
-                                    }
-                                ]}
-                            />
-                            {/* Top Right */}
-                            <View 
-                                style={[
-                                    cn('absolute -top-2 -right-2'),
-                                    {
-                                        width: 20,
-                                        height: 20,
-                                        borderTopWidth: 3,
-                                        borderRightWidth: 3,
-                                        borderTopColor: '#10b981',
-                                        borderRightColor: '#10b981',
-                                    }
-                                ]}
-                            />
-                            {/* Bottom Left */}
-                            <View 
-                                style={[
-                                    cn('absolute -bottom-2 -left-2'),
-                                    {
-                                        width: 20,
-                                        height: 20,
-                                        borderBottomWidth: 3,
-                                        borderLeftWidth: 3,
-                                        borderBottomColor: '#10b981',
-                                        borderLeftColor: '#10b981',
-                                    }
-                                ]}
-                            />
-                            {/* Bottom Right */}
-                            <View 
-                                style={[
-                                    cn('absolute -bottom-2 -right-2'),
-                                    {
-                                        width: 20,
-                                        height: 20,
-                                        borderBottomWidth: 3,
-                                        borderRightWidth: 3,
-                                        borderBottomColor: '#10b981',
-                                        borderRightColor: '#10b981',
                                     }
                                 ]}
                             />

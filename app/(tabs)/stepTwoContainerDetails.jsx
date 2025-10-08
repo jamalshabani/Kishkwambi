@@ -7,7 +7,7 @@ import { SelectList } from 'react-native-dropdown-select-list';
 import { cn } from '../../lib/tw';
 import { useTheme } from '../../contexts/ThemeContext';
 import TimerDisplay from '../../components/common/TimerDisplay';
-import { Sun, Moon } from 'lucide-react-native';
+import { Sun, Moon, ArrowLeft } from 'lucide-react-native';
 import { API_CONFIG } from '../../lib/config';
 
 const StepTwoContainerDetails = ({ onBack, containerData, onNavigateToStepThree, onNavigateToDamagePhotos, onNavigateToStepThreeDirect }) => {
@@ -234,6 +234,12 @@ const StepTwoContainerDetails = ({ onBack, containerData, onNavigateToStepThree,
             <View style={cn(`${isDark ? 'bg-gray-900' : 'bg-white/10'} px-6 py-4 border-b ${isDark ? 'border-gray-700' : 'border-gray-300'} flex-row items-center justify-between shadow-sm`)}>
                 {/* Title */}
                 <View style={cn('flex-row items-center flex-1')}>
+                    <TouchableOpacity 
+                        onPress={onBack}
+                        style={cn('mr-3 p-1')}
+                    >
+                        <ArrowLeft size={24} color={isDark ? '#F3F4F6' : '#1F2937'} />
+                    </TouchableOpacity>
                     <Text style={cn(`text-lg font-bold ${isDark ? 'text-gray-100' : 'text-gray-800'}`)}>
                         Container Details
                     </Text>
@@ -408,11 +414,25 @@ const StepTwoContainerDetails = ({ onBack, containerData, onNavigateToStepThree,
                             </View>
                         </ScrollView>
 
-                        {/* Navigation Button */}
-                        <View style={cn('mt-4')}>
+                        {/* Navigation Buttons */}
+                        <View style={cn('mt-4 flex-row gap-3')}>
+                            <TouchableOpacity
+                                onPress={onBack}
+                                style={cn('flex-1 rounded-lg overflow-hidden')}
+                            >
+                                <LinearGradient
+                                    colors={['#000000', '#F59E0B']}
+                                    start={{ x: 0, y: 0 }}
+                                    end={{ x: 1, y: 0 }}
+                                    style={cn('p-4 items-center')}
+                                >
+                                    <Text style={cn('text-white font-bold')}>Previous</Text>
+                                </LinearGradient>
+                            </TouchableOpacity>
+
                             <TouchableOpacity
                                 onPress={handleNext}
-                                style={cn('rounded-lg overflow-hidden')}
+                                style={cn('flex-1 rounded-lg overflow-hidden')}
                             >
                                 <LinearGradient
                                     colors={['#F59E0B', '#000000']}

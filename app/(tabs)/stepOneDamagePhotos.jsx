@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { View, Text, TouchableOpacity, Alert, Image, ScrollView, Animated, Modal, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -9,7 +9,7 @@ import { cn } from '../../lib/tw';
 import { useTheme } from '../../contexts/ThemeContext';
 import TimerDisplay from '../../components/common/TimerDisplay';
 import { API_CONFIG } from '../../lib/config';
-import { Sun, Moon, Eye, X, Camera } from 'lucide-react-native';
+import { Sun, Moon, Eye, X, Camera, ArrowLeft } from 'lucide-react-native';
 
 const StepOneDamagePhotos = ({ onBack, containerData, onNavigateToStepThree, onNavigateToStepTwo }) => {
     const { isDark, toggleTheme } = useTheme();
@@ -22,6 +22,21 @@ const StepOneDamagePhotos = ({ onBack, containerData, onNavigateToStepThree, onN
     const [showCamera, setShowCamera] = useState(false);
     const cameraRef = useRef(null);
     const [damageData, setDamageData] = useState(null);
+
+    // Restore damage photos when navigating back
+    useEffect(() => {
+        if (containerData?.frontWallDamagePhotos && containerData.frontWallDamagePhotos.length > 0) {
+            console.log('📸 Restoring Front Wall damage photos from previous data');
+            // Convert stored photos back to format expected by the component
+            const restoredPhotos = containerData.frontWallDamagePhotos.map((photo, index) => ({
+                id: photo.id || Date.now() + index, // Ensure each photo has a unique id
+                uri: photo.uri || `data:image/jpeg;base64,${photo.base64}`,
+                base64: photo.base64,
+                timestamp: photo.timestamp || new Date().toISOString()
+            }));
+            setDamagePhotos(restoredPhotos);
+        }
+    }, []);
 
     // Animation values for theme switcher
     const themeIconRotation = useRef(new Animated.Value(0)).current;
@@ -165,7 +180,7 @@ const StepOneDamagePhotos = ({ onBack, containerData, onNavigateToStepThree, onN
                     ...containerData,
                     damagePhotos: uploadResult.damagePhotos, // Use damage photo objects from S3
                     damageCount: damagePhotos.length,
-                    localDamagePhotos: damagePhotos // Keep local photos for reference
+                    frontWallDamagePhotos: damagePhotos // Store for data persistence when navigating back
                 };
                 
                 // Save damage data to state for navigation
@@ -234,6 +249,12 @@ const StepOneDamagePhotos = ({ onBack, containerData, onNavigateToStepThree, onN
             <View style={cn(`${isDark ? 'bg-gray-900' : 'bg-white/10'} px-6 py-4 border-b ${isDark ? 'border-gray-700' : 'border-gray-300'} flex-row items-center justify-between shadow-sm`)}>
                 {/* Title */}
                 <View style={cn('flex-row items-center flex-1')}>
+                    <TouchableOpacity 
+                        onPress={onBack}
+                        style={cn('mr-3 p-1')}
+                    >
+                        <ArrowLeft size={24} color={isDark ? '#F3F4F6' : '#1F2937'} />
+                    </TouchableOpacity>
                     <Text style={cn(`text-lg font-bold ${isDark ? 'text-gray-100' : 'text-gray-800'}`)}>
                         Front Wall
                     </Text>

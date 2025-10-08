@@ -384,9 +384,6 @@ app.post('/api/vision/process-image', async (req, res) => {
             });
         }
 
-        console.log('=== SENDING TO PARKPOW API ===');
-        console.log('API Key configured:', !!PARKPOW_API_KEY);
-        
         // Convert base64 to buffer for multipart form data
         const imageBuffer = Buffer.from(base64Image, 'base64');
         
@@ -409,10 +406,7 @@ app.post('/api/vision/process-image', async (req, res) => {
         });
 
         const data = await response.json();
-        
-        console.log('=== PARKPOW API RESPONSE ===');
-        console.log(JSON.stringify(data, null, 2));
-        console.log('===========================');
+    
         
         // Check for API errors
         if (!response.ok) {
@@ -449,6 +443,8 @@ app.post('/api/vision/process-image', async (req, res) => {
 });
 
 // Google Vision AI endpoint with color detection
+// GUARANTEED to return ONLY one of these colors: Blue, Red, Green, Yellow, White, Black, Gray, Orange, Brown, Silver
+// Any other detected color will be mapped to the closest allowed color
 app.post('/api/vision/google-vision-color', async (req, res) => {
     try {
         const { base64Image } = req.body;
@@ -502,23 +498,10 @@ app.post('/api/vision/google-vision-color', async (req, res) => {
         });
 
         const data = await response.json();
-        
-        console.log('=== GOOGLE VISION API RESPONSE ===');
-        console.log(JSON.stringify(data, null, 2));
-        console.log('=== RESPONSE STRUCTURE ===');
-        console.log('Has responses?', !!data.responses);
-        console.log('First response?', !!data.responses?.[0]);
-        console.log('Has textAnnotations?', !!data.responses?.[0]?.textAnnotations);
-        console.log('Has error?', !!data.responses?.[0]?.error);
+
         
         // Check for API-level errors
         if (data.error) {
-            console.log('=== GOOGLE API ERROR ===');
-            console.log('Code:', data.error.code);
-            console.log('Message:', data.error.message);
-            console.log('Status:', data.error.status);
-            console.log('========================');
-            
             return res.status(500).json({
                 success: false,
                 error: `Google Vision API Error: ${data.error.message}`,
@@ -528,10 +511,6 @@ app.post('/api/vision/google-vision-color', async (req, res) => {
         
         if (data.responses && data.responses[0].textAnnotations) {
             const detectedText = data.responses[0].textAnnotations[0].description;
-            
-            console.log('=== ALL DETECTED TEXT ===');
-            console.log(detectedText);
-            console.log('========================');
             
             // Extract container information
             // Pattern: 4 letters + 6 or 7 digits (with optional spaces and check digit)
@@ -610,29 +589,21 @@ app.post('/api/vision/google-vision-color', async (req, res) => {
             };
 
             // Enhanced color detection function
+            // GUARANTEED to return ONLY one of: Blue, Red, Green, Yellow, White, Black, Gray, Orange, Brown, Silver
             const getColorName = (r, g, b) => {
-                // Comprehensive color reference database
+                // Comprehensive color reference database - ONLY allowed colors
+                // RGB values tuned for shipping container colors
                 const colorDatabase = [
-                    { name: 'Red', rgb: [255, 0, 0], tolerance: 50 },
-                    { name: 'Blue', rgb: [0, 0, 255], tolerance: 50 },
-                    { name: 'Green', rgb: [0, 255, 0], tolerance: 50 },
-                    { name: 'Yellow', rgb: [255, 255, 0], tolerance: 50 },
-                    { name: 'Orange', rgb: [255, 165, 0], tolerance: 50 },
-                    { name: 'Purple', rgb: [128, 0, 128], tolerance: 50 },
-                    { name: 'Pink', rgb: [255, 192, 203], tolerance: 50 },
-                    { name: 'Brown', rgb: [165, 42, 42], tolerance: 50 },
-                    { name: 'Gray', rgb: [128, 128, 128], tolerance: 50 },
-                    { name: 'Black', rgb: [0, 0, 0], tolerance: 30 },
-                    { name: 'White', rgb: [255, 255, 255], tolerance: 30 },
-                    { name: 'Silver', rgb: [192, 192, 192], tolerance: 40 },
-                    { name: 'Gold', rgb: [255, 215, 0], tolerance: 50 },
-                    { name: 'Cyan', rgb: [0, 255, 255], tolerance: 50 },
-                    { name: 'Magenta', rgb: [255, 0, 255], tolerance: 50 },
-                    { name: 'Lime', rgb: [0, 255, 0], tolerance: 50 },
-                    { name: 'Navy', rgb: [0, 0, 128], tolerance: 40 },
-                    { name: 'Maroon', rgb: [128, 0, 0], tolerance: 40 },
-                    { name: 'Olive', rgb: [128, 128, 0], tolerance: 40 },
-                    { name: 'Teal', rgb: [0, 128, 128], tolerance: 40 }
+                    { name: 'Blue', rgb: [11, 79, 163], tolerance: 80 },        // Container blue #0B4FA3
+                    { name: 'Red', rgb: [198, 44, 40], tolerance: 80 },         // Container red #C62C28
+                    { name: 'Green', rgb: [24, 120, 34], tolerance: 80 },       // Container green #187822
+                    { name: 'Yellow', rgb: [238, 204, 76], tolerance: 80 },     // Container yellow #EECC4C
+                    { name: 'White', rgb: [231, 231, 231], tolerance: 50 },     // Container white #E7E7E7
+                    { name: 'Black', rgb: [29, 29, 29], tolerance: 50 },        // Container black #1D1D1D
+                    { name: 'Gray', rgb: [110, 110, 112], tolerance: 60 },      // Container gray #6E6E70
+                    { name: 'Orange', rgb: [246, 132, 0], tolerance: 80 },      // Container orange #F68400
+                    { name: 'Brown', rgb: [159, 87, 80], tolerance: 80 },       // Container brown #9F5750
+                    { name: 'Silver', rgb: [163, 178, 192], tolerance: 60 }     // Container silver #A3B2C0
                 ];
 
                 // Calculate Euclidean distance between colors
@@ -644,44 +615,32 @@ app.post('/api/vision/google-vision-color', async (req, res) => {
                     );
                 };
 
-                // Find the closest color match
+                // Find the closest color match - always return the nearest allowed color
                 let closestColor = null;
                 let minDistance = Infinity;
+                let absoluteClosestColor = null;
+                let absoluteMinDistance = Infinity;
 
                 for (const color of colorDatabase) {
                     const distance = calculateDistance([r, g, b], color.rgb);
+                    
+                    // Track absolute closest for fallback
+                    if (distance < absoluteMinDistance) {
+                        absoluteMinDistance = distance;
+                        absoluteClosestColor = color.name;
+                    }
+                    
+                    // Track closest within tolerance
                     if (distance < minDistance && distance <= color.tolerance) {
                         minDistance = distance;
                         closestColor = color.name;
                     }
                 }
 
-                // If no close match found, use basic color detection
+                // If no color within tolerance found, return the absolute closest allowed color
                 if (!closestColor) {
-                    const max = Math.max(r, g, b);
-                    const min = Math.min(r, g, b);
-                    
-                    // Check for grayscale
-                    if (max - min < 30) {
-                        if (max > 200) return 'White';
-                        if (max < 80) return 'Black';
-                        return 'Gray';
-                    }
-                    
-                    // Check dominant color
-                    if (r > g && r > b) {
-                        if (g > 100 && b < 100) return 'Orange';
-                        if (r > 150 && g < 100 && b < 100) return 'Red';
-                        return 'Brown';
-                    }
-                    if (g > r && g > b) return 'Green';
-                    if (b > r && b > g) {
-                        if (g > 100) return 'Cyan';
-                        return 'Blue';
-                    }
-                    if (r > 150 && g > 150 && b < 100) return 'Yellow';
-                    
-                    return 'Unknown';
+                    console.log(`⚠️ No color within tolerance for RGB(${r}, ${g}, ${b}), using closest match: ${absoluteClosestColor}`);
+                    return absoluteClosestColor;
                 }
 
                 return closestColor;
@@ -695,7 +654,6 @@ app.post('/api/vision/google-vision-color', async (req, res) => {
             if (data.responses[0].imagePropertiesAnnotation) {
                 const imageProps = data.responses[0].imagePropertiesAnnotation;
                 console.log('=== IMAGE PROPERTIES ===');
-                console.log(JSON.stringify(imageProps.dominantColors, null, 2));
                 
                 if (imageProps.dominantColors && imageProps.dominantColors.colors && imageProps.dominantColors.colors.length > 0) {
                     // Get the most dominant color
@@ -707,20 +665,33 @@ app.post('/api/vision/google-vision-color', async (req, res) => {
                     console.log('Dominant Color RGB:', rgb);
                     console.log('Dominant Color Hex:', dominantColorHex);
                     console.log('Dominant Color Name:', dominantColorName);
-                    console.log('Color Score:', dominantColor.score);
-                    console.log('Pixel Fraction:', dominantColor.pixelFraction);
                 }
                 console.log('========================');
             }
 
             // Use image-detected color, fallback to text-detected color
-            const finalColorName = dominantColorName || containerColorFromText;
+            let finalColorName = dominantColorName || containerColorFromText;
+            
+            // Final validation: ensure only allowed colors are returned
+            const allowedColors = ['Blue', 'Red', 'Green', 'Yellow', 'White', 'Black', 'Gray', 'Orange', 'Brown', 'Silver'];
+            
+            // Normalize 'Grey' to 'Gray' if detected
+            if (finalColorName === 'Grey') {
+                finalColorName = 'Gray';
+            }
+            
+            // If color is not in allowed list, default to Silver
+            if (finalColorName && !allowedColors.includes(finalColorName)) {
+                console.warn(`⚠️ Invalid color "${finalColorName}" detected, defaulting to Silver`);
+                finalColorName = 'Silver';
+            }
 
         console.log('=== EXTRACTED INFO ===');
         console.log('Container Number:', containerNumber || 'NOT FOUND');
         console.log('ISO Code:', isoCode || 'NOT FOUND');
             console.log('Color (from text):', containerColorFromText || 'NOT FOUND');
             console.log('Color (from image):', dominantColorName || 'NOT FOUND');
+            console.log('✅ FINAL COLOR (validated):', finalColorName || 'NOT FOUND');
             console.log('Color Hex:', dominantColorHex || 'NOT FOUND');
         console.log('=====================');
 
@@ -806,12 +777,6 @@ app.post('/api/validate-container', async (req, res) => {
 
         if (existingContainer) {
             console.log(`✅ Container number ${containerNumber}${containerStatus ? ` with status "${containerStatus}"` : ''} found in database`);
-            console.log('📊 Available fields in database document:', Object.keys(existingContainer));
-            console.log('📊 Trip segment fields:', {
-                tripSegmentNumber: existingContainer.tripSegmentNumber,
-                tripSegment: existingContainer.tripSegment,
-                containerStatus: existingContainer.containerStatus
-            });
             res.json({
                 success: true,
                 exists: true,
@@ -1003,21 +968,8 @@ app.post('/api/vision/google-vision', async (req, res) => {
 
         const data = await response.json();
         
-        console.log('=== VISION API RESPONSE ===');
-        console.log(JSON.stringify(data, null, 2));
-        console.log('=== RESPONSE STRUCTURE ===');
-        console.log('Has responses?', !!data.responses);
-        console.log('First response?', !!data.responses?.[0]);
-        console.log('Has textAnnotations?', !!data.responses?.[0]?.textAnnotations);
-        console.log('Has error?', !!data.responses?.[0]?.error);
-        
         // Check for API-level errors
         if (data.error) {
-            console.log('=== GOOGLE API ERROR ===');
-            console.log('Code:', data.error.code);
-            console.log('Message:', data.error.message);
-            console.log('Status:', data.error.status);
-            console.log('========================');
             
             return res.status(500).json({
                 success: false,
@@ -1028,10 +980,6 @@ app.post('/api/vision/google-vision', async (req, res) => {
         
         if (data.responses && data.responses[0].textAnnotations) {
             const detectedText = data.responses[0].textAnnotations[0].description;
-            
-            console.log('=== ALL DETECTED TEXT ===');
-            console.log(detectedText);
-            console.log('========================');
             
             // Extract container information
             // Pattern: 4 letters + 6 or 7 digits (with optional spaces and check digit)
@@ -1090,12 +1038,6 @@ app.post('/api/vision/google-vision', async (req, res) => {
                 }
             }
 
-
-            console.log('=== EXTRACTED INFO ===');
-            console.log('Container Number:', containerNumber || 'NOT FOUND');
-            console.log('ISO Code:', isoCode || 'NOT FOUND');
-            console.log('=====================');
-
             // Use the formatter utility to get consistent response format with confidence scores
             const formattedResponse = formatGoogleVisionResponse(detectedText);
             
@@ -1104,9 +1046,6 @@ app.post('/api/vision/google-vision', async (req, res) => {
             
             res.json(formattedResponse);
         } else {
-            console.log('=== NO TEXT DETECTED ===');
-            console.log('Vision API returned no text annotations');
-            console.log('========================');
             
             res.json({
                 success: false,
@@ -1124,6 +1063,8 @@ app.post('/api/vision/google-vision', async (req, res) => {
 
 
 // B2 Upload endpoint for damage photos
+// This endpoint deletes any existing damage photos with the same damageLocation before uploading new ones
+// This prevents duplicate uploads when users navigate back and re-submit
 app.post('/api/upload/s3-damage-photos', uploadS3.array('photos', 10), async (req, res) => {
     try {
         const { tripSegmentNumber, containerNumber } = req.body;
@@ -1154,10 +1095,56 @@ app.post('/api/upload/s3-damage-photos', uploadS3.array('photos', 10), async (re
 
         const tripsegmentsCollection = db.collection('tripsegments');
 
-        // Get existing damage photos count to determine next sequence number
+        // Get the damageLocation from the request (need it early for deletion)
+        const damageLocation = req.body.damageLocation || 'Unknown';
+
+        // Get existing trip segment
         const existingTripSegment = await tripsegmentsCollection.findOne({ tripSegmentNumber: tripSegmentNumber });
-        const existingDamagePhotosCount = existingTripSegment?.damagePhotos?.length || 0;
-        console.log(`📊 Existing damage photos count for ${tripSegmentNumber}: ${existingDamagePhotosCount}`);
+        
+        // Delete existing damage photos with the same damageLocation BEFORE uploading new ones
+        if (existingTripSegment && existingTripSegment.damagePhotos) {
+            const photosToDelete = existingTripSegment.damagePhotos.filter(
+                photo => photo.damageLocation === damageLocation
+            );
+            
+            if (photosToDelete.length > 0) {
+                console.log(`🗑️ Found ${photosToDelete.length} existing damage photo(s) to delete from B2`);
+                
+                // Delete each photo from B2
+                for (const photo of photosToDelete) {
+                    try {
+                        const urlParts = photo.damagePhotoPath.split('/');
+                        const s3Key = urlParts.slice(4).join('/');
+                        
+                        console.log(`🗑️ Deleting damage photo from B2: ${s3Key}`);
+                        const deleteResult = await deleteFromS3(s3Key);
+                        
+                        if (!deleteResult.success) {
+                            console.warn(`⚠️ Failed to delete damage photo from B2: ${s3Key}`);
+                        }
+                    } catch (error) {
+                        console.warn(`⚠️ Error deleting damage photo from B2:`, error);
+                    }
+                }
+                
+                // Remove damage photo references from database
+                await tripsegmentsCollection.updateOne(
+                    { tripSegmentNumber: tripSegmentNumber },
+                    {
+                        $pull: {
+                            damagePhotos: { damageLocation: damageLocation }
+                        }
+                    }
+                );
+                
+                console.log(`✅ Removed existing damage photo references from database with location: ${damageLocation}`);
+            }
+        }
+        
+        // Get updated damage photos count after deletion
+        const updatedTripSegment = await tripsegmentsCollection.findOne({ tripSegmentNumber: tripSegmentNumber });
+        const existingDamagePhotosCount = updatedTripSegment?.damagePhotos?.length || 0;
+        console.log(`📊 Damage photos count after cleanup for ${tripSegmentNumber}: ${existingDamagePhotosCount}`);
         
         // Upload files to B2 and create damage photo objects
         const uploadedFiles = [];
@@ -1219,7 +1206,7 @@ app.post('/api/upload/s3-damage-photos', uploadS3.array('photos', 10), async (re
             });
         }
 
-        // Update TripSegment document with damage photo objects
+        // Add the new damage photo objects to the database
         const updateResult = await tripsegmentsCollection.updateOne(
             { tripSegmentNumber: tripSegmentNumber },
             {
@@ -1258,6 +1245,8 @@ app.post('/api/upload/s3-damage-photos', uploadS3.array('photos', 10), async (re
 });
 
 // B2 Upload endpoint for container photos
+// This endpoint deletes any existing container photos with the same containerPhotoLocation before uploading new ones
+// This ensures only ONE photo exists per location (Front Wall, Back Wall, Right Wall, Left Wall, Inside)
 app.post('/api/upload/s3-container-photos', uploadS3.array('photos', 10), async (req, res) => {
     try {
         const { tripSegmentNumber, containerNumber, photoType } = req.body;
@@ -1354,7 +1343,56 @@ app.post('/api/upload/s3-container-photos', uploadS3.array('photos', 10), async 
             });
         }
 
-        // Update TripSegment document with container photo objects
+        // Get the containerPhotoLocation from the first photo (all should have same location)
+        const containerPhotoLocation = req.body.containerPhotoLocation || 'Container Back Wall';
+        
+        // First, find and delete any existing photos with the same containerPhotoLocation
+        console.log(`🗑️ Checking for existing photos with location: ${containerPhotoLocation}`);
+        
+        // Get existing photos to delete from B2
+        const existingSegment = await tripsegmentsCollection.findOne({ tripSegmentNumber: tripSegmentNumber });
+        if (existingSegment && existingSegment.containerPhotos) {
+            const photosToDelete = existingSegment.containerPhotos.filter(
+                photo => photo.containerPhotoLocation === containerPhotoLocation
+            );
+            
+            if (photosToDelete.length > 0) {
+                console.log(`🗑️ Found ${photosToDelete.length} existing photo(s) to delete from B2`);
+                
+                // Delete each photo from B2
+                for (const photo of photosToDelete) {
+                    // Extract the S3 key from the photo path
+                    // Photo path format: https://s3.region.backblazeb2.com/bucket-name/key
+                    const urlParts = photo.containerPhotoPath.split('/');
+                    const s3Key = urlParts.slice(4).join('/'); // Get everything after bucket name
+                    
+                    console.log(`🗑️ Deleting from B2: ${s3Key}`);
+                    const deleteResult = await deleteFromS3(s3Key);
+                    
+                    if (!deleteResult.success) {
+                        console.warn(`⚠️ Failed to delete file from B2: ${s3Key}`);
+                    }
+                }
+            }
+        }
+        
+        // Remove photo references from database
+        const removeResult = await tripsegmentsCollection.updateOne(
+            { tripSegmentNumber: tripSegmentNumber },
+            {
+                $pull: {
+                    containerPhotos: { containerPhotoLocation: containerPhotoLocation }
+                }
+            }
+        );
+        
+        if (removeResult.modifiedCount > 0) {
+            console.log(`✅ Removed existing photo references from database with location: ${containerPhotoLocation}`);
+        } else {
+            console.log(`ℹ️ No existing photos found with location: ${containerPhotoLocation}`);
+        }
+
+        // Now add the new container photo objects
         const updateResult = await tripsegmentsCollection.updateOne(
             { tripSegmentNumber: tripSegmentNumber },
             {
@@ -1388,6 +1426,225 @@ app.post('/api/upload/s3-container-photos', uploadS3.array('photos', 10), async 
         res.status(500).json({
             success: false,
             error: error.message || 'Failed to upload container photos to B2'
+        });
+    }
+});
+
+// Cleanup endpoint to remove duplicate container photos
+app.post('/api/cleanup/duplicate-container-photos', async (req, res) => {
+    try {
+        const { tripSegmentNumber } = req.body;
+        
+        console.log('🧹 Starting cleanup of duplicate container photos...');
+        
+        if (!db) {
+            throw new Error('Database not connected');
+        }
+
+        const tripsegmentsCollection = db.collection('tripsegments');
+        
+        // Query to find trip segments (or all if no tripSegmentNumber provided)
+        const query = tripSegmentNumber ? { tripSegmentNumber } : {};
+        const tripSegments = await tripsegmentsCollection.find(query).toArray();
+        
+        console.log(`📊 Found ${tripSegments.length} trip segments to process`);
+        
+        let totalCleaned = 0;
+        let totalRemoved = 0;
+        
+        for (const tripSegment of tripSegments) {
+            if (!tripSegment.containerPhotos || tripSegment.containerPhotos.length === 0) {
+                continue;
+            }
+            
+            // Group photos by containerPhotoLocation
+            const photosByLocation = {};
+            tripSegment.containerPhotos.forEach((photo, index) => {
+                const location = photo.containerPhotoLocation;
+                if (!photosByLocation[location]) {
+                    photosByLocation[location] = [];
+                }
+                photosByLocation[location].push({ ...photo, originalIndex: index });
+            });
+            
+            // Find locations with duplicates
+            const locationsWithDuplicates = Object.entries(photosByLocation).filter(([location, photos]) => photos.length > 1);
+            
+            if (locationsWithDuplicates.length > 0) {
+                console.log(`🔍 Trip segment ${tripSegment.tripSegmentNumber}: Found duplicates in ${locationsWithDuplicates.length} locations`);
+                
+                // Keep only the most recent photo for each location (last one in array)
+                const photosToKeep = [];
+                const photosToDeleteFromB2 = [];
+                
+                Object.entries(photosByLocation).forEach(([location, photos]) => {
+                    if (photos.length > 1) {
+                        console.log(`  📸 ${location}: ${photos.length} photos found, keeping most recent`);
+                        totalRemoved += photos.length - 1;
+                        
+                        // Add old photos to deletion list (all except the last one)
+                        for (let i = 0; i < photos.length - 1; i++) {
+                            photosToDeleteFromB2.push(photos[i]);
+                        }
+                        
+                        // Keep the last (most recent) photo
+                        photosToKeep.push(photos[photos.length - 1]);
+                    } else {
+                        photosToKeep.push(photos[0]);
+                    }
+                });
+                
+                // Delete old photos from B2
+                if (photosToDeleteFromB2.length > 0) {
+                    console.log(`🗑️ Deleting ${photosToDeleteFromB2.length} old photos from B2...`);
+                    
+                    for (const photo of photosToDeleteFromB2) {
+                        try {
+                            // Extract the S3 key from the photo path
+                            const urlParts = photo.containerPhotoPath.split('/');
+                            const s3Key = urlParts.slice(4).join('/');
+                            
+                            console.log(`🗑️ Deleting from B2: ${s3Key}`);
+                            const deleteResult = await deleteFromS3(s3Key);
+                            
+                            if (!deleteResult.success) {
+                                console.warn(`⚠️ Failed to delete file from B2: ${s3Key}`);
+                            }
+                        } catch (error) {
+                            console.warn(`⚠️ Error deleting photo from B2:`, error);
+                        }
+                    }
+                }
+                
+                // Update the trip segment with deduplicated photos
+                const cleanedPhotos = photosToKeep.map(p => ({
+                    containerPhotoLocation: p.containerPhotoLocation,
+                    containerPhotoPath: p.containerPhotoPath,
+                    containerPhotoSize: p.containerPhotoSize
+                }));
+                
+                await tripsegmentsCollection.updateOne(
+                    { tripSegmentNumber: tripSegment.tripSegmentNumber },
+                    {
+                        $set: { containerPhotos: cleanedPhotos }
+                    }
+                );
+                
+                totalCleaned++;
+                console.log(`✅ Cleaned ${tripSegment.tripSegmentNumber}: ${tripSegment.containerPhotos.length} → ${cleanedPhotos.length} photos`);
+            }
+        }
+        
+        console.log(`✅ Cleanup complete: ${totalCleaned} trip segments cleaned, ${totalRemoved} duplicate photos removed`);
+        
+        res.json({
+            success: true,
+            message: `Cleanup complete`,
+            tripSegmentsCleaned: totalCleaned,
+            duplicatesRemoved: totalRemoved
+        });
+        
+    } catch (error) {
+        console.error('❌ Cleanup error:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message || 'Failed to cleanup duplicate photos'
+        });
+    }
+});
+
+// Get trailer details endpoint
+app.get('/api/trip-segments/:tripSegmentNumber/trailer-details', async (req, res) => {
+    try {
+        const { tripSegmentNumber } = req.params;
+        
+        console.log('🚗 Fetching trailer details for:', tripSegmentNumber);
+
+        if (!tripSegmentNumber) {
+            return res.status(400).json({
+                success: false,
+                error: 'Trip segment number is required'
+            });
+        }
+
+        if (!db) {
+            throw new Error('Database not connected');
+        }
+
+        const collection = db.collection('tripsegments');
+        
+        const tripSegment = await collection.findOne({ tripSegmentNumber: tripSegmentNumber });
+
+        if (!tripSegment) {
+            console.log(`❌ Trip segment ${tripSegmentNumber} not found`);
+            return res.status(404).json({
+                success: false,
+                error: `Trip segment ${tripSegmentNumber} not found`
+            });
+        }
+
+        console.log(`✅ Found trip segment ${tripSegmentNumber}, trailerNumber: ${tripSegment.trailerNumber || 'Not set'}`);
+
+        res.json({
+            success: true,
+            tripSegmentNumber: tripSegmentNumber,
+            trailerNumber: tripSegment.trailerNumber || null,
+            trailerPhoto: tripSegment.trailerPhoto || null
+        });
+
+    } catch (error) {
+        console.error('❌ Error fetching trailer details:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message || 'Failed to fetch trailer details'
+        });
+    }
+});
+
+// Get truck details endpoint
+app.get('/api/trip-segments/:tripSegmentNumber/truck-details', async (req, res) => {
+    try {
+        const { tripSegmentNumber } = req.params;
+        
+        console.log('🚛 Fetching truck details for:', tripSegmentNumber);
+
+        if (!tripSegmentNumber) {
+            return res.status(400).json({
+                success: false,
+                error: 'Trip segment number is required'
+            });
+        }
+
+        if (!db) {
+            throw new Error('Database not connected');
+        }
+
+        const collection = db.collection('tripsegments');
+        
+        const tripSegment = await collection.findOne({ tripSegmentNumber: tripSegmentNumber });
+
+        if (!tripSegment) {
+            console.log(`❌ Trip segment ${tripSegmentNumber} not found`);
+            return res.status(404).json({
+                success: false,
+                error: `Trip segment ${tripSegmentNumber} not found`
+            });
+        }
+
+        console.log(`✅ Found trip segment ${tripSegmentNumber}, truckNumber: ${tripSegment.truckNumber || 'Not set'}`);
+
+        res.json({
+            success: true,
+            tripSegmentNumber: tripSegmentNumber,
+            truckNumber: tripSegment.truckNumber || null,
+            truckPhoto: tripSegment.truckPhoto || null
+        });
+
+    } catch (error) {
+        console.error('❌ Error fetching truck details:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message || 'Failed to fetch truck details'
         });
     }
 });

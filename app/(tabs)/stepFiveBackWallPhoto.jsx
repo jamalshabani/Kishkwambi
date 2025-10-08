@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { View, Text, TouchableOpacity, Alert, Image, ScrollView, Animated, Modal, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -7,10 +7,10 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { cn } from '../../lib/tw';
 import { useTheme } from '../../contexts/ThemeContext';
 import TimerDisplay from '../../components/common/TimerDisplay';
-import { Sun, Moon, Eye, X } from 'lucide-react-native';
+import { Sun, Moon, Eye, X, ArrowLeft } from 'lucide-react-native';
 import { API_CONFIG } from '../../lib/config';
 
-const StepFiveBackWallPhoto = ({ onBack, containerData, onNavigateToStepSix, onNavigateToDamagePhotos, onNavigateToDamagePhotosDirect }) => {
+const StepFiveBackWallPhoto = ({ onBack, onBackToRightWallDamage, containerData, onNavigateToStepSix, onNavigateToDamagePhotos, onNavigateToDamagePhotosDirect }) => {
     const { isDark, toggleTheme } = useTheme();
     const [permission, requestPermission] = useCameraPermissions();
     const [image, setImage] = useState(null);
@@ -20,6 +20,81 @@ const StepFiveBackWallPhoto = ({ onBack, containerData, onNavigateToStepSix, onN
     const [frontWallPhotoData, setFrontWallPhotoData] = useState(null);
     const [showDamageModal, setShowDamageModal] = useState(false);
     const cameraRef = useRef(null);
+    const [trailerNumber, setTrailerNumber] = useState(null);
+
+    // Fetch trailer number from database
+    useEffect(() => {
+        const fetchTrailerNumber = async () => {
+            try {
+                if (!containerData?.tripSegmentNumber) return;
+                const BACKEND_URL = API_CONFIG.getBackendUrl();
+                const response = await fetch(`${BACKEND_URL}/api/trip-segments/${containerData.tripSegmentNumber}/trailer-details`);
+                if (response.ok) {
+                    const result = await response.json();
+                    if (result.success && result.trailerNumber) {
+                        setTrailerNumber(result.trailerNumber);
+                    }
+                }
+            } catch (error) {
+                console.error('❌ Error fetching trailer number:', error);
+            }
+        };
+        fetchTrailerNumber();
+    }, [containerData?.tripSegmentNumber]);
+
+    // Conditional back navigation - check if Right Wall damage exists
+    const handleBackNavigation = async () => {
+        try {
+            console.log('🔙 Checking damage locations for conditional navigation...');
+            const BACKEND_URL = API_CONFIG.getBackendUrl();
+            
+            // Fetch trip segment damage status to check damage locations
+            const response = await fetch(`${BACKEND_URL}/api/trip-segments/${containerData?.tripSegmentNumber}/damage-status`, {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+            });
+            
+            if (!response.ok) {
+                throw new Error('Failed to fetch trip segment damage status');
+            }
+            
+            const result = await response.json();
+            
+            if (result.success) {
+                const damageLocations = result.damageLocations || [];
+                console.log('📊 Damage locations:', damageLocations);
+                
+                // Check if "Right Wall" is in damage locations
+                if (damageLocations.includes('Right Wall')) {
+                    console.log('✅ Right Wall damage found - navigating to Right Wall damage photos');
+                    // Navigate to Right Wall damage photos with containerData
+                    if (onBackToRightWallDamage) {
+                        onBackToRightWallDamage(containerData);
+                    }
+                } else {
+                    console.log('❌ No Right Wall damage - navigating to step four (Right Wall photo)');
+                    // Navigate to step four (Right Wall photo preview)
+                    if (onBack) {
+                        onBack();
+                    }
+                }
+            } else {
+                // If no data or error, default to step four
+                console.log('⚠️ No trip segment data found - defaulting to step four');
+                if (onBack) {
+                    onBack();
+                }
+            }
+        } catch (error) {
+            console.error('❌ Error checking damage locations:', error);
+            // On error, default to step four
+            if (onBack) {
+                onBack();
+            }
+        }
+    };
 
     // Animation values for theme switcher
     const themeIconRotation = useRef(new Animated.Value(0)).current;
@@ -208,7 +283,7 @@ const StepFiveBackWallPhoto = ({ onBack, containerData, onNavigateToStepSix, onN
             formData.append('tripSegmentNumber', containerData?.tripSegmentNumber || '');
             formData.append('containerNumber', containerData?.containerNumber || '');
             formData.append('photoType', 'container');
-            formData.append('containerPhotoLocation', 'Container Back Wall');
+            formData.append('containerPhotoLocation', 'Back Wall');
             
             console.log('📊 File data created for upload');
             
@@ -291,6 +366,12 @@ const StepFiveBackWallPhoto = ({ onBack, containerData, onNavigateToStepSix, onN
             <View style={cn(`${isDark ? 'bg-gray-900' : 'bg-white/10'} px-6 py-4 border-b ${isDark ? 'border-gray-700' : 'border-gray-300'} flex-row items-center justify-between shadow-sm`)}>
                 {/* Title */}
                 <View style={cn('flex-row items-center flex-1')}>
+                    <TouchableOpacity 
+                        onPress={handleBackNavigation}
+                        style={cn('mr-3 p-1')}
+                    >
+                        <ArrowLeft size={24} color={isDark ? '#F3F4F6' : '#1F2937'} />
+                    </TouchableOpacity>
                     <Text style={cn(`text-lg font-bold ${isDark ? 'text-gray-100' : 'text-gray-800'}`)}>
                         Back Wall
                     </Text>
@@ -335,7 +416,7 @@ const StepFiveBackWallPhoto = ({ onBack, containerData, onNavigateToStepSix, onN
                         {/* Container Number and Trip Segment Display */}
                         <View style={cn('absolute top-4 left-4 right-4')}>
                             <View style={cn(`p-4 rounded-lg ${isDark ? 'bg-gray-700 border-gray-600' : 'bg-gray-50 border-gray-200'} border`)}>
-                                <View style={cn('flex-row items-center justify-between')}>
+                                <View style={cn('flex-row items-center justify-between mb-3')}>
                                     <View style={cn('flex-1')}>
                                         <Text style={cn(`text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-600'} mb-1`)}>
                                             Container Number
@@ -353,6 +434,16 @@ const StepFiveBackWallPhoto = ({ onBack, containerData, onNavigateToStepSix, onN
                                         </Text>
                                     </View>
                                 </View>
+                                <View style={cn('flex-row items-center')}>
+                                    <View style={cn('flex-1')}>
+                                        <Text style={cn(`text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-600'} mb-1`)}>
+                                            Trailer Number
+                                        </Text>
+                                        <Text style={cn(`text-lg font-bold ${isDark ? 'text-white' : 'text-black'}`)}>
+                                            {trailerNumber || containerData?.trailerNumber || 'N/A'}
+                                        </Text>
+                                    </View>
+                                </View>
                             </View>
                         </View>
 
@@ -363,67 +454,9 @@ const StepFiveBackWallPhoto = ({ onBack, containerData, onNavigateToStepSix, onN
                                 style={[
                                     cn('border-2 border-green-500 bg-green-500/10'),
                                     {
-                                        width: 280,
-                                        height: 420,
+                                        width: 320,
+                                        height: 298,
                                         borderRadius: 8,
-                                    }
-                                ]}
-                            />
-
-                            {/* Corner Brackets */}
-                            {/* Top Left */}
-                            <View
-                                style={[
-                                    cn('absolute -top-2 -left-2'),
-                                    {
-                                        width: 20,
-                                        height: 20,
-                                        borderTopWidth: 3,
-                                        borderLeftWidth: 3,
-                                        borderTopColor: '#10b981',
-                                        borderLeftColor: '#10b981',
-                                    }
-                                ]}
-                            />
-                            {/* Top Right */}
-                            <View
-                                style={[
-                                    cn('absolute -top-2 -right-2'),
-                                    {
-                                        width: 20,
-                                        height: 20,
-                                        borderTopWidth: 3,
-                                        borderRightWidth: 3,
-                                        borderTopColor: '#10b981',
-                                        borderRightColor: '#10b981',
-                                    }
-                                ]}
-                            />
-                            {/* Bottom Left */}
-                            <View
-                                style={[
-                                    cn('absolute -bottom-2 -left-2'),
-                                    {
-                                        width: 20,
-                                        height: 20,
-                                        borderBottomWidth: 3,
-                                        borderLeftWidth: 3,
-                                        borderBottomColor: '#10b981',
-                                        borderLeftColor: '#10b981',
-                                    }
-                                ]}
-                            />
-                            {/* Bottom Right */}
-                            <View
-                                style={[
-                                    cn('absolute -bottom-2 -right-2'),
-                                    {
-                                        width: 20,
-                                        height: 20,
-                                        borderBottomWidth: 3,
-                                        borderRightWidth: 3,
-                                        borderBottomColor: '#10b981',
-                                        borderRightColor: '#10b981',
                                     }
                                 ]}
                             />
@@ -454,7 +487,7 @@ const StepFiveBackWallPhoto = ({ onBack, containerData, onNavigateToStepSix, onN
                     <View style={cn('p-6')}>
                         {/* Container Number and Trip Segment Display */}
                         <View style={cn(`mb-6 p-4 rounded-lg ${isDark ? 'bg-gray-700 border-gray-600' : 'bg-gray-50 border-gray-200'} border`)}>
-                            <View style={cn('flex-row items-center justify-between')}>
+                            <View style={cn('flex-row items-center justify-between mb-3')}>
                                 <View style={cn('flex-1')}>
                                     <Text style={cn(`text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-600'} mb-1`)}>
                                         Container Number
@@ -469,6 +502,16 @@ const StepFiveBackWallPhoto = ({ onBack, containerData, onNavigateToStepSix, onN
                                     </Text>
                                     <Text style={cn(`text-lg font-semibold ${isDark ? 'text-white' : 'text-black'}`)}>
                                         {containerData?.tripSegmentNumber || 'N/A'}
+                                    </Text>
+                                </View>
+                            </View>
+                            <View style={cn('flex-row items-center')}>
+                                <View style={cn('flex-1')}>
+                                    <Text style={cn(`text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-600'} mb-1`)}>
+                                        Trailer Number
+                                    </Text>
+                                    <Text style={cn(`text-lg font-bold ${isDark ? 'text-white' : 'text-black'}`)}>
+                                        {trailerNumber || containerData?.trailerNumber || 'N/A'}
                                     </Text>
                                 </View>
                             </View>

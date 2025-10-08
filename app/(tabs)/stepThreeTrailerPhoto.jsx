@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { View, Text, TouchableOpacity, Alert, Image, ScrollView, Animated, Modal, TextInput, KeyboardAvoidingView, Platform, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -8,10 +8,10 @@ import * as ImagePicker from 'expo-image-picker';
 import { cn } from '../../lib/tw';
 import { useTheme } from '../../contexts/ThemeContext';
 import TimerDisplay from '../../components/common/TimerDisplay';
-import { Sun, Moon, Eye, X, ImageIcon } from 'lucide-react-native';
+import { Sun, Moon, Eye, X, ImageIcon, ArrowLeft } from 'lucide-react-native';
 import { API_CONFIG } from '../../lib/config';
 
-const StepThreeTrailerPhoto = ({ onBack, containerData, onNavigateToStepFour, onNavigateToStepFourDirect }) => {
+const StepThreeTrailerPhoto = ({ onBack, onBackToDamagePhotos, containerData, onNavigateToStepFour, onNavigateToStepFourDirect }) => {
     const { isDark, toggleTheme } = useTheme();
     const [permission, requestPermission] = useCameraPermissions();
     const [image, setImage] = useState(null);
@@ -26,6 +26,81 @@ const StepThreeTrailerPhoto = ({ onBack, containerData, onNavigateToStepFour, on
     const [trailerData, setTrailerData] = useState(null);
     const cameraRef = useRef(null);
     const licencePlateRefs = useRef([]);
+
+    // Restore trailer data when navigating back
+    useEffect(() => {
+        if (containerData?.trailerPhoto) {
+            console.log('📸 Restoring trailer photo from previous data');
+            setImage(containerData.trailerPhoto);
+        }
+        
+        if (containerData?.trailerNumber) {
+            console.log('🚗 Restoring trailer number from previous data:', containerData.trailerNumber);
+            const plateArray = containerData.trailerNumber.split('');
+            const newLicencePlate = Array(7).fill('');
+            
+            // Fill the array with the saved trailer number
+            for (let i = 0; i < Math.min(plateArray.length, 7); i++) {
+                newLicencePlate[i] = plateArray[i];
+            }
+            
+            setLicencePlate(newLicencePlate);
+        }
+    }, []);
+
+    // Conditional back navigation - check if Front Wall damage exists
+    const handleBackNavigation = async () => {
+        try {
+            console.log('🔙 Checking damage locations for conditional navigation...');
+            const BACKEND_URL = API_CONFIG.getBackendUrl();
+            
+            // Fetch trip segment damage status to check damage locations
+            const response = await fetch(`${BACKEND_URL}/api/trip-segments/${containerData?.tripSegmentNumber}/damage-status`, {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+            });
+            
+            if (!response.ok) {
+                throw new Error('Failed to fetch trip segment damage status');
+            }
+            
+            const result = await response.json();
+            
+            if (result.success) {
+                const damageLocations = result.damageLocations || [];
+                console.log('📊 Damage locations:', damageLocations);
+                
+                // Check if "Front Wall" is in damage locations
+                if (damageLocations.includes('Front Wall')) {
+                    console.log('✅ Front Wall damage found - navigating to damage photos');
+                    // Navigate to Front Wall damage photos with containerData
+                    if (onBackToDamagePhotos) {
+                        onBackToDamagePhotos(containerData);
+                    }
+                } else {
+                    console.log('❌ No Front Wall damage - navigating to step two');
+                    // Navigate to step two (container details)
+                    if (onBack) {
+                        onBack();
+                    }
+                }
+            } else {
+                // If no data or error, default to step two
+                console.log('⚠️ No trip segment data found - defaulting to step two');
+                if (onBack) {
+                    onBack();
+                }
+            }
+        } catch (error) {
+            console.error('❌ Error checking damage locations:', error);
+            // On error, default to step two
+            if (onBack) {
+                onBack();
+            }
+        }
+    };
 
     // Animation values for theme switcher
     const themeIconRotation = useRef(new Animated.Value(0)).current;
@@ -98,7 +173,7 @@ const StepThreeTrailerPhoto = ({ onBack, containerData, onNavigateToStepFour, on
             setIsRecognizingPlate(true);
             console.log('🚗 Calling PlateRecognizer API...');
 
-            const BACKEND_URL = 'http://192.168.12.132:3001'; // Update with your backend URL
+            const BACKEND_URL = API_CONFIG.getBackendUrl();
 
             const response = await fetch(`${BACKEND_URL}/api/plate-recognizer/recognize`, {
                 method: 'POST',
@@ -306,11 +381,12 @@ const StepThreeTrailerPhoto = ({ onBack, containerData, onNavigateToStepFour, on
                     return;
                 }
                 
-                // Prepare trailer data for next step with S3 reference
+                // Prepare trailer data for next step with both S3 reference and base64 for preview
                 const trailerData = {
                     ...containerData,
                     trailerNumber: licencePlateText,
-                    trailerPhoto: uploadResult.trailerPhoto // Use S3 reference instead of base64
+                    trailerPhoto: image, // Store base64 for preview when navigating back
+                    trailerPhotoUrl: uploadResult.trailerPhoto // Store S3 URL for database reference
                 };
                 
                 // Save trailer data to state for navigation
@@ -376,6 +452,12 @@ const StepThreeTrailerPhoto = ({ onBack, containerData, onNavigateToStepFour, on
             <View style={cn(`${isDark ? 'bg-gray-900' : 'bg-white/10'} px-6 py-4 border-b ${isDark ? 'border-gray-700' : 'border-gray-300'} flex-row items-center justify-between shadow-sm`)}>
                 {/* Title */}
                 <View style={cn('flex-row items-center flex-1')}>
+                    <TouchableOpacity 
+                        onPress={handleBackNavigation}
+                        style={cn('mr-3 p-1')}
+                    >
+                        <ArrowLeft size={24} color={isDark ? '#F3F4F6' : '#1F2937'} />
+                    </TouchableOpacity>
                     <Text style={cn(`text-lg font-bold ${isDark ? 'text-gray-100' : 'text-gray-800'}`)}>
                         Trailer Photo
                     </Text>
@@ -457,64 +539,6 @@ const StepThreeTrailerPhoto = ({ onBack, containerData, onNavigateToStepFour, on
                                         width: 320,
                                         height: 298, // Adjusted for 2.44m × 2.59m ratio (0.94:1)
                                         borderRadius: 8,
-                                    }
-                                ]}
-                            />
-
-                            {/* Corner Brackets */}
-                            {/* Top Left */}
-                            <View
-                                style={[
-                                    cn('absolute -top-2 -left-2'),
-                                    {
-                                        width: 20,
-                                        height: 20,
-                                        borderTopWidth: 3,
-                                        borderLeftWidth: 3,
-                                        borderTopColor: '#10b981',
-                                        borderLeftColor: '#10b981',
-                                    }
-                                ]}
-                            />
-                            {/* Top Right */}
-                            <View
-                                style={[
-                                    cn('absolute -top-2 -right-2'),
-                                    {
-                                        width: 20,
-                                        height: 20,
-                                        borderTopWidth: 3,
-                                        borderRightWidth: 3,
-                                        borderTopColor: '#10b981',
-                                        borderRightColor: '#10b981',
-                                    }
-                                ]}
-                            />
-                            {/* Bottom Left */}
-                            <View
-                                style={[
-                                    cn('absolute -bottom-2 -left-2'),
-                                    {
-                                        width: 20,
-                                        height: 20,
-                                        borderBottomWidth: 3,
-                                        borderLeftWidth: 3,
-                                        borderBottomColor: '#10b981',
-                                        borderLeftColor: '#10b981',
-                                    }
-                                ]}
-                            />
-                            {/* Bottom Right */}
-                            <View
-                                style={[
-                                    cn('absolute -bottom-2 -right-2'),
-                                    {
-                                        width: 20,
-                                        height: 20,
-                                        borderBottomWidth: 3,
-                                        borderRightWidth: 3,
-                                        borderBottomColor: '#10b981',
-                                        borderRightColor: '#10b981',
                                     }
                                 ]}
                             />

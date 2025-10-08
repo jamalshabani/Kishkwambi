@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { View, Text, TouchableOpacity, Alert, Image, ScrollView, Animated, Modal, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -8,7 +8,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { cn } from '../../lib/tw';
 import { useTheme } from '../../contexts/ThemeContext';
 import { API_CONFIG } from '../../lib/config';
-import { Sun, Moon, Eye, X, Camera } from 'lucide-react-native';
+import { Sun, Moon, Eye, X, Camera, ArrowLeft } from 'lucide-react-native';
 
 const StepEightDamagePhotos = ({ onBack, containerData, onNavigateToStepNine, onNavigateToInspectionRemarks, onNavigateToStepNineDirect }) => {
     const { isDark, toggleTheme } = useTheme();
@@ -21,6 +21,48 @@ const StepEightDamagePhotos = ({ onBack, containerData, onNavigateToStepNine, on
     const [showCamera, setShowCamera] = useState(false);
     const cameraRef = useRef(null);
     const [damageData, setDamageData] = useState(null);
+    const [trailerNumber, setTrailerNumber] = useState(null);
+    const [truckNumber, setTruckNumber] = useState(null);
+
+    // Fetch trailer number from database
+    useEffect(() => {
+        const fetchTrailerNumber = async () => {
+            try {
+                if (!containerData?.tripSegmentNumber) return;
+                const BACKEND_URL = API_CONFIG.getBackendUrl();
+                const response = await fetch(`${BACKEND_URL}/api/trip-segments/${containerData.tripSegmentNumber}/trailer-details`);
+                if (response.ok) {
+                    const result = await response.json();
+                    if (result.success && result.trailerNumber) {
+                        setTrailerNumber(result.trailerNumber);
+                    }
+                }
+            } catch (error) {
+                console.error('❌ Error fetching trailer number:', error);
+            }
+        };
+        fetchTrailerNumber();
+    }, [containerData?.tripSegmentNumber]);
+
+    // Fetch truck number from database
+    useEffect(() => {
+        const fetchTruckNumber = async () => {
+            try {
+                if (!containerData?.tripSegmentNumber) return;
+                const BACKEND_URL = API_CONFIG.getBackendUrl();
+                const response = await fetch(`${BACKEND_URL}/api/trip-segments/${containerData.tripSegmentNumber}/truck-details`);
+                if (response.ok) {
+                    const result = await response.json();
+                    if (result.success && result.truckNumber) {
+                        setTruckNumber(result.truckNumber);
+                    }
+                }
+            } catch (error) {
+                console.error('❌ Error fetching truck number:', error);
+            }
+        };
+        fetchTruckNumber();
+    }, [containerData?.tripSegmentNumber]);
 
     // Animation values for theme switcher
     const themeIconRotation = useRef(new Animated.Value(0)).current;
@@ -225,11 +267,18 @@ const StepEightDamagePhotos = ({ onBack, containerData, onNavigateToStepNine, on
 
                 {/* Header */}
                 <View style={cn(`${isDark ? 'bg-gray-900' : 'bg-white/10'} px-6 py-4 border-b ${isDark ? 'border-gray-700' : 'border-gray-300'} flex-row items-center justify-between shadow-sm`)}>
-
-                    {/* Title */}
-                    <Text style={cn(`text-lg font-bold ${isDark ? 'text-gray-100' : 'text-gray-800'} flex-1`)}>
-                        Inside Damage Photo
-                    </Text>
+                    <View style={cn('flex-row items-center flex-1')}>
+                        <TouchableOpacity 
+                            onPress={onBack}
+                            style={cn('mr-3 p-1')}
+                        >
+                            <ArrowLeft size={24} color={isDark ? '#F3F4F6' : '#1F2937'} />
+                        </TouchableOpacity>
+                        {/* Title */}
+                        <Text style={cn(`text-lg font-bold ${isDark ? 'text-gray-100' : 'text-gray-800'}`)}>
+                            Inside Damage Photo
+                        </Text>
+                    </View>
 
                     {/* Theme Switcher */}
                     <Animated.View
@@ -397,11 +446,18 @@ const StepEightDamagePhotos = ({ onBack, containerData, onNavigateToStepNine, on
             
             {/* Header */}
             <View style={cn(`${isDark ? 'bg-gray-900' : 'bg-white/10'} px-6 py-4 border-b ${isDark ? 'border-gray-700' : 'border-gray-300'} flex-row items-center justify-between shadow-sm`)}>
-                {/* Title */}
-                <Text style={cn(`text-lg font-bold ${isDark ? 'text-gray-100' : 'text-gray-800'} flex-1`)}>
-                    Inside
-                </Text>
-
+                <View style={cn('flex-row items-center flex-1')}>
+                    <TouchableOpacity 
+                        onPress={onBack}
+                        style={cn('mr-3 p-1')}
+                    >
+                        <ArrowLeft size={24} color={isDark ? '#F3F4F6' : '#1F2937'} />
+                    </TouchableOpacity>
+                    {/* Title */}
+                    <Text style={cn(`text-lg font-bold ${isDark ? 'text-gray-100' : 'text-gray-800'}`)}>
+                        Inside
+                    </Text>
+                </View>
 
                 {/* Theme Switcher */}
                 <Animated.View
@@ -431,7 +487,7 @@ const StepEightDamagePhotos = ({ onBack, containerData, onNavigateToStepNine, on
                     <View style={cn('p-6')}>
                         {/* Container Number and Trip Segment Display */}
                         <View style={cn(`mb-6 p-4 rounded-lg ${isDark ? 'bg-gray-700 border-gray-600' : 'bg-gray-50 border-gray-200'} border`)}>
-                            <View style={cn('flex-row items-center justify-between')}>
+                            <View style={cn('flex-row items-center justify-between mb-3')}>
                                 <View style={cn('flex-1')}>
                                     <Text style={cn(`text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-600'} mb-1`)}>
                                         Container Number
@@ -446,6 +502,24 @@ const StepEightDamagePhotos = ({ onBack, containerData, onNavigateToStepNine, on
                                     </Text>
                                     <Text style={cn(`text-lg font-semibold ${isDark ? 'text-white' : 'text-black'}`)}>
                                         {containerData?.tripSegmentNumber || 'N/A'}
+                                    </Text>
+                                </View>
+                            </View>
+                            <View style={cn('flex-row items-center')}>
+                                <View style={cn('flex-1')}>
+                                    <Text style={cn(`text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-600'} mb-1`)}>
+                                        Trailer Number
+                                    </Text>
+                                    <Text style={cn(`text-lg font-bold ${isDark ? 'text-white' : 'text-black'}`)}>
+                                        {trailerNumber || containerData?.trailerNumber || 'N/A'}
+                                    </Text>
+                                </View>
+                                <View style={cn('flex-1 ml-4')}>
+                                    <Text style={cn(`text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-600'} mb-1`)}>
+                                        Truck Number
+                                    </Text>
+                                    <Text style={cn(`text-lg font-semibold ${isDark ? 'text-white' : 'text-black'}`)}>
+                                        {truckNumber || containerData?.truckNumber || 'N/A'}
                                     </Text>
                                 </View>
                             </View>

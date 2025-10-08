@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { View, Text, TouchableOpacity, Alert, Image, ScrollView, ActivityIndicator, Modal } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -8,7 +8,7 @@ import { cn } from '../../lib/tw';
 import { useTheme } from '../../contexts/ThemeContext';
 import TimerDisplay from '../../components/common/TimerDisplay';
 import { API_CONFIG } from '../../lib/config';
-import { Moon, Sun, Camera, Eye, X } from 'lucide-react-native';
+import { Moon, Sun, Camera, Eye, X, ArrowLeft } from 'lucide-react-native';
 
 export default function StepFourRightSidePhoto({ containerData, trailerData, onBack, onNavigateToStepFive, onNavigateToDamagePhotos, onNavigateToDamagePhotosDirect }) {
     const { isDark, toggleTheme } = useTheme();
@@ -18,7 +18,39 @@ export default function StepFourRightSidePhoto({ containerData, trailerData, onB
     const [rightWallPhotoData, setRightWallPhotoData] = useState(null);
     const [isProcessing, setIsProcessing] = useState(false);
     const [showDamageModal, setShowDamageModal] = useState(false);
+    const [trailerNumber, setTrailerNumber] = useState(null);
     const cameraRef = useRef(null);
+
+    // Fetch trailer number from database
+    useEffect(() => {
+        const fetchTrailerNumber = async () => {
+            try {
+                if (!containerData?.tripSegmentNumber) return;
+                
+                console.log('🚗 Fetching trailer number from database...');
+                const BACKEND_URL = API_CONFIG.getBackendUrl();
+                
+                const response = await fetch(`${BACKEND_URL}/api/trip-segments/${containerData.tripSegmentNumber}/trailer-details`, {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                });
+                
+                if (response.ok) {
+                    const result = await response.json();
+                    if (result.success && result.trailerNumber) {
+                        console.log('✅ Trailer number fetched:', result.trailerNumber);
+                        setTrailerNumber(result.trailerNumber);
+                    }
+                }
+            } catch (error) {
+                console.error('❌ Error fetching trailer number:', error);
+            }
+        };
+        
+        fetchTrailerNumber();
+    }, [containerData?.tripSegmentNumber]);
 
     const [permission, requestPermission] = useCameraPermissions();
 
@@ -160,7 +192,7 @@ export default function StepFourRightSidePhoto({ containerData, trailerData, onB
                     body: JSON.stringify({
                         tripSegmentNumber: containerData?.tripSegmentNumber,
                         hasDamages: 'Yes',
-                        damageLocation: 'Container Right Wall'
+                        damageLocation: 'Right Wall'
                     }),
                 });
                 
@@ -210,6 +242,12 @@ export default function StepFourRightSidePhoto({ containerData, trailerData, onB
             {/* Header */}
             <View style={cn(`flex-row items-center justify-between px-4 py-3 ${isDark ? 'bg-gray-900' : 'bg-white/10'} border-b ${isDark ? 'border-gray-700' : 'border-gray-200'}`)}>
                 <View style={cn('flex-row items-center flex-1')}>
+                    <TouchableOpacity 
+                        onPress={onBack}
+                        style={cn('mr-3 p-1')}
+                    >
+                        <ArrowLeft size={24} color={isDark ? '#F3F4F6' : '#1F2937'} />
+                    </TouchableOpacity>
                     <Text style={cn(`text-lg font-bold ${isDark ? 'text-white' : 'text-black'}`)}>
                         Right Wall
                     </Text>
@@ -241,7 +279,7 @@ export default function StepFourRightSidePhoto({ containerData, trailerData, onB
                         {/* Container Number and Trip Segment Display */}
                         <View style={cn('absolute top-4 left-4 right-4')}>
                             <View style={cn(`p-4 rounded-lg ${isDark ? 'bg-gray-700 border-gray-600' : 'bg-gray-50 border-gray-200'} border`)}>
-                                <View style={cn('flex-row items-center justify-between')}>
+                                <View style={cn('flex-row items-center justify-between mb-1')}>
                                     <View style={cn('flex-1')}>
                                         <Text style={cn(`text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-600'} mb-1`)}>
                                             Container Number
@@ -259,6 +297,16 @@ export default function StepFourRightSidePhoto({ containerData, trailerData, onB
                                         </Text>
                                     </View>
                                 </View>
+                                <View style={cn('flex-row items-center')}>
+                                    <View style={cn('flex-1')}>
+                                        <Text style={cn(`text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-600'} mb-1`)}>
+                                            Trailer Number
+                                        </Text>
+                                        <Text style={cn(`text-lg font-bold ${isDark ? 'text-white' : 'text-black'}`)}>
+                                            {trailerNumber || trailerData?.trailerNumber || containerData?.trailerNumber || 'N/A'}
+                                        </Text>
+                                    </View>
+                                </View>
                             </View>
                         </View>
 
@@ -268,69 +316,11 @@ export default function StepFourRightSidePhoto({ containerData, trailerData, onB
                             {/* Container Rectangle Outline */}
                             <View
                                 style={[
-                                    cn('border-2 border-green-500 bg-green-500/10'),
+                                    cn('border-2 border-green-500 bg-green-500/10 mt-8'),
                                     {
                                         width: 280,
                                         height: 420, // Further increased height for optimal container right wall framing
                                         borderRadius: 8,
-                                    }
-                                ]}
-                            />
-
-                            {/* Corner Brackets */}
-                            {/* Top Left */}
-                            <View
-                                style={[
-                                    cn('absolute -top-2 -left-2'),
-                                    {
-                                        width: 20,
-                                        height: 20,
-                                        borderTopWidth: 3,
-                                        borderLeftWidth: 3,
-                                        borderTopColor: '#10b981',
-                                        borderLeftColor: '#10b981',
-                                    }
-                                ]}
-                            />
-                            {/* Top Right */}
-                            <View
-                                style={[
-                                    cn('absolute -top-2 -right-2'),
-                                    {
-                                        width: 20,
-                                        height: 20,
-                                        borderTopWidth: 3,
-                                        borderRightWidth: 3,
-                                        borderTopColor: '#10b981',
-                                        borderRightColor: '#10b981',
-                                    }
-                                ]}
-                            />
-                            {/* Bottom Left */}
-                            <View
-                                style={[
-                                    cn('absolute -bottom-2 -left-2'),
-                                    {
-                                        width: 20,
-                                        height: 20,
-                                        borderBottomWidth: 3,
-                                        borderLeftWidth: 3,
-                                        borderBottomColor: '#10b981',
-                                        borderLeftColor: '#10b981',
-                                    }
-                                ]}
-                            />
-                            {/* Bottom Right */}
-                            <View
-                                style={[
-                                    cn('absolute -bottom-2 -right-2'),
-                                    {
-                                        width: 20,
-                                        height: 20,
-                                        borderBottomWidth: 3,
-                                        borderRightWidth: 3,
-                                        borderBottomColor: '#10b981',
-                                        borderRightColor: '#10b981',
                                     }
                                 ]}
                             />
@@ -361,7 +351,7 @@ export default function StepFourRightSidePhoto({ containerData, trailerData, onB
                     <View style={cn('p-6')}>
                         {/* Container Number and Trip Segment Display */}
                         <View style={cn(`mb-6 p-4 rounded-lg ${isDark ? 'bg-gray-700 border-gray-600' : 'bg-gray-50 border-gray-200'} border`)}>
-                            <View style={cn('flex-row items-center justify-between')}>
+                            <View style={cn('flex-row items-center justify-between mb-3')}>
                                 <View style={cn('flex-1')}>
                                     <Text style={cn(`text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-600'} mb-1`)}>
                                         Container Number
@@ -379,6 +369,16 @@ export default function StepFourRightSidePhoto({ containerData, trailerData, onB
                                     </Text>
                                 </View>
                             </View>
+                                <View style={cn('flex-row items-center')}>
+                                    <View style={cn('flex-1')}>
+                                        <Text style={cn(`text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-600'} mb-1`)}>
+                                            Trailer Number
+                                        </Text>
+                                        <Text style={cn(`text-lg font-bold ${isDark ? 'text-white' : 'text-black'}`)}>
+                                            {trailerNumber || trailerData?.trailerNumber || containerData?.trailerNumber || 'N/A'}
+                                        </Text>
+                                    </View>
+                                </View>
                         </View>
 
                         {/* Photo Preview Section */}
