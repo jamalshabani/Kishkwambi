@@ -157,8 +157,10 @@ const StepFourDamagePhotos = ({ onBack, containerData, onNavigateToStepFive, onN
         try {
             setIsProcessing(true);
             const photo = await cameraRef.current.takePictureAsync({
-                quality: 0.8,
-                base64: true,
+                quality: 0.4,
+                base64: false,
+                skipProcessing: true,
+                exif: false,
             });
 
             if (photo?.uri) {

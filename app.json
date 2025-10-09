@@ -4,12 +4,12 @@
     "slug": "simba-terminals",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/logo/logo.png",
+    "icon": "./assets/logo/logo.jpg",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "scheme": "simba-terminals",
     "splash": {
-      "image": "./assets/logo/logo.png",
+      "image": "./assets/logo/logo.jpg",
       "resizeMode": "contain",
       "backgroundColor": "#BC8405"
     },
@@ -19,7 +19,7 @@
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/logo/logo.png",
+        "foregroundImage": "./assets/logo/logo.jpg",
         "backgroundColor": "#BC8405"
       },
       "backgroundColor": "#BC8405",

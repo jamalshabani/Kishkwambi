@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { View, Text, TouchableOpacity, Alert, Image, ScrollView, Animated, Modal, ActivityIndicator } from 'react-native';
+import { View, Text, TouchableOpacity, Alert, Image, ScrollView, Animated, Modal, ActivityIndicator, Dimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { CameraView, useCameraPermissions } from 'expo-camera';
@@ -153,12 +153,14 @@ const StepEightInsidePhoto = ({ onBack, onBackToLeftWallDamage, containerData, o
         try {
             setIsProcessing(true);
             const photo = await cameraRef.current.takePictureAsync({
-                quality: 0.8,
-                base64: true,
+                quality: 0.4,
+                base64: false,
+                skipProcessing: true,
+                exif: false,
             });
 
             if (photo?.uri) {
-                setImage(photo.base64);
+                setImage(photo.uri);
                 console.log('📸 Inside photo taken successfully');
             }
         } catch (error) {
@@ -233,9 +235,9 @@ const StepEightInsidePhoto = ({ onBack, onBackToLeftWallDamage, containerData, o
             // Create form data for upload - React Native compatible approach
             const formData = new FormData();
             
-            // Create a file-like object from base64 data
+            // Create a file-like object from URI
             const fileData = {
-                uri: `data:image/jpeg;base64,${image}`,
+                uri: image,
                 type: 'image/jpeg',
                 name: 'inside_photo.jpg',
             };
@@ -555,7 +557,7 @@ const StepEightInsidePhoto = ({ onBack, onBackToLeftWallDamage, containerData, o
                                 style={[
                                     cn('border-2 border-green-500 bg-green-500/10 mt-8'),
                                     {
-                                        width: 280,
+                                        width: Dimensions.get('window').width * 0.9,
                                         height: 420,
                                         borderRadius: 8,
                                     }

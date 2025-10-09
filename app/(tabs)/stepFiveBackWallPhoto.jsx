@@ -132,12 +132,14 @@ const StepFiveBackWallPhoto = ({ onBack, onBackToRightWallDamage, containerData,
         try {
             setIsProcessing(true);
             const photo = await cameraRef.current.takePictureAsync({
-                quality: 0.8,
-                base64: true,
+                quality: 0.4,
+                base64: false,
+                skipProcessing: true,
+                exif: false,
             });
 
             if (photo?.uri) {
-                setImage(photo.base64);
+                setImage(photo.uri);
                 console.log('📸 Back Wall photo taken successfully');
             }
         } catch (error) {
@@ -159,7 +161,7 @@ const StepFiveBackWallPhoto = ({ onBack, onBackToRightWallDamage, containerData,
             
             // Add the image file
             formData.append('photo', {
-                uri: `data:image/jpeg;base64,${imageBase64}`,
+                uri: image,
                 type: 'image/jpeg',
                 name: 'front_wall_photo.jpg'
             });
@@ -272,9 +274,9 @@ const StepFiveBackWallPhoto = ({ onBack, onBackToRightWallDamage, containerData,
             // Create form data for upload - React Native compatible approach
             const formData = new FormData();
             
-            // Create a file-like object from base64 data
+            // Create a file-like object from URI
             const fileData = {
-                uri: `data:image/jpeg;base64,${image}`,
+                uri: image,
                 type: 'image/jpeg',
                 name: 'front_wall_photo.jpg',
             };
@@ -454,7 +456,7 @@ const StepFiveBackWallPhoto = ({ onBack, onBackToRightWallDamage, containerData,
                                 style={[
                                     cn('border-2 border-green-500 bg-green-500/10'),
                                     {
-                                        width: 320,
+                                        width: Dimensions.get('window').width * 0.9,
                                         height: 298,
                                         borderRadius: 8,
                                     }

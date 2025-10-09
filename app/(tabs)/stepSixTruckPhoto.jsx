@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { View, Text, TouchableOpacity, Alert, Image, ScrollView, Animated, Modal, TextInput, KeyboardAvoidingView, Platform, ActivityIndicator } from 'react-native';
+import { View, Text, TouchableOpacity, Alert, Image, ScrollView, Animated, Modal, TextInput, KeyboardAvoidingView, Platform, ActivityIndicator, Dimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { CameraView, useCameraPermissions } from 'expo-camera';
@@ -169,16 +169,18 @@ const StepSixTruckPhoto = ({ onBack, onBackToBackWallDamage, containerData, onNa
         try {
             setIsProcessing(true);
             const photo = await cameraRef.current.takePictureAsync({
-                quality: 0.8,
-                base64: true,
+                quality: 0.4,
+                base64: false,
+                skipProcessing: true,
+                exif: false,
             });
 
             if (photo?.uri) {
-                setImage(photo.base64);
+                setImage(photo.uri);
                 console.log('📸 Truck photo taken successfully');
 
                 // Call PlateRecognizer API to extract truck number
-                await recognizeTruckNumber(photo.base64);
+                await recognizeTruckNumber(photo.uri);
             }
         } catch (error) {
             console.error('❌ Error taking truck photo:', error);
@@ -188,21 +190,26 @@ const StepSixTruckPhoto = ({ onBack, onBackToBackWallDamage, containerData, onNa
         }
     };
 
-    const recognizeTruckNumber = async (base64Image) => {
+    const recognizeTruckNumber = async (imageUri) => {
         try {
             setIsRecognizingPlate(true);
             console.log('🚗 Calling PlateRecognizer API...');
 
             const BACKEND_URL = API_CONFIG.getBackendUrl();
             
+            const formData = new FormData();
+            formData.append('image', {
+                uri: imageUri,
+                type: 'image/jpeg',
+                name: 'truck.jpg'
+            });
+            
             const response = await fetch(`${BACKEND_URL}/api/plate-recognizer/recognize`, {
                 method: 'POST',
+                body: formData,
                 headers: {
-                    'Content-Type': 'application/json',
+                    'Content-Type': 'multipart/form-data',
                 },
-                body: JSON.stringify({
-                    base64Image: base64Image,
-                }),
             });
 
             const result = await response.json();
@@ -259,7 +266,7 @@ const StepSixTruckPhoto = ({ onBack, onBackToBackWallDamage, containerData, onNa
             
             // Add the image file
             formData.append('photo', {
-                uri: `data:image/jpeg;base64,${imageBase64}`,
+                uri: image,
                 type: 'image/jpeg',
                 name: 'truck_photo.jpg'
             });
@@ -377,7 +384,7 @@ const StepSixTruckPhoto = ({ onBack, onBackToBackWallDamage, containerData, onNa
                 const truckData = {
                     ...containerData,
                     truckPhoto: uploadResult.truckPhoto, // Use S3 reference instead of base64
-                    truckPhotoBase64: image, // Store base64 for back navigation preview
+                    truckPhotoBase64: image, // Store URI for back navigation preview
                     truckNumber: currentTruckNumber
                 };
                 
@@ -528,7 +535,7 @@ const StepSixTruckPhoto = ({ onBack, onBackToBackWallDamage, containerData, onNa
                                 style={[
                                     cn('border-2 border-green-500 bg-green-500/10'),
                                     {
-                                        width: 320,
+                                        width: Dimensions.get('window').width * 0.9,
                                         height: 350,
                                         borderRadius: 8,
                                     }

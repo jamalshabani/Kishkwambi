@@ -9,6 +9,11 @@ const tripSegmentSchema = new Schema({
         required: false
     },
 
+    depotAllocation: {
+        type: String,
+        required: false
+    },
+
     blNumber: {
         type: String,
         required: true

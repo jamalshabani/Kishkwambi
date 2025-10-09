@@ -363,14 +363,13 @@ app.get('/api/status', async (req, res) => {
 });
 
 // Vision AI endpoint for OCR
-app.post('/api/vision/process-image', async (req, res) => {
+app.post('/api/vision/process-image', uploadS3.single('image'), async (req, res) => {
     try {
-        const { base64Image } = req.body;
-
-        if (!base64Image) {
+        // Extract image file from multer
+        if (!req.file) {
             return res.status(400).json({
                 success: false,
-                error: 'Base64 image is required'
+                error: 'Image file is required'
             });
         }
 
@@ -384,8 +383,8 @@ app.post('/api/vision/process-image', async (req, res) => {
             });
         }
 
-        // Convert base64 to buffer for multipart form data
-        const imageBuffer = Buffer.from(base64Image, 'base64');
+        // Use the file buffer directly from multer (already in memory)
+        const imageBuffer = req.file.buffer;
         
         // Create FormData for ParkPow API
         const FormData = require('form-data');
@@ -445,14 +444,13 @@ app.post('/api/vision/process-image', async (req, res) => {
 // Google Vision AI endpoint with color detection
 // GUARANTEED to return ONLY one of these colors: Blue, Red, Green, Yellow, White, Black, Gray, Orange, Brown, Silver
 // Any other detected color will be mapped to the closest allowed color
-app.post('/api/vision/google-vision-color', async (req, res) => {
+app.post('/api/vision/google-vision-color', uploadS3.single('image'), async (req, res) => {
     try {
-        const { base64Image } = req.body;
-
-        if (!base64Image) {
+        // Extract image file from multer
+        if (!req.file) {
             return res.status(400).json({
                 success: false,
-                error: 'Base64 image is required'
+                error: 'Image file is required'
             });
         }
 
@@ -465,6 +463,9 @@ app.post('/api/vision/google-vision-color', async (req, res) => {
                 error: 'Vision API key not configured'
             });
         }
+
+        // Convert image buffer to base64 for Google Vision API
+        const base64Image = req.file.buffer.toString('base64');
 
         const VISION_API_URL = `https://vision.googleapis.com/v1/images:annotate?key=${VISION_API_KEY}`;
         
@@ -918,14 +919,13 @@ app.post('/api/update-container-info', async (req, res) => {
 });
 
 // Google Vision AI endpoint for OCR comparison
-app.post('/api/vision/google-vision', async (req, res) => {
+app.post('/api/vision/google-vision', uploadS3.single('image'), async (req, res) => {
     try {
-        const { base64Image } = req.body;
-
-        if (!base64Image) {
+        // Extract image file from multer
+        if (!req.file) {
             return res.status(400).json({
                 success: false,
-                error: 'Base64 image is required'
+                error: 'Image file is required'
             });
         }
 
@@ -938,6 +938,9 @@ app.post('/api/vision/google-vision', async (req, res) => {
                 error: 'Vision API key not configured'
             });
         }
+
+        // Convert image buffer to base64 for Google Vision API
+        const base64Image = req.file.buffer.toString('base64');
 
         const VISION_API_URL = `https://vision.googleapis.com/v1/images:annotate?key=${VISION_API_KEY}`;
         
@@ -3060,16 +3063,15 @@ async function startServer() {
     await ensureSharedDirectories();
     
     // PlateRecognizer API endpoint for trailer licence plate recognition
-    app.post('/api/plate-recognizer/recognize', async (req, res) => {
+    app.post('/api/plate-recognizer/recognize', uploadS3.single('image'), async (req, res) => {
         try {
-            const { base64Image } = req.body;
-            
             console.log('🚗 Received trailer photo for plate recognition');
 
-            if (!base64Image) {
+            // Extract image file from multer
+            if (!req.file) {
                 return res.status(400).json({
                     success: false,
-                    error: 'Base64 image is required'
+                    error: 'Image file is required'
                 });
             }
 
@@ -3087,8 +3089,8 @@ async function startServer() {
 
             const PLATERECOGNIZER_URL = 'https://api.platerecognizer.com/v1/plate-reader/';
             
-            // Convert base64 to buffer for multipart form data
-            const imageBuffer = Buffer.from(base64Image, 'base64');
+            // Use the file buffer directly from multer (already in memory)
+            const imageBuffer = req.file.buffer;
             
             const FormData = require('form-data');
             const formData = new FormData();

@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { View, Text, TouchableOpacity, Alert, Image, ScrollView, ActivityIndicator, Modal } from 'react-native';
+import { View, Text, TouchableOpacity, Alert, Image, ScrollView, ActivityIndicator, Modal, Dimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { CameraView, useCameraPermissions } from 'expo-camera';
@@ -78,12 +78,14 @@ export default function StepFourRightSidePhoto({ containerData, trailerData, onB
         try {
             setIsProcessing(true);
             const photo = await cameraRef.current.takePictureAsync({
-                quality: 0.8,
-                base64: true,
+                quality: 0.4,
+                base64: false,
+                skipProcessing: true,
+                exif: false,
             });
 
             if (photo?.uri) {
-                setImage(photo.base64);
+                setImage(photo.uri);
                 console.log('📸 Right wall photo taken successfully');
             }
         } catch (error) {
@@ -116,9 +118,9 @@ export default function StepFourRightSidePhoto({ containerData, trailerData, onB
             // Create form data for upload - React Native compatible approach
             const formData = new FormData();
             
-            // Create a file-like object from base64 data
+            // Create a file-like object from URI
             const fileData = {
-                uri: `data:image/jpeg;base64,${image}`,
+                uri: image,
                 type: 'image/jpeg',
                 name: 'right_wall_photo.jpg',
             };
@@ -318,7 +320,7 @@ export default function StepFourRightSidePhoto({ containerData, trailerData, onB
                                 style={[
                                     cn('border-2 border-green-500 bg-green-500/10 mt-8'),
                                     {
-                                        width: 280,
+                                        width: Dimensions.get('window').width * 0.9,
                                         height: 420, // Further increased height for optimal container right wall framing
                                         borderRadius: 8,
                                     }

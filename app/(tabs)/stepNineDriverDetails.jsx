@@ -127,12 +127,14 @@ const StepNineDriverDetails = ({ onBack, containerData, onComplete, onShowSucces
         try {
             setIsProcessing(true);
             const photo = await cameraRef.current.takePictureAsync({
-                quality: 0.8,
-                base64: true,
+                quality: 0.4,
+                base64: false,
+                skipProcessing: true,
+                exif: false,
             });
 
             if (photo?.uri) {
-                setImage(photo.base64);
+                setImage(photo.uri);
                 setShowCamera(false);
                 console.log('📸 Driver license photo taken successfully');
 
@@ -220,7 +222,7 @@ const StepNineDriverDetails = ({ onBack, containerData, onComplete, onShowSucces
             
             // Add the image file
             formData.append('photo', {
-                uri: `data:image/jpeg;base64,${imageBase64}`,
+                uri: image,
                 type: 'image/jpeg',
                 name: 'driver_photo.jpg'
             });

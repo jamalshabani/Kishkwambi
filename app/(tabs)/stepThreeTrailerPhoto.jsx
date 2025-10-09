@@ -149,16 +149,18 @@ const StepThreeTrailerPhoto = ({ onBack, onBackToDamagePhotos, containerData, on
         try {
             setIsProcessing(true);
             const photo = await cameraRef.current.takePictureAsync({
-                quality: 0.8,
-                base64: true,
+                quality: 0.4,
+                base64: false,
+                skipProcessing: true,
+                exif: false,
             });
 
             if (photo?.uri) {
-                setImage(photo.base64);
+                setImage(photo.uri);
                 console.log('📸 Trailer photo taken successfully');
 
                 // Call PlateRecognizer API to extract licence plate
-                await recognizeLicencePlate(photo.base64);
+                await recognizeLicencePlate(photo.uri);
             }
         } catch (error) {
             console.error('❌ Error taking trailer photo:', error);
@@ -168,19 +170,26 @@ const StepThreeTrailerPhoto = ({ onBack, onBackToDamagePhotos, containerData, on
         }
     };
 
-    const recognizeLicencePlate = async (base64Image) => {
+    const recognizeLicencePlate = async (imageUri) => {
         try {
             setIsRecognizingPlate(true);
             console.log('🚗 Calling PlateRecognizer API...');
 
             const BACKEND_URL = API_CONFIG.getBackendUrl();
-
+            
+            const formData = new FormData();
+            formData.append('image', {
+                uri: imageUri,
+                type: 'image/jpeg',
+                name: 'trailer.jpg'
+            });
+            
             const response = await fetch(`${BACKEND_URL}/api/plate-recognizer/recognize`, {
                 method: 'POST',
+                body: formData,
                 headers: {
-                    'Content-Type': 'application/json',
+                    'Content-Type': 'multipart/form-data',
                 },
-                body: JSON.stringify({ base64Image }),
             });
 
             const result = await response.json();
@@ -235,12 +244,13 @@ const StepThreeTrailerPhoto = ({ onBack, onBackToDamagePhotos, containerData, on
                 mediaTypes: ImagePicker.MediaTypeOptions.Images,
                 allowsEditing: true,
                 aspect: [1, 1],
-                quality: 0.8,
-                base64: true,
+                quality: 0.4,
+                base64: false,
+                exif: false,
             });
 
             if (!result.canceled && result.assets[0]) {
-                setImage(result.assets[0].base64);
+                setImage(result.assets[0].uri);
                 console.log('📷 Trailer image selected from gallery');
             }
         } catch (error) {
@@ -260,7 +270,7 @@ const StepThreeTrailerPhoto = ({ onBack, onBackToDamagePhotos, containerData, on
             
             // Add the image file
             formData.append('photo', {
-                uri: `data:image/jpeg;base64,${imageBase64}`,
+                uri: image,
                 type: 'image/jpeg',
                 name: 'trailer_photo.jpg'
             });
@@ -536,7 +546,7 @@ const StepThreeTrailerPhoto = ({ onBack, onBackToDamagePhotos, containerData, on
                                 style={[
                                     cn('border-2 border-green-500 bg-green-500/10'),
                                     {
-                                        width: 320,
+                                        width: Dimensions.get('window').width * 0.9,
                                         height: 298, // Adjusted for 2.44m × 2.59m ratio (0.94:1)
                                         borderRadius: 8,
                                     }
@@ -606,7 +616,7 @@ const StepThreeTrailerPhoto = ({ onBack, onBackToDamagePhotos, containerData, on
                                 
                                 <View style={cn('mb-2 flex items-center justify-center')}>
                                     <View style={cn('relative')}>
-                                        <Image source={{ uri: `data:image/jpeg;base64,${image}` }} style={cn('w-[200px] h-[200px] rounded-lg')} />
+                                        <Image source={{ uri: image }} style={cn('w-[200px] h-[200px] rounded-lg')} />
                                         {/* Eye Icon Overlay */}
                                         <TouchableOpacity
                                             onPress={() => setShowZoomModal(true)}
@@ -733,7 +743,7 @@ const StepThreeTrailerPhoto = ({ onBack, onBackToDamagePhotos, containerData, on
 
                     {/* Full Size Image */}
                     <Image
-                        source={{ uri: `data:image/jpeg;base64,${image}` }}
+                        source={{ uri: image }}
                         style={cn('w-full h-full')}
                         resizeMode="contain"
                     />

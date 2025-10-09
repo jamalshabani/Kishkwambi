@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity } from 'react-native';
 import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { cn } from '../../lib/tw';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useAuth } from '../../contexts/AuthContext';
@@ -30,6 +31,7 @@ export default function TabLayout() {
     const { isDark } = useTheme();
     const { isAuthenticated, loading } = useAuth();
     const { resetTimer } = useInspectionTimer();
+    const insets = useSafeAreaInsets();
     const [activeTab, setActiveTab] = useState('dashboard');
     const [containerData, setContainerData] = useState(null);
     const [damagePhotosData, setDamagePhotosData] = useState(null);
@@ -108,13 +110,13 @@ export default function TabLayout() {
         setContainerData(null);
     };
 
+    const navigateBackToStepOne = () => {
+        setActiveTab('stepOneContainerPhoto');
+    };
+
     const navigateToStepTwo = (data) => {
         setContainerData(data);
         setActiveTab('stepTwoContainerDetails');
-    };
-
-    const navigateBackToStepOne = () => {
-        setActiveTab('stepOneContainerPhoto');
     };
 
     const navigateToStepThree = (data) => {
@@ -362,8 +364,8 @@ export default function TabLayout() {
 
             {/* Tab Bar - Hidden for all step screens and success screen */}
             {!activeTab.startsWith('step') && !showSuccessScreen && (
-                <View style={cn(`border-t ${isDark ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-white'} shadow-lg`)}>
-                    <View style={cn('flex-row h-24 px-5')}>
+                <View style={cn(`border-t border-b ${isDark ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-white'} shadow-lg`)}>
+                    <View style={[cn('flex-row px-5 py-4'), { paddingBottom: 8 }]}>
                         {renderTabIcon(
                             <ArrowBigRight 
                                 size={24} 
@@ -383,6 +385,8 @@ export default function TabLayout() {
                             'profile'
                         )}
                     </View>
+                    {/* Separator line above Android safe area */}
+                    <View style={[cn(`border-t ${isDark ? 'border-gray-600' : 'border-gray-300'}`), { height: insets.bottom }]} />
                 </View>
             )}
         </View>

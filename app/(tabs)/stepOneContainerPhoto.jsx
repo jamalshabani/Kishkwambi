@@ -19,7 +19,6 @@ const StepOneContainerPhoto = ({ onBack, onNavigateToStepTwo, onNavigateToDamage
     const { user } = useAuth();
     const [permission, requestPermission] = useCameraPermissions();
     const [image, setImage] = useState(null);
-    const [imageBase64, setImageBase64] = useState(null);
     const [showErrorModal, setShowErrorModal] = useState(false);
     const [errorMessage, setErrorMessage] = useState('');
     const [errorContainerNumber, setErrorContainerNumber] = useState('');
@@ -98,19 +97,18 @@ const StepOneContainerPhoto = ({ onBack, onNavigateToStepTwo, onNavigateToDamage
         if (cameraRef.current) {
             try {
                 const photo = await cameraRef.current.takePictureAsync({
-                    quality: 0.8,
-                    base64: true,
-                    //shutterSound: false,
+                    quality: 0.4,
+                    base64: false,
+                    skipProcessing: true,
+                    exif: false,
                 });
                 
                 // Crop the image to the overlay area
                 const croppedImage = await cropImageToOverlay(photo.uri);
                 setImage(croppedImage);
                 
-                // Process the cropped image
-                const croppedBase64 = await convertImageToBase64(croppedImage);
-                setImageBase64(croppedBase64);
-                await processImageWithVisionAI(croppedBase64);
+                // Process the cropped image with Vision AI
+                await processImageWithVisionAI(croppedImage);
             } catch (error) {
                 Alert.alert('Error', 'Failed to take picture');
                 console.error('Camera error:', error);
@@ -431,17 +429,25 @@ const StepOneContainerPhoto = ({ onBack, onNavigateToStepTwo, onNavigateToDamage
                 })),
                 
                 // Color detection (only if we have an image)
-                imageBase64 ? fetch(`${BACKEND_URL}/api/vision/google-vision-color`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({ base64Image: imageBase64 }),
-                }).then(res => res.json()).catch(err => ({
-                    success: false,
-                    error: `Color Detection Error: ${err.message}`,
-                    data: { containerColor: '', colorHex: '' }
-                })) : Promise.resolve({
+                image ? (async () => {
+                    const colorFormData = new FormData();
+                    colorFormData.append('image', {
+                        uri: image,
+                        type: 'image/jpeg',
+                        name: 'container_color.jpg'
+                    });
+                    return fetch(`${BACKEND_URL}/api/vision/google-vision-color`, {
+                        method: 'POST',
+                        body: colorFormData,
+                        headers: {
+                            'Content-Type': 'multipart/form-data',
+                        },
+                    }).then(res => res.json()).catch(err => ({
+                        success: false,
+                        error: `Color Detection Error: ${err.message}`,
+                        data: { containerColor: '', colorHex: '' }
+                    }));
+                })() : Promise.resolve({
                     success: false,
                     error: 'No image available for color detection',
                     data: { containerColor: '', colorHex: '' }
@@ -555,7 +561,7 @@ const StepOneContainerPhoto = ({ onBack, onNavigateToStepTwo, onNavigateToDamage
         }
     };
 
-    const processImageWithVisionAI = async (base64Image) => {
+    const processImageWithVisionAI = async (imageUri) => {
         setIsProcessing(true);
         try {
             const BACKEND_URL = API_CONFIG.getBackendUrl();
@@ -563,15 +569,23 @@ const StepOneContainerPhoto = ({ onBack, onNavigateToStepTwo, onNavigateToDamage
             
             console.log('🚀 Testing both ParkRow API and Google Vision AI concurrently...');
             
+            // Create FormData for file upload
+            const formData = new FormData();
+            formData.append('image', {
+                uri: imageUri,
+                type: 'image/jpeg',
+                name: 'container.jpg'
+            });
+            
             // Call both APIs concurrently using Promise.all
             const [parkrowResponse, googleVisionResponse] = await Promise.all([
                 // ParkRow API call
                 fetch(`${BACKEND_URL}/api/vision/process-image`, {
                     method: 'POST',
+                    body: formData,
                     headers: {
-                        'Content-Type': 'application/json',
+                        'Content-Type': 'multipart/form-data',
                     },
-                    body: JSON.stringify({ base64Image }),
                 }).then(res => res.json()).catch(err => ({
                     success: false,
                     error: `ParkRow API Error: ${err.message}`,
@@ -581,10 +595,10 @@ const StepOneContainerPhoto = ({ onBack, onNavigateToStepTwo, onNavigateToDamage
                 // Google Vision API call
                 fetch(`${BACKEND_URL}/api/vision/google-vision`, {
                 method: 'POST',
+                body: formData,
                 headers: {
-                    'Content-Type': 'application/json',
+                    'Content-Type': 'multipart/form-data',
                 },
-                body: JSON.stringify({ base64Image }),
                 }).then(res => res.json()).catch(err => ({
                     success: false,
                     error: `Google Vision API Error: ${err.message}`,
@@ -796,8 +810,8 @@ const StepOneContainerPhoto = ({ onBack, onNavigateToStepTwo, onNavigateToDamage
                                 style={[
                                     cn('border-2 border-green-500 bg-green-500/10'),
                                     {
-                                        width: 320,
-                                        height: 298, // Adjusted for 2.44m × 2.59m ratio (0.94:1)
+                                        width: Dimensions.get('window').width * 0.85,
+                                        height: Dimensions.get('window').width * 0.85 * 0.94, // Adjusted for 2.44m × 2.59m ratio (0.94:1)
                                         borderRadius: 8,
                                     }
                                 ]}
