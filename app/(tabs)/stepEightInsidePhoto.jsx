@@ -63,6 +63,14 @@ const StepEightInsidePhoto = ({ onBack, onBackToLeftWallDamage, containerData, o
         fetchTruckNumber();
     }, [containerData?.tripSegmentNumber]);
 
+    // Restore photo when navigating back
+    useEffect(() => {
+        if (containerData?.insidePhoto) {
+            console.log('🔄 Restoring inside photo from navigation data');
+            setImage(containerData.insidePhoto);
+        }
+    }, [containerData?.insidePhoto]);
+
     // Conditional back navigation - check if Left Wall damage exists
     const handleBackNavigation = async () => {
         try {

@@ -42,6 +42,14 @@ const StepFiveBackWallPhoto = ({ onBack, onBackToRightWallDamage, containerData,
         fetchTrailerNumber();
     }, [containerData?.tripSegmentNumber]);
 
+    // Restore back wall photo when navigating back
+    useEffect(() => {
+        if (containerData?.backWallPhoto) {
+            console.log('🔄 Restoring back wall photo from navigation data');
+            setImage(containerData.backWallPhoto);
+        }
+    }, [containerData?.backWallPhoto]);
+
     // Conditional back navigation - check if Right Wall damage exists
     const handleBackNavigation = async () => {
         try {
@@ -75,23 +83,23 @@ const StepFiveBackWallPhoto = ({ onBack, onBackToRightWallDamage, containerData,
                     }
                 } else {
                     console.log('❌ No Right Wall damage - navigating to step four (Right Wall photo)');
-                    // Navigate to step four (Right Wall photo preview)
+                    // Navigate to step four (Right Wall photo preview) with data for persistence
                     if (onBack) {
-                        onBack();
+                        onBack(containerData);
                     }
                 }
             } else {
-                // If no data or error, default to step four
+                // If no data or error, default to step four with data for persistence
                 console.log('⚠️ No trip segment data found - defaulting to step four');
                 if (onBack) {
-                    onBack();
+                    onBack(containerData);
                 }
             }
         } catch (error) {
             console.error('❌ Error checking damage locations:', error);
-            // On error, default to step four
+            // On error, default to step four with data for persistence
             if (onBack) {
-                onBack();
+                onBack(containerData);
             }
         }
     };

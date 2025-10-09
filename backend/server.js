@@ -170,6 +170,13 @@ async function connectToDatabase() {
 
 // API Routes
 
+app.get('/api/health', async (req, res) => {
+    res.json({
+        success: true,
+        message: 'Backend server is running'
+    });
+});
+
 // Get all users
 app.get('/api/users', async (req, res) => {
     try {

@@ -274,7 +274,7 @@ const StepFourDamagePhotos = ({ onBack, containerData, onNavigateToStepFive, onN
                 {/* Title */}
                 <View style={cn('flex-row items-center flex-1')}>
                     <TouchableOpacity
-                        onPress={onBack}
+                        onPress={() => onBack(containerData)}
                         style={cn('mr-3 p-1')}
                     >
                         <ArrowLeft size={24} color={isDark ? '#F3F4F6' : '#1F2937'} />

@@ -283,7 +283,7 @@ const StepEightDamagePhotos = ({ onBack, containerData, onNavigateToStepNine, on
                 <View style={cn(`${isDark ? 'bg-gray-900' : 'bg-white/10'} px-6 py-4 border-b ${isDark ? 'border-gray-700' : 'border-gray-300'} flex-row items-center justify-between shadow-sm`)}>
                     <View style={cn('flex-row items-center flex-1')}>
                         <TouchableOpacity 
-                            onPress={onBack}
+                            onPress={() => onBack(containerData)}
                             style={cn('mr-3 p-1')}
                         >
                             <ArrowLeft size={24} color={isDark ? '#F3F4F6' : '#1F2937'} />
@@ -438,7 +438,7 @@ const StepEightDamagePhotos = ({ onBack, containerData, onNavigateToStepNine, on
             <View style={cn(`${isDark ? 'bg-gray-900' : 'bg-white/10'} px-6 py-4 border-b ${isDark ? 'border-gray-700' : 'border-gray-300'} flex-row items-center justify-between shadow-sm`)}>
                 <View style={cn('flex-row items-center flex-1')}>
                     <TouchableOpacity 
-                        onPress={onBack}
+                        onPress={() => onBack(containerData)}
                         style={cn('mr-3 p-1')}
                     >
                         <ArrowLeft size={24} color={isDark ? '#F3F4F6' : '#1F2937'} />

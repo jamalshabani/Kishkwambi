@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, TextInput, Animated, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, TextInput, Animated, KeyboardAvoidingView, Platform, Modal } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -14,6 +14,27 @@ const StepEightHalfInspectionRemarks = ({ onBack, containerData, onNavigateToSte
     const [inspectionRemarks, setInspectionRemarks] = useState('');
     const [trailerNumber, setTrailerNumber] = useState(null);
     const [truckNumber, setTruckNumber] = useState(null);
+    const [selectedSuggestions, setSelectedSuggestions] = useState(new Set());
+    
+    // State for missing information modal
+    const [showMissingInfoModal, setShowMissingInfoModal] = useState(false);
+    const [missingInfoMessage, setMissingInfoMessage] = useState('');
+
+    // Common damage remarks suggestions
+    const damageRemarksSuggestions = [
+        'No visible damage',
+        'Minor scratches',
+        'Dents on walls',
+        'Hinge loose',
+        'Rust spots visible',
+        'Door latch damaged',
+        'Floor panel dented',
+        
+        'Lock mechanism faulty',
+        'Impact damage on rear',
+        'Corrosion on bottom rail',
+        'General wear and tear'
+    ];
 
     // Fetch trailer number from database
     useEffect(() => {
@@ -55,6 +76,26 @@ const StepEightHalfInspectionRemarks = ({ onBack, containerData, onNavigateToSte
         fetchTruckNumber();
     }, [containerData?.tripSegmentNumber]);
 
+    // Restore inspection remarks when navigating back
+    useEffect(() => {
+        if (containerData?.damageRemarks) {
+            console.log('🔄 Restoring inspection remarks:', containerData.damageRemarks);
+            setInspectionRemarks(containerData.damageRemarks);
+            
+            // Update selected suggestions based on restored remarks
+            const remarksArray = containerData.damageRemarks.split(',').map(remark => remark.trim());
+            const newSelectedSuggestions = new Set();
+            
+            damageRemarksSuggestions.forEach(suggestion => {
+                if (remarksArray.includes(suggestion)) {
+                    newSelectedSuggestions.add(suggestion);
+                }
+            });
+            
+            setSelectedSuggestions(newSelectedSuggestions);
+        }
+    }, [containerData?.damageRemarks]);
+
     // Animation values for theme switcher
     const themeIconRotation = useRef(new Animated.Value(0)).current;
     const themeButtonScale = useRef(new Animated.Value(1)).current;
@@ -85,32 +126,69 @@ const StepEightHalfInspectionRemarks = ({ onBack, containerData, onNavigateToSte
         toggleTheme();
     };
 
+    const handleRemarkSuggestion = (suggestion) => {
+        const isCurrentlySelected = selectedSuggestions.has(suggestion);
+        
+        if (isCurrentlySelected) {
+            // Remove from selected suggestions
+            setSelectedSuggestions(prev => {
+                const newSet = new Set(prev);
+                newSet.delete(suggestion);
+                return newSet;
+            });
+            
+            // Remove from remarks text
+            setInspectionRemarks(prev => {
+                // Split by comma and filter out the suggestion
+                const remarksArray = prev.split(',').map(remark => remark.trim());
+                const filteredRemarks = remarksArray.filter(remark => remark !== suggestion);
+                return filteredRemarks.join(', ');
+            });
+        } else {
+            // Add to selected suggestions set
+            setSelectedSuggestions(prev => new Set(prev).add(suggestion));
+            
+            // If remarks field is empty, set the suggestion directly
+            if (!inspectionRemarks.trim()) {
+                setInspectionRemarks(suggestion);
+            } else {
+                // If remarks field has content, append the suggestion with a comma and space
+                setInspectionRemarks(prev => prev.trim() + ', ' + suggestion);
+            }
+        }
+    };
+
     const handleNext = async () => {
+        // Validate required field
+        if (!inspectionRemarks.trim()) {
+            setMissingInfoMessage('Please enter inspection remarks before proceeding.');
+            setShowMissingInfoModal(true);
+            return;
+        }
+        
         try {
             // Save damage remarks to database
-            if (inspectionRemarks.trim()) {
-                console.log('💾 Saving damage remarks to database...');
-                
-                const BACKEND_URL = API_CONFIG.getBackendUrl();
-                
-                const response = await fetch(`${BACKEND_URL}/api/update-damage-remarks`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        tripSegmentNumber: containerData?.tripSegmentNumber,
-                        damageRemarks: inspectionRemarks.trim()
-                    }),
-                });
-                
-                const result = await response.json();
-                
-                if (result.success) {
-                    console.log('✅ Damage remarks saved successfully:', result);
-                } else {
-                    console.error('❌ Failed to save damage remarks:', result.error);
-                }
+            console.log('💾 Saving damage remarks to database...');
+            
+            const BACKEND_URL = API_CONFIG.getBackendUrl();
+            
+            const response = await fetch(`${BACKEND_URL}/api/update-damage-remarks`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    tripSegmentNumber: containerData?.tripSegmentNumber,
+                    damageRemarks: inspectionRemarks.trim()
+                }),
+            });
+            
+            const result = await response.json();
+            
+            if (result.success) {
+                console.log('✅ Damage remarks saved successfully:', result);
+            } else {
+                console.error('❌ Failed to save damage remarks:', result.error);
             }
             
             // Prepare data for next step
@@ -147,7 +225,7 @@ const StepEightHalfInspectionRemarks = ({ onBack, containerData, onNavigateToSte
                 {/* Title */}
                 <View style={cn('flex-row items-center flex-1')}>
                     <TouchableOpacity 
-                        onPress={onBack}
+                        onPress={() => onBack(containerData)}
                         style={cn('mr-3 p-1')}
                     >
                         <ArrowLeft size={24} color={isDark ? '#F3F4F6' : '#1F2937'} />
@@ -265,24 +343,210 @@ const StepEightHalfInspectionRemarks = ({ onBack, containerData, onNavigateToSte
                                 Enter short description of the damages
                             </Text>
 
-                            {/* Remarks Text Input */}
-                            <TextInput
-                                style={cn(`
-                                    w-full h-32 p-4 rounded-lg border text-base
-                                    ${isDark
-                                        ? 'bg-gray-700 border-gray-600 text-white'
-                                        : 'bg-gray-50 border-gray-300 text-black'
-                                    }
-                                `)}
-                                placeholder="Enter damage remarks..."
-                                placeholderTextColor={isDark ? '#9CA3AF' : '#6B7280'}
-                                value={inspectionRemarks}
-                                onChangeText={setInspectionRemarks}
-                                multiline={true}
-                                textAlignVertical="top"
-                                returnKeyType="default"
-                                blurOnSubmit={false}
-                            />
+                            {/* Remarks Text Input with Suggestions */}
+                            <View style={cn(`
+                                w-full rounded-lg border relative
+                                ${isDark
+                                    ? 'bg-gray-700 border-gray-600'
+                                    : 'bg-gray-50 border-gray-300'
+                                }
+                            `)}>
+                                <TextInput
+                                    style={cn(`
+                                        w-full h-48 p-4 text-base
+                                        ${isDark ? 'text-white' : 'text-black'}
+                                    `)}
+                                    placeholder="Enter damage remarks..."
+                                    placeholderTextColor={isDark ? '#9CA3AF' : '#6B7280'}
+                                    value={inspectionRemarks}
+                                    onChangeText={(text) => {
+                                        setInspectionRemarks(text);
+                                        
+                                        // Update selected suggestions based on text content
+                                        const remarksArray = text.split(',').map(remark => remark.trim());
+                                        const newSelectedSuggestions = new Set();
+                                        
+                                        damageRemarksSuggestions.forEach(suggestion => {
+                                            if (remarksArray.includes(suggestion)) {
+                                                newSelectedSuggestions.add(suggestion);
+                                            }
+                                        });
+                                        
+                                        setSelectedSuggestions(newSelectedSuggestions);
+                                    }}
+                                    multiline={true}
+                                    textAlignVertical="top"
+                                    returnKeyType="default"
+                                    blurOnSubmit={false}
+                                />
+                                
+                                {/* Quick Suggestions Inside Input - Three Rows */}
+                                <View>
+                                    <View style={cn('absolute bottom-2 left-2 right-2')}>
+                                        <View style={cn('gap-1')}>
+                                            {/* Row 1 */}
+                                            <ScrollView 
+                                                horizontal 
+                                                showsHorizontalScrollIndicator={false}
+                                                contentContainerStyle={{ paddingRight: 8 }}
+                                            >
+                                                <View style={cn('flex-row gap-1')}>
+                                                    {damageRemarksSuggestions.slice(0, 4).map((suggestion, index) => {
+                                                        const isSelected = selectedSuggestions.has(suggestion);
+                                                        return (
+                                                            <TouchableOpacity
+                                                                key={index}
+                                                                onPress={() => handleRemarkSuggestion(suggestion)}
+                                                                style={cn(`
+                                                                    px-2 py-1 rounded-full border
+                                                                    ${isSelected 
+                                                                        ? (isDark 
+                                                                            ? 'bg-blue-600 border-blue-500' 
+                                                                            : 'bg-blue-500 border-blue-400')
+                                                                        : (isDark 
+                                                                            ? 'bg-gray-600 border-gray-500' 
+                                                                            : 'bg-white border-gray-200')
+                                                                    }
+                                                                `)}
+                                                            >
+                                                                <Text style={cn(`
+                                                                    text-xs font-medium
+                                                                    ${isSelected 
+                                                                        ? 'text-white' 
+                                                                        : (isDark ? 'text-gray-200' : 'text-gray-600')
+                                                                    }
+                                                                `)}>
+                                                                    {suggestion}
+                                                                </Text>
+                                                            </TouchableOpacity>
+                                                        );
+                                                    })}
+                                                </View>
+                                            </ScrollView>
+                                            
+                                            {/* Row 2 */}
+                                            <ScrollView 
+                                                horizontal 
+                                                showsHorizontalScrollIndicator={false}
+                                                contentContainerStyle={{ paddingRight: 8 }}
+                                            >
+                                                <View style={cn('flex-row gap-1')}>
+                                                    {damageRemarksSuggestions.slice(4, 8).map((suggestion, index) => {
+                                                        const isSelected = selectedSuggestions.has(suggestion);
+                                                        return (
+                                                            <TouchableOpacity
+                                                                key={index + 4}
+                                                                onPress={() => handleRemarkSuggestion(suggestion)}
+                                                                style={cn(`
+                                                                    px-2 py-1 rounded-full border
+                                                                    ${isSelected 
+                                                                        ? (isDark 
+                                                                            ? 'bg-blue-600 border-blue-500' 
+                                                                            : 'bg-blue-500 border-blue-400')
+                                                                        : (isDark 
+                                                                            ? 'bg-gray-600 border-gray-500' 
+                                                                            : 'bg-white border-gray-200')
+                                                                    }
+                                                                `)}
+                                                            >
+                                                                <Text style={cn(`
+                                                                    text-xs font-medium
+                                                                    ${isSelected 
+                                                                        ? 'text-white' 
+                                                                        : (isDark ? 'text-gray-200' : 'text-gray-600')
+                                                                    }
+                                                                `)}>
+                                                                    {suggestion}
+                                                                </Text>
+                                                            </TouchableOpacity>
+                                                        );
+                                                    })}
+                                                </View>
+                                            </ScrollView>
+                                            
+                                            {/* Row 3 */}
+                                            <ScrollView 
+                                                horizontal 
+                                                showsHorizontalScrollIndicator={false}
+                                                contentContainerStyle={{ paddingRight: 8 }}
+                                            >
+                                                <View style={cn('flex-row gap-1')}>
+                                                    {damageRemarksSuggestions.slice(8, 12).map((suggestion, index) => {
+                                                        const isSelected = selectedSuggestions.has(suggestion);
+                                                        return (
+                                                            <TouchableOpacity
+                                                                key={index + 8}
+                                                                onPress={() => handleRemarkSuggestion(suggestion)}
+                                                                style={cn(`
+                                                                    px-2 py-1 rounded-full border
+                                                                    ${isSelected 
+                                                                        ? (isDark 
+                                                                            ? 'bg-blue-600 border-blue-500' 
+                                                                            : 'bg-blue-500 border-blue-400')
+                                                                        : (isDark 
+                                                                            ? 'bg-gray-600 border-gray-500' 
+                                                                            : 'bg-white border-gray-200')
+                                                                    }
+                                                                `)}
+                                                            >
+                                                                <Text style={cn(`
+                                                                    text-xs font-medium
+                                                                    ${isSelected 
+                                                                        ? 'text-white' 
+                                                                        : (isDark ? 'text-gray-200' : 'text-gray-600')
+                                                                    }
+                                                                `)}>
+                                                                    {suggestion}
+                                                                </Text>
+                                                            </TouchableOpacity>
+                                                        );
+                                                    })}
+                                                </View>
+                                            </ScrollView>
+                                            
+                                            {/* Row 4 */}
+                                            <ScrollView 
+                                                horizontal 
+                                                showsHorizontalScrollIndicator={false}
+                                                contentContainerStyle={{ paddingRight: 8 }}
+                                            >
+                                                <View style={cn('flex-row gap-1')}>
+                                                    {damageRemarksSuggestions.slice(12, 16).map((suggestion, index) => {
+                                                        const isSelected = selectedSuggestions.has(suggestion);
+                                                        return (
+                                                            <TouchableOpacity
+                                                                key={index + 12}
+                                                                onPress={() => handleRemarkSuggestion(suggestion)}
+                                                                style={cn(`
+                                                                    px-2 py-1 rounded-full border
+                                                                    ${isSelected 
+                                                                        ? (isDark 
+                                                                            ? 'bg-blue-600 border-blue-500' 
+                                                                            : 'bg-blue-500 border-blue-400')
+                                                                        : (isDark 
+                                                                            ? 'bg-gray-600 border-gray-500' 
+                                                                            : 'bg-white border-gray-200')
+                                                                    }
+                                                                `)}
+                                                            >
+                                                                <Text style={cn(`
+                                                                    text-xs font-medium
+                                                                    ${isSelected 
+                                                                        ? 'text-white' 
+                                                                        : (isDark ? 'text-gray-200' : 'text-gray-600')
+                                                                    }
+                                                                `)}>
+                                                                    {suggestion}
+                                                                </Text>
+                                                            </TouchableOpacity>
+                                                        );
+                                                    })}
+                                                </View>
+                                            </ScrollView>
+                                        </View>
+                                    </View>
+                                </View>
+                            </View>
 
                             {/* Navigation Button */}
                             <View style={cn('flex-row justify-center mt-4')}>
@@ -306,6 +570,39 @@ const StepEightHalfInspectionRemarks = ({ onBack, containerData, onNavigateToSte
                     </View>
                 </ScrollView>
             </KeyboardAvoidingView>
+
+            {/* Missing Information Modal */}
+            <Modal
+                visible={showMissingInfoModal}
+                transparent={true}
+                animationType="fade"
+                onRequestClose={() => setShowMissingInfoModal(false)}
+            >
+                <View style={cn('flex-1 justify-center items-center bg-black/50')}>
+                    <View style={cn('bg-white rounded-3xl mx-8 p-6')}>
+                        
+                        {/* Message Text */}
+                        <View style={cn('mt-4 mb-6')}>
+                            <Text style={cn('text-red-500 text-center text-lg font-semibold leading-6')}>
+                                Missing Information
+                            </Text>
+                            <Text style={cn('text-gray-600 font-bold text-center text-sm mt-2')}>
+                                {missingInfoMessage}
+                            </Text>
+                        </View>
+                        
+                        {/* OK Button */}
+                        <TouchableOpacity
+                            onPress={() => setShowMissingInfoModal(false)}
+                            style={cn('bg-red-500 rounded-xl py-4')}
+                        >
+                            <Text style={cn('text-white text-center font-semibold text-base')}>
+                                OK
+                            </Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </Modal>
         </SafeAreaView>
     );
 };
