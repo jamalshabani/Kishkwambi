@@ -214,33 +214,26 @@ const StepEightDamagePhotos = ({ onBack, containerData, onNavigateToStepNine, on
         setIsProcessing(true);
 
         try {
-            // Upload damage photos to S3
-            const uploadResult = await uploadDamagePhotosToS3(damagePhotos, containerData?.tripSegmentNumber);
+            console.log('📸 Storing Inside damage photos for batch upload');
             
-            if (uploadResult.success) {
-                console.log('✅ Inside damage photos uploaded to S3 successfully');
+            // Prepare damage data for next step - photos will be uploaded at final submit
+            const damageData = {
+                ...containerData,
+                insideDamageCount: damagePhotos.length,
+                insideDamagePhotos: damagePhotos // Store for data persistence and batch upload
+            };
+            
+            // Save damage data to state for navigation
+            setDamageData(damageData);
 
-                // Prepare damage data for next step with damage photo objects
-                const damageData = {
-                    ...containerData,
-                    insideDamagePhotos: uploadResult.damagePhotos, // Use damage photo objects from S3
-                    insideDamageCount: damagePhotos.length,
-                    localInsideDamagePhotos: damagePhotos // Keep local photos for reference
-                };
-                
-                // Save damage data to state for navigation
-                setDamageData(damageData);
+            console.log('✅ Inside damage photos stored successfully');
 
-                // Navigate to Inspection Remarks screen (since there are damages)
-                if (onNavigateToInspectionRemarks) {
-                    onNavigateToInspectionRemarks(damageData);
-                }
-            } else {
-                Alert.alert('Upload Failed', `Failed to upload damage photos: ${uploadResult.error}`);
-                console.error('❌ S3 upload failed:', uploadResult.error);
+            // Navigate to Inspection Remarks screen (since there are damages)
+            if (onNavigateToInspectionRemarks) {
+                onNavigateToInspectionRemarks(damageData);
             }
         } catch (error) {
-            Alert.alert('Upload Error', 'An error occurred while uploading damage photos. Please try again.');
+            Alert.alert('Error', 'An error occurred. Please try again.');
             console.error('❌ Error in handleNext:', error);
         } finally {
             setIsProcessing(false);
@@ -334,30 +327,6 @@ const StepEightDamagePhotos = ({ onBack, containerData, onNavigateToStepNine, on
 
                     {/* Damage Guide Overlay */}
                     <View style={cn('absolute inset-0 justify-center items-center')}>
-                        {/* Container Number and Trip Segment Display */}
-                        <View style={cn('absolute top-2 left-4 right-4')}>
-                            <View style={cn(`p-4 rounded-lg ${isDark ? 'bg-gray-700 border-gray-600' : 'bg-gray-50 border-gray-200'} border`)}>
-                                <View style={cn('flex-row items-center justify-between')}>
-                                    <View style={cn('flex-1')}>
-                                        <Text style={cn(`text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-600'} mb-1`)}>
-                                            Container Number
-                                        </Text>
-                                        <Text style={cn(`text-lg font-bold ${isDark ? 'text-white' : 'text-black'}`)}>
-                                            {containerData?.containerNumber || 'N/A'}
-                                        </Text>
-                                    </View>
-                                    <View style={cn('flex-1 ml-4')}>
-                                        <Text style={cn(`text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-600'} mb-1`)}>
-                                            Trip Segment
-                                        </Text>
-                                        <Text style={cn(`text-lg font-semibold ${isDark ? 'text-white' : 'text-black'}`)}>
-                                            {containerData?.tripSegmentNumber || 'N/A'}
-                                        </Text>
-                                    </View>
-                                </View>
-                            </View>
-                        </View>
-
                         {/* Damage Guide Frame */}
                         <View style={cn('relative')}>
                             {/* Damage Rectangle Outline */}
@@ -532,20 +501,19 @@ const StepEightDamagePhotos = ({ onBack, containerData, onNavigateToStepNine, on
                                         Trailer Number
                                     </Text>
                                     <Text style={cn(`text-lg font-bold ${isDark ? 'text-white' : 'text-black'}`)}>
-                                        {trailerNumber || containerData?.trailerNumber || 'N/A'}
+                                        {containerData?.trailerNumber || 'N/A'}
                                     </Text>
                                 </View>
                                 <View style={cn('flex-1 ml-4')}>
                                     <Text style={cn(`text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-600'} mb-1`)}>
                                         Truck Number
                                     </Text>
-                                    <Text style={cn(`text-lg font-semibold ${isDark ? 'text-white' : 'text-black'}`)}>
-                                        {truckNumber || containerData?.truckNumber || 'N/A'}
+                                    <Text style={cn(`text-lg font-bold ${isDark ? 'text-white' : 'text-black'}`)}>
+                                        {containerData?.truckNumber || 'N/A'}
                                     </Text>
                                 </View>
                             </View>
                         </View>
-
 
                         {/* Damage Photos Section */}
                         <View style={cn(`${isDark ? 'bg-gray-800' : 'bg-white'} rounded-lg shadow-lg p-4 mb-6`)}>

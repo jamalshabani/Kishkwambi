@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, Alert, Animated, Modal } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, Animated, Modal, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -16,6 +16,11 @@ const StepTwoContainerDetails = ({ onBack, containerData, onNavigateToStepThree,
     // State for back wall damage modal
     const [showFrontWallModal, setShowFrontWallModal] = useState(false);
     const [containerDetailsData, setContainerDetailsData] = useState(null);
+    const [isSaving, setIsSaving] = useState(false);
+    
+    // State for missing information modal
+    const [showMissingInfoModal, setShowMissingInfoModal] = useState(false);
+    const [missingInfoMessage, setMissingInfoMessage] = useState('');
 
     // Animation values for theme switcher
     const themeIconRotation = useRef(new Animated.Value(0)).current;
@@ -48,7 +53,7 @@ const StepTwoContainerDetails = ({ onBack, containerData, onNavigateToStepThree,
     };
 
     // Form state
-    const [containerColor, setContainerColor] = useState('Silver');
+    const [containerColor, setContainerColor] = useState('');
     const [containerType, setContainerType] = useState('Dry Container');
     const [containerSize, setContainerSize] = useState('45ft');
 
@@ -119,43 +124,33 @@ const StepTwoContainerDetails = ({ onBack, containerData, onNavigateToStepThree,
         'M5T1': { type: 'Tank Container', size: '48ft', height: '9ft 6in' },
     };
 
-    // Prefill container details based on ISO code and detected color
+    // Prefill container details based on ISO code and restore previous selections
     useEffect(() => {
+        // Restore container type and size from ISO code
         if (containerData?.isoCode && isoCodeMapping[containerData.isoCode]) {
             const mapping = isoCodeMapping[containerData.isoCode];
             setContainerType(mapping.type);
             setContainerSize(mapping.size);
         }
 
-        // Prefill container color if detected
+        // Restore previously selected container color when navigating back
         if (containerData?.containerColor) {
-            const detectedColor = containerData.containerColor;
-            // Check if detected color is in our color options
-            const colorOption = colorOptions.find(option => option.value === detectedColor);
-            if (colorOption) {
-                setContainerColor(detectedColor);
-                console.log('🎨 Prefilled container color:', detectedColor);
-            } else {
-                console.log('🎨 Detected color not in options:', detectedColor);
-                // Try to find a close match
-                const colorLower = detectedColor.toLowerCase();
-                const closeMatch = colorOptions.find(option =>
-                    option.value.toLowerCase() === colorLower ||
-                    option.value.toLowerCase().includes(colorLower) ||
-                    colorLower.includes(option.value.toLowerCase())
-                );
-                if (closeMatch) {
-                    setContainerColor(closeMatch.value);
-                    console.log('🎨 Using close color match:', closeMatch.value);
-                }
-            }
+            console.log('🎨 Restoring previously selected color:', containerData.containerColor);
+            setContainerColor(containerData.containerColor);
         }
     }, [containerData]);
 
     const handleNext = () => {
         // Validate required fields
-        if (!containerColor || !containerType || !containerSize) {
-            Alert.alert('Missing Information', 'Please fill in all required fields.');
+        if (!containerColor) {
+            setMissingInfoMessage('Please select a container color before proceeding.');
+            setShowMissingInfoModal(true);
+            return;
+        }
+        
+        if (!containerType || !containerSize) {
+            setMissingInfoMessage('Please fill in all required fields.');
+            setShowMissingInfoModal(true);
             return;
         }
 
@@ -165,13 +160,51 @@ const StepTwoContainerDetails = ({ onBack, containerData, onNavigateToStepThree,
 
     const handleFrontWallResponse = async (isDamaged) => {
         setShowFrontWallModal(false);
+        setIsSaving(true);
+
+        const BACKEND_URL = API_CONFIG.getBackendUrl();
+
+        // Save container details (color, type, size) to database
+        try {
+            console.log('💾 Saving container details to database...');
+
+            // Get the hex code for the selected color
+            const selectedColorOption = colorOptions.find(option => option.value === containerColor);
+            const containerColorCode = selectedColorOption?.hexColor || '#666666';
+
+            const updateData = {
+                containerNumber: containerData?.containerNumber,
+                containerColor: containerColor,
+                containerColorCode: containerColorCode,
+                containerType: containerType,
+                containerSize: containerSize
+            };
+
+            console.log('📝 Container details to save:', updateData);
+
+            const updateResponse = await fetch(`${BACKEND_URL}/api/update-container-info`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(updateData),
+            });
+
+            const updateResult = await updateResponse.json();
+
+            if (updateResult.success) {
+                console.log('✅ Container details saved successfully');
+            } else {
+                console.error('❌ Failed to save container details:', updateResult.error);
+            }
+        } catch (error) {
+            console.error('❌ Error saving container details:', error);
+        }
 
         // If damaged, update database with damage status
         if (isDamaged) {
             try {
                 console.log('🔧 Updating damage status in database...');
-
-                const BACKEND_URL = API_CONFIG.getBackendUrl();
 
                 const response = await fetch(`${BACKEND_URL}/api/update-damage-status`, {
                     method: 'POST',
@@ -199,10 +232,15 @@ const StepTwoContainerDetails = ({ onBack, containerData, onNavigateToStepThree,
             }
         }
 
+        // Get the hex code for the selected color to include in containerDetailsData
+        const selectedColorOption = colorOptions.find(option => option.value === containerColor);
+        const containerColorCode = selectedColorOption?.hexColor || '#666666';
+
         // Prepare container data for next step
         const containerDetailsData = {
             ...containerData,
             containerColor,
+            containerColorCode,
             containerType,
             containerSize,
             backWallDamaged: isDamaged
@@ -210,6 +248,7 @@ const StepTwoContainerDetails = ({ onBack, containerData, onNavigateToStepThree,
 
         // Save container details data to state for navigation
         setContainerDetailsData(containerDetailsData);
+        setIsSaving(false);
 
         // Navigate based on damage status
         if (isDamaged) {
@@ -235,7 +274,7 @@ const StepTwoContainerDetails = ({ onBack, containerData, onNavigateToStepThree,
                 {/* Title */}
                 <View style={cn('flex-row items-center flex-1')}>
                     <TouchableOpacity 
-                        onPress={onBack}
+                        onPress={() => onBack(containerData)}
                         style={cn('mr-3 p-1')}
                     >
                         <ArrowLeft size={24} color={isDark ? '#F3F4F6' : '#1F2937'} />
@@ -310,25 +349,12 @@ const StepTwoContainerDetails = ({ onBack, containerData, onNavigateToStepThree,
                                     <Text style={cn(`text-sm font-semibold ${isDark ? 'text-white' : 'text-black'}`)}>
                                         Container Color <Text style={cn('text-red-500')}>*</Text>
                                     </Text>
-                                    {containerData?.containerColor ? (
-                                        <View style={cn('ml-2 px-2 py-1 bg-green-100 rounded-full')}>
-                                            <Text style={cn('text-xs text-green-800 font-medium')}>
-                                                Auto-detected
-                                            </Text>
-                                        </View>
-                                    ) : (
-                                        <View style={cn('ml-2 px-2 py-1 bg-green-100 rounded-full')}>
-                                            <Text style={cn('text-xs text-green-800 font-medium')}>
-                                                Selected
-                                            </Text>
-                                        </View>
-                                    )}
                                 </View>
                                 <SelectList
                                     setSelected={(val) => setContainerColor(val)}
                                     data={colorOptions}
                                     save="value"
-                                    defaultOption={{ key: containerColor, value: containerColor }}
+                                    defaultOption={containerColor ? { key: containerColor, value: containerColor } : undefined}
                                     placeholder="Select Container Color"
                                     search={false}
                                     boxStyles={{
@@ -354,25 +380,7 @@ const StepTwoContainerDetails = ({ onBack, containerData, onNavigateToStepThree,
                                         fontSize: 16,
                                     }}
                                 />
-                                {containerData?.colorHex ? (
-                                    <View style={cn('mt-2 flex-row items-center')}>
-                                        <Text style={cn(`text-xs ${isDark ? 'text-gray-300' : 'text-gray-600'}`)}>
-                                            Detected color:
-                                        </Text>
-                                        {(() => {
-                                            const selectedColorOption = colorOptions.find(option => option.value === containerColor);
-                                            const hexCode = selectedColorOption?.hexColor || '#666666';
-                                            return (
-                                                <>
-                                                    <View style={[cn('ml-2 w-4 h-4 rounded border'), { backgroundColor: hexCode }]} />
-                                                    <Text style={cn(`ml-2 text-xs ${isDark ? 'text-gray-300' : 'text-gray-600'}`)}>
-                                                        {hexCode}
-                                                    </Text>
-                                                </>
-                                            );
-                                        })()}
-                                    </View>
-                                ) : (
+                                {containerColor && (
                                     <View style={cn('mt-2 flex-row items-center')}>
                                         <Text style={cn(`text-xs ${isDark ? 'text-gray-300' : 'text-gray-600'}`)}>
                                             Selected color:
@@ -414,33 +422,27 @@ const StepTwoContainerDetails = ({ onBack, containerData, onNavigateToStepThree,
                             </View>
                         </ScrollView>
 
-                        {/* Navigation Buttons */}
-                        <View style={cn('mt-4 flex-row gap-3')}>
-                            <TouchableOpacity
-                                onPress={onBack}
-                                style={cn('flex-1 rounded-lg overflow-hidden')}
-                            >
-                                <LinearGradient
-                                    colors={['#000000', '#F59E0B']}
-                                    start={{ x: 0, y: 0 }}
-                                    end={{ x: 1, y: 0 }}
-                                    style={cn('p-4 items-center')}
-                                >
-                                    <Text style={cn('text-white font-bold')}>Previous</Text>
-                                </LinearGradient>
-                            </TouchableOpacity>
-
+                        {/* Navigation Button */}
+                        <View style={cn('mt-4')}>
                             <TouchableOpacity
                                 onPress={handleNext}
-                                style={cn('flex-1 rounded-lg overflow-hidden')}
+                                disabled={isSaving}
+                                style={cn(`w-full rounded-lg overflow-hidden ${isSaving ? 'opacity-50' : ''}`)}
                             >
                                 <LinearGradient
-                                    colors={['#F59E0B', '#000000']}
+                                    colors={isSaving ? ['#9CA3AF', '#6B7280'] : ['#F59E0B', '#000000']}
                                     start={{ x: 0, y: 0 }}
                                     end={{ x: 1, y: 0 }}
                                     style={cn('p-4 items-center')}
                                 >
-                                    <Text style={cn('text-white font-bold')}>Next</Text>
+                                    {isSaving ? (
+                                        <View style={cn('flex-row items-center')}>
+                                            <ActivityIndicator size="small" color="white" style={cn('mr-2')} />
+                                            <Text style={cn('text-white font-bold')}>Saving...</Text>
+                                        </View>
+                                    ) : (
+                                        <Text style={cn('text-white font-bold')}>Next</Text>
+                                    )}
                                 </LinearGradient>
                             </TouchableOpacity>
                         </View>
@@ -502,6 +504,39 @@ const StepTwoContainerDetails = ({ onBack, containerData, onNavigateToStepThree,
                                 </LinearGradient>
                             </TouchableOpacity>
                         </View>
+                    </View>
+                </View>
+            </Modal>
+
+            {/* Missing Information Modal */}
+            <Modal
+                visible={showMissingInfoModal}
+                transparent={true}
+                animationType="fade"
+                onRequestClose={() => setShowMissingInfoModal(false)}
+            >
+                <View style={cn('flex-1 justify-center items-center bg-black/50')}>
+                    <View style={cn('bg-white rounded-3xl mx-8 p-6')}>
+                        
+                        {/* Message Text */}
+                        <View style={cn('mt-4 mb-6')}>
+                            <Text style={cn('text-red-500 text-center text-lg font-semibold leading-6')}>
+                                Missing Information
+                            </Text>
+                            <Text style={cn('text-gray-600 font-bold text-center text-sm mt-2')}>
+                                {missingInfoMessage}
+                            </Text>
+                        </View>
+                        
+                        {/* OK Button */}
+                        <TouchableOpacity
+                            onPress={() => setShowMissingInfoModal(false)}
+                            style={cn('bg-red-500 rounded-xl py-4')}
+                        >
+                            <Text style={cn('text-white text-center font-semibold text-base')}>
+                                OK
+                            </Text>
+                        </TouchableOpacity>
                     </View>
                 </View>
             </Modal>

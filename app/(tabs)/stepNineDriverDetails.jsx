@@ -594,30 +594,6 @@ const StepNineDriverDetails = ({ onBack, containerData, onComplete, onShowSucces
 
                     {/* Driver License Guide Overlay */}
                     <View style={cn('absolute inset-0 justify-center items-center')}>
-                        {/* Container Number and Trip Segment Display */}
-                        <View style={cn('absolute top-2 left-4 right-4')}>
-                            <View style={cn(`p-4 rounded-lg ${isDark ? 'bg-gray-700 border-gray-600' : 'bg-gray-50 border-gray-200'} border`)}>
-                                <View style={cn('flex-row items-center justify-between')}>
-                                    <View style={cn('flex-1')}>
-                                        <Text style={cn(`text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-600'} mb-1`)}>
-                                            Container Number
-                                        </Text>
-                                        <Text style={cn(`text-lg font-bold ${isDark ? 'text-white' : 'text-black'}`)}>
-                                            {containerData?.containerNumber || 'N/A'}
-                                        </Text>
-                                    </View>
-                                    <View style={cn('flex-1 ml-4')}>
-                                        <Text style={cn(`text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-600'} mb-1`)}>
-                                            Trip Segment
-                                        </Text>
-                                        <Text style={cn(`text-lg font-semibold ${isDark ? 'text-white' : 'text-black'}`)}>
-                                            {containerData?.tripSegmentNumber || 'N/A'}
-                                        </Text>
-                                    </View>
-                                </View>
-                            </View>
-                        </View>
-
                         {/* Driver License Guide Frame */}
                         <View style={cn('relative')}>
                             {/* Driver License Rectangle Outline - 85.60mm x 54.00mm */}

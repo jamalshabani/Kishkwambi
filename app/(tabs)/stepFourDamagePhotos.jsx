@@ -7,6 +7,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import * as ImagePicker from 'expo-image-picker';
 import { cn } from '../../lib/tw';
 import { useTheme } from '../../contexts/ThemeContext';
+import TimerDisplay from '../../components/common/TimerDisplay';
 import { API_CONFIG } from '../../lib/config';
 import { Sun, Moon, Eye, X, ArrowLeft, Camera } from 'lucide-react-native';
 
@@ -52,12 +53,15 @@ const StepFourDamagePhotos = ({ onBack, containerData, onNavigateToStepFive, onN
             console.log('📸 Restoring Right Wall damage photos from previous data');
             console.log('📸 Number of photos to restore:', containerData.rightWallDamagePhotos.length);
             // Convert stored photos back to format expected by the component
-            const restoredPhotos = containerData.rightWallDamagePhotos.map((photo, index) => ({
-                id: photo.id || Date.now() + index, // Ensure each photo has a unique id
-                uri: photo.uri || `data:image/jpeg;base64,${photo.base64}`,
-                base64: photo.base64,
-                timestamp: photo.timestamp || new Date().toISOString()
-            }));
+            const restoredPhotos = containerData.rightWallDamagePhotos.map((photo, index) => {
+                console.log(`📸 Photo ${index} - has uri:`, !!photo.uri, 'has base64:', !!photo.base64);
+                return {
+                    id: photo.id || Date.now() + index, // Ensure each photo has a unique id
+                    uri: photo.uri, // Use the uri directly
+                    base64: photo.base64,
+                    timestamp: photo.timestamp || new Date().toISOString()
+                };
+            });
             setDamagePhotos(restoredPhotos);
             console.log('✅ Damage photos restored successfully');
         } else {
@@ -196,33 +200,26 @@ const StepFourDamagePhotos = ({ onBack, containerData, onNavigateToStepFive, onN
         setIsProcessing(true);
 
         try {
-            // Upload damage photos to S3
-            const uploadResult = await uploadDamagePhotosToS3(damagePhotos, containerData?.tripSegmentNumber);
+            console.log('📸 Storing Right Wall damage photos for batch upload');
+            
+            // Prepare damage data for next step - photos will be uploaded at final submit
+            const damageData = {
+                ...containerData,
+                rightSideDamageCount: damagePhotos.length,
+                rightWallDamagePhotos: damagePhotos // Store for data persistence and batch upload
+            };
+            
+            // Save damage data to state for navigation
+            setDamageData(damageData);
 
-            if (uploadResult.success) {
-                console.log('✅ Right wall damage photos uploaded to S3 successfully');
+            console.log('✅ Right Wall damage photos stored successfully');
 
-                // Prepare damage data for next step with damage photo objects
-                const damageData = {
-                    ...containerData,
-                    rightSideDamagePhotos: uploadResult.damagePhotos, // Use damage photo objects from S3
-                    rightSideDamageCount: damagePhotos.length,
-                    rightWallDamagePhotos: damagePhotos // Store for data persistence when navigating back
-                };
-                
-                // Save damage data to state for navigation
-                setDamageData(damageData);
-
-                // Navigate to Front Wall Photo screen
-                if (onNavigateToStepFive) {
-                    onNavigateToStepFive(damageData);
-                }
-            } else {
-                Alert.alert('Upload Failed', `Failed to upload damage photos: ${uploadResult.error}`);
-                console.error('❌ S3 upload failed:', uploadResult.error);
+            // Navigate to Front Wall Photo screen
+            if (onNavigateToStepFive) {
+                onNavigateToStepFive(damageData);
             }
         } catch (error) {
-            Alert.alert('Upload Error', 'An error occurred while uploading damage photos. Please try again.');
+            Alert.alert('Error', 'An error occurred. Please try again.');
             console.error('❌ Error in handleNext:', error);
         } finally {
             setIsProcessing(false);
@@ -274,39 +271,44 @@ const StepFourDamagePhotos = ({ onBack, containerData, onNavigateToStepFive, onN
 
             {/* Header */}
             <View style={cn(`${isDark ? 'bg-gray-900' : 'bg-white/10'} px-6 py-4 border-b ${isDark ? 'border-gray-700' : 'border-gray-300'} flex-row items-center justify-between shadow-sm`)}>
-                {/* Back Button */}
-                <TouchableOpacity
-                    onPress={onBack}
-                    style={cn('mr-4 p-2')}
-                >
-                    <ArrowLeft size={24} color={isDark ? '#F59E0B' : '#1F2937'} />
-                </TouchableOpacity>
-
                 {/* Title */}
-                <Text style={cn(`text-lg font-bold ${isDark ? 'text-gray-100' : 'text-gray-800'} flex-1`)}>
-                    Right Wall
-                </Text>
-
-
-                {/* Theme Switcher */}
-                <Animated.View
-                    style={{
-                        transform: [
-                            { scale: themeButtonScale }
-                        ]
-                    }}
-                >
+                <View style={cn('flex-row items-center flex-1')}>
                     <TouchableOpacity
-                        onPress={handleThemeToggle}
-                        style={cn('p-2')}
+                        onPress={onBack}
+                        style={cn('mr-3 p-1')}
                     >
-                        {isDark ? (
-                            <Sun size={24} color="#6B7280" />
-                        ) : (
-                            <Moon size={24} color="#6B7280" />
-                        )}
+                        <ArrowLeft size={24} color={isDark ? '#F3F4F6' : '#1F2937'} />
                     </TouchableOpacity>
-                </Animated.View>
+                    <Text style={cn(`text-lg font-bold ${isDark ? 'text-gray-100' : 'text-gray-800'}`)}>
+                        Right Wall
+                    </Text>
+                </View>
+
+                {/* Timer Display and Theme Switcher */}
+                <View style={cn('flex-row items-center')}>
+                    {/* Timer Display */}
+                    <TimerDisplay />
+
+                    {/* Theme Switcher */}
+                    <Animated.View
+                        style={{
+                            transform: [
+                                { scale: themeButtonScale }
+                            ]
+                        }}
+                    >
+                        <TouchableOpacity
+                            onPress={handleThemeToggle}
+                            style={cn('p-2')}
+                        >
+                            {isDark ? (
+                                <Sun size={24} color="#6B7280" />
+                            ) : (
+                                <Moon size={24} color="#6B7280" />
+                            )}
+                        </TouchableOpacity>
+                    </Animated.View>
+                </View>
             </View>
 
             {!showCamera ? (
@@ -339,12 +341,11 @@ const StepFourDamagePhotos = ({ onBack, containerData, onNavigateToStepFive, onN
                                         Trailer Number
                                     </Text>
                                     <Text style={cn(`text-lg font-bold ${isDark ? 'text-white' : 'text-black'}`)}>
-                                        {trailerNumber || containerData?.trailerNumber || 'N/A'}
+                                        {containerData?.trailerNumber || 'N/A'}
                                     </Text>
                                 </View>
                             </View>
                         </View>
-
 
                         {/* Damage Photos Section */}
                         <View style={cn(`${isDark ? 'bg-gray-800' : 'bg-white'} rounded-lg shadow-lg p-4 mb-6`)}>
@@ -367,11 +368,11 @@ const StepFourDamagePhotos = ({ onBack, containerData, onNavigateToStepFive, onN
                                                     style={cn('relative')}
                                                 >
                                                     <Image
-                                                        source={{ uri: `data:image/jpeg;base64,${photo.base64}` }}
-                                                        style={cn('w-20 h-20 rounded-lg')}
+                                                        source={{ uri: photo.uri }}
+                                                        style={cn('w-40 h-40 rounded-lg')}
                                                     />
                                                     <View style={cn('absolute inset-0 bg-black/30 rounded-lg items-center justify-center')}>
-                                                        <Eye size={16} color="white" />
+                                                        <Eye size={28} color="white" />
                                                     </View>
                                                 </TouchableOpacity>
                                                 <TouchableOpacity
@@ -500,7 +501,7 @@ const StepFourDamagePhotos = ({ onBack, containerData, onNavigateToStepFive, onN
 
                     {/* Full Size Image */}
                     <Image
-                        source={{ uri: `data:image/jpeg;base64,${damagePhotos[selectedImageIndex]?.base64}` }}
+                        source={{ uri: damagePhotos[selectedImageIndex]?.uri }}
                         style={cn('w-full h-full')}
                         resizeMode="contain"
                     />

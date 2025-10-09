@@ -24,6 +24,11 @@ const userSchema = new Schema({
         required: true
     },
 
+    profilePicture: {
+        type: String,
+        required: false
+    },
+
     role: {
         type: String,
         required: true

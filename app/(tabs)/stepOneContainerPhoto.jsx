@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { View, Text, TouchableOpacity, Alert, Image, Animated, Modal, TextInput, ActivityIndicator, ScrollView, KeyboardAvoidingView, Platform, Dimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -14,7 +14,7 @@ import TimerDisplay from '../../components/common/TimerDisplay';
 import { API_CONFIG } from '../../lib/config';
 import { Camera as CameraIcon, Sun, Moon, ArrowLeft, Eye, X } from 'lucide-react-native';
 
-const StepOneContainerPhoto = ({ onBack, onNavigateToStepTwo, onNavigateToDamagePhotos }) => {
+const StepOneContainerPhoto = ({ onBack, onNavigateToStepTwo, onNavigateToDamagePhotos, containerData: incomingContainerData }) => {
     const { isDark, toggleTheme } = useTheme();
     const { user } = useAuth();
     const [permission, requestPermission] = useCameraPermissions();
@@ -30,11 +30,6 @@ const StepOneContainerPhoto = ({ onBack, onNavigateToStepTwo, onNavigateToDamage
         isoCode: '',
     });
     const [containerData, setContainerData] = useState(null);
-    const [comparisonResults, setComparisonResults] = useState({
-        parkrow: { containerNumber: '', isoCode: '' },
-        googleVision: { containerNumber: '', isoCode: '' },
-        processingTime: 0
-    });
     const [isProcessing, setIsProcessing] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [facing, setFacing] = useState('back');
@@ -48,6 +43,45 @@ const StepOneContainerPhoto = ({ onBack, onNavigateToStepTwo, onNavigateToDamage
     // Animation values for theme switcher
     const themeIconRotation = useRef(new Animated.Value(0)).current;
     const themeButtonScale = useRef(new Animated.Value(1)).current;
+
+    // Restore container photo and data when navigating back
+    useEffect(() => {
+        if (incomingContainerData) {
+            console.log('🔄 Restoring container data from previous screen');
+            
+            // Restore container photo
+            if (incomingContainerData.containerPhoto) {
+                console.log('📸 Restoring container photo');
+                setImage(incomingContainerData.containerPhoto);
+            }
+            
+            // Restore container number
+            if (incomingContainerData.containerNumber) {
+                console.log('📝 Restoring container number:', incomingContainerData.containerNumber);
+                const containerChars = incomingContainerData.containerNumber.padEnd(11, ' ').split('').slice(0, 11);
+                setContainerNumber(containerChars);
+                setExtractedData(prev => ({
+                    ...prev,
+                    containerNumber: incomingContainerData.containerNumber
+                }));
+            }
+            
+            // Restore ISO code
+            if (incomingContainerData.isoCode) {
+                console.log('📝 Restoring ISO code:', incomingContainerData.isoCode);
+                const isoChars = incomingContainerData.isoCode.padEnd(4, ' ').split('').slice(0, 4);
+                setIsoCode(isoChars);
+                setExtractedData(prev => ({
+                    ...prev,
+                    isoCode: incomingContainerData.isoCode
+                }));
+            }
+            
+            // Store the incoming container data
+            setContainerData(incomingContainerData);
+            console.log('✅ Container data restored successfully');
+        }
+    }, [incomingContainerData]);
 
     // Mask component for the container area
     const ContainerMask = () => (
@@ -351,49 +385,31 @@ const StepOneContainerPhoto = ({ onBack, onNavigateToStepTwo, onNavigateToDamage
         if (isoCode.startsWith('4')) return '40ft';
         if (isoCode.startsWith('5')) return '45ft';
         if (isoCode.startsWith('M')) return '48ft';
-        return 'Unknown Size';
+        return '40ft';
     };
 
-    // Function to select the best results based on confidence scores
-    const selectBestResults = (parkrowData, googleVisionData) => {
+    // Function to extract results from ParkRow data
+    const extractParkRowResults = (parkrowData) => {
         const parkrow = parkrowData || {};
-        const googleVision = googleVisionData || {};
         
-        // Select container number with highest confidence
-        const parkrowContainerConfidence = parkrow.containerNumberConfidence || 0;
-        const googleVisionContainerConfidence = googleVision.containerNumberConfidence || 0;
+        const containerNumberConfidence = parkrow.containerNumberConfidence || 0;
+        const isoCodeConfidence = parkrow.isoCodeConfidence || 0;
         
-        const bestContainerNumber = parkrowContainerConfidence > googleVisionContainerConfidence 
-            ? parkrow.containerNumber 
-            : googleVision.containerNumber;
-        
-        // Select ISO code with highest confidence
-        const parkrowIsoConfidence = parkrow.isoCodeConfidence || 0;
-        const googleVisionIsoConfidence = googleVision.isoCodeConfidence || 0;
-        
-        const bestIsoCode = parkrowIsoConfidence > googleVisionIsoConfidence 
-            ? parkrow.isoCode 
-            : googleVision.isoCode;
-        
-        console.log('=== CONFIDENCE COMPARISON ===');
+        console.log('=== PARKROW DETECTION RESULTS ===');
         console.log('Container Number:');
-        console.log(`  ParkRow: "${parkrow.containerNumber}" (${(parkrowContainerConfidence * 100).toFixed(1)}%)`);
-        console.log(`  Google Vision: "${googleVision.containerNumber}" (${(googleVisionContainerConfidence * 100).toFixed(1)}%)`);
-        console.log(`  Selected: "${bestContainerNumber}"`);
+        console.log(`  ParkRow: "${parkrow.containerNumber}" (${(containerNumberConfidence * 100).toFixed(1)}%)`);
         console.log('ISO Code:');
-        console.log(`  ParkRow: "${parkrow.isoCode}" (${(parkrowIsoConfidence * 100).toFixed(1)}%)`);
-        console.log(`  Google Vision: "${googleVision.isoCode}" (${(googleVisionIsoConfidence * 100).toFixed(1)}%)`);
-        console.log(`  Selected: "${bestIsoCode}"`);
-        console.log('=============================');
+        console.log(`  ParkRow: "${parkrow.isoCode}" (${(isoCodeConfidence * 100).toFixed(1)}%)`);
+        console.log('=================================');
         
         return {
-            containerNumber: bestContainerNumber,
-            isoCode: bestIsoCode,
-            containerNumberConfidence: Math.max(parkrowContainerConfidence, googleVisionContainerConfidence),
-            isoCodeConfidence: Math.max(parkrowIsoConfidence, googleVisionIsoConfidence),
+            containerNumber: parkrow.containerNumber,
+            isoCode: parkrow.isoCode,
+            containerNumberConfidence: containerNumberConfidence,
+            isoCodeConfidence: isoCodeConfidence,
             selectedFrom: {
-                containerNumber: parkrowContainerConfidence > googleVisionContainerConfidence ? 'ParkRow' : 'Google Vision',
-                isoCode: parkrowIsoConfidence > googleVisionIsoConfidence ? 'ParkRow' : 'Google Vision'
+                containerNumber: 'ParkRow',
+                isoCode: 'ParkRow'
             }
         };
     };
@@ -411,68 +427,36 @@ const StepOneContainerPhoto = ({ onBack, onNavigateToStepTwo, onNavigateToDamage
             
             console.log('🔍 Validating container number:', correctedContainerNumber);
             
-            // Call both validation and color detection concurrently
-            const [validationResponse, colorResponse] = await Promise.all([
-                // Container validation
-                fetch(`${BACKEND_URL}/api/validate-container`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({ 
-                        containerNumber: correctedContainerNumber,
-                        containerStatus: "Not Received"
-                    }),
-                }).then(res => res.json()).catch(err => ({
-                    success: false,
-                    error: `Validation Error: ${err.message}`
-                })),
-                
-                // Color detection (only if we have an image)
-                image ? (async () => {
-                    const colorFormData = new FormData();
-                    colorFormData.append('image', {
-                        uri: image,
-                        type: 'image/jpeg',
-                        name: 'container_color.jpg'
-                    });
-                    return fetch(`${BACKEND_URL}/api/vision/google-vision-color`, {
-                        method: 'POST',
-                        body: colorFormData,
-                        headers: {
-                            'Content-Type': 'multipart/form-data',
-                        },
-                    }).then(res => res.json()).catch(err => ({
-                        success: false,
-                        error: `Color Detection Error: ${err.message}`,
-                        data: { containerColor: '', colorHex: '' }
-                    }));
-                })() : Promise.resolve({
-                    success: false,
-                    error: 'No image available for color detection',
-                    data: { containerColor: '', colorHex: '' }
-                })
-            ]);
+            // Container validation
+            const validationResponse = await fetch(`${BACKEND_URL}/api/validate-container`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ 
+                    containerNumber: correctedContainerNumber,
+                    containerStatus: "Not Received"
+                }),
+            }).then(res => res.json()).catch(err => ({
+                success: false,
+                error: `Validation Error: ${err.message}`
+            }));
             
             console.log('🔍 Full validation response:', JSON.stringify(validationResponse, null, 2));
             
             if (validationResponse.success) {
                 console.log('🔍 Container exists check:', validationResponse.exists);
                 if (validationResponse.exists) {
-                    // Prepare container data with color information using corrected container number
+                    // Prepare container data using corrected container number
                     const containerData = {
                         containerNumber: correctedContainerNumber,
                         isoCode: isoCode.join('').trim() || extractedData.isoCode,
-                        containerColor: colorResponse.success ? colorResponse.data.containerColor : '',
-                        colorHex: colorResponse.success ? colorResponse.data.colorHex : '',
-                        tripSegmentNumber: validationResponse.containerData?.tripSegmentNumber || 'N/A'
+                        tripSegmentNumber: validationResponse.containerData?.tripSegmentNumber || 'N/A',
+                        containerPhoto: image // Include the photo for persistence
                     };
                     
                     // Save container data to state for navigation
                     setContainerData(containerData);
-                    
-                    console.log('🎨 Detected color:', containerData.containerColor);
-                    console.log('🎨 Color hex:', containerData.colorHex);
                     
                     // Update container information in database before navigating
                     try {
@@ -496,8 +480,6 @@ const StepOneContainerPhoto = ({ onBack, onNavigateToStepTwo, onNavigateToDamage
                             containerNumber: correctedContainerNumber,
                             isoCode: containerData.isoCode,
                             containerType: containerType,
-                            containerColor: containerData.containerColor,
-                            containerColorCode: containerData.colorHex,
                             containerSize: containerSize,
                             inspectorName: inspectorName,
                             inspectionDate: inspectionDate
@@ -519,9 +501,8 @@ const StepOneContainerPhoto = ({ onBack, onNavigateToStepTwo, onNavigateToDamage
                         
                         if (updateResult.success) {
                             console.log('✅ Container information updated successfully');
-                            
-                            // Upload the container photo to shared storage
-                            await uploadContainerPhoto(image, containerData.tripSegmentNumber);
+                            // Photo will be uploaded at final submit
+                            console.log('📸 Front wall photo stored for batch upload');
                         } else {
                             console.warn('⚠️ Failed to update container information:', updateResult.error);
                         }
@@ -567,7 +548,7 @@ const StepOneContainerPhoto = ({ onBack, onNavigateToStepTwo, onNavigateToDamage
             const BACKEND_URL = API_CONFIG.getBackendUrl();
             const startTime = Date.now();
             
-            console.log('🚀 Testing both ParkRow API and Google Vision AI concurrently...');
+            console.log('🚀 Calling ParkRow API for container number and ISO code detection...');
             
             // Create FormData for file upload
             const formData = new FormData();
@@ -577,50 +558,29 @@ const StepOneContainerPhoto = ({ onBack, onNavigateToStepTwo, onNavigateToDamage
                 name: 'container.jpg'
             });
             
-            // Call both APIs concurrently using Promise.all
-            const [parkrowResponse, googleVisionResponse] = await Promise.all([
-                // ParkRow API call
-                fetch(`${BACKEND_URL}/api/vision/process-image`, {
-                    method: 'POST',
-                    body: formData,
-                    headers: {
-                        'Content-Type': 'multipart/form-data',
-                    },
-                }).then(res => res.json()).catch(err => ({
-                    success: false,
-                    error: `ParkRow API Error: ${err.message}`,
-                    data: { containerNumber: '', isoCode: '' }
-                })),
-                
-                // Google Vision API call
-                fetch(`${BACKEND_URL}/api/vision/google-vision`, {
+            // Call ParkRow API
+            const parkrowResponse = await fetch(`${BACKEND_URL}/api/vision/process-image`, {
                 method: 'POST',
                 body: formData,
                 headers: {
                     'Content-Type': 'multipart/form-data',
                 },
-                }).then(res => res.json()).catch(err => ({
-                    success: false,
-                    error: `Google Vision API Error: ${err.message}`,
-                    data: { containerNumber: '', isoCode: '' }
-                }))
-            ]);
+            }).then(res => res.json()).catch(err => ({
+                success: false,
+                error: `ParkRow API Error: ${err.message}`,
+                data: { containerNumber: '', isoCode: '' }
+            }));
             
             const endTime = Date.now();
             const processingTime = ((endTime - startTime) / 1000).toFixed(2);
             
-            // Store comparison results
-            setComparisonResults({
-                parkrow: parkrowResponse.data || { containerNumber: '', isoCode: '' },
-                googleVision: googleVisionResponse.data || { containerNumber: '', isoCode: '' },
-                processingTime: parseFloat(processingTime)
-            });
+            console.log(`⏱️ Processing completed in ${processingTime}s`);
             
-            // Select the best results based on confidence scores
-            const bestResults = selectBestResults(parkrowResponse.data, googleVisionResponse.data);
+            // Extract ParkRow results
+            const bestResults = extractParkRowResults(parkrowResponse.data);
             
             if (bestResults) {
-                console.log('Best results selected:', bestResults);
+                console.log('ParkRow results:', bestResults);
                 
                 setExtractedData({
                     containerNumber: bestResults.containerNumber || '',
@@ -640,9 +600,9 @@ const StepOneContainerPhoto = ({ onBack, onNavigateToStepTwo, onNavigateToDamage
                 setIsoCode(Array(4).fill(''));
             }
         } catch (error) {
-            const errorMessage = error.message || 'Failed to process image with Vision AI';
+            const errorMessage = error.message || 'Failed to process image with ParkRow API';
             Alert.alert('Error', errorMessage);
-            console.error('Vision AI error:', error);
+            console.error('ParkRow API error:', error);
             console.error('Error stack:', error.stack);
             
             // Set empty values on error
@@ -683,11 +643,6 @@ const StepOneContainerPhoto = ({ onBack, onNavigateToStepTwo, onNavigateToDamage
         setExtractedData({
             containerNumber: '',
             isoCode: '',
-        });
-        setComparisonResults({
-            parkrow: { containerNumber: '', isoCode: '' },
-            googleVision: { containerNumber: '', isoCode: '' },
-            processingTime: 0
         });
     };
 
@@ -852,7 +807,7 @@ const StepOneContainerPhoto = ({ onBack, onNavigateToStepTwo, onNavigateToDamage
                                 <View style={cn('relative')}>
                                     <Image 
                                         source={typeof image === 'string' ? { uri: image } : image} 
-                                        style={cn('w-[200px] h-[200px] rounded-lg')} 
+                                        style={cn('w-[280px] h-[280px] rounded-lg')} 
                                     />
                                     {/* Eye Icon Overlay */}
                                     <TouchableOpacity

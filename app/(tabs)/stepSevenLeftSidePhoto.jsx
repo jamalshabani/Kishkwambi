@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { View, Text, TouchableOpacity, Alert, Image, ScrollView, ActivityIndicator, Modal, Dimensions } from 'react-native';
+import { View, Text, TouchableOpacity, Alert, Image, ScrollView, ActivityIndicator, Modal, Dimensions, Animated } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { CameraView, useCameraPermissions } from 'expo-camera';
@@ -168,68 +168,23 @@ const StepSevenLeftSidePhoto = ({ containerData, truckData, onBack, onNavigateTo
 
         try {
             setIsProcessing(true);
-            console.log('📸 Starting left Wall Photo upload...');
+            console.log('📸 Storing Left Wall photo for batch upload');
             
-            const BACKEND_URL = API_CONFIG.getBackendUrl();
-            
-            console.log('📊 Base64 data length:', image?.length);
-            
-            // Create form data for upload - React Native compatible approach
-            const formData = new FormData();
-            
-            // Create a file-like object from URI
-            const fileData = {
-                uri: image,
-                type: 'image/jpeg',
-                name: 'left_side_photo.jpg',
-            };
-            
-            formData.append('photos', fileData);
-            formData.append('tripSegmentNumber', containerData?.tripSegmentNumber || '');
-            formData.append('containerNumber', containerData?.containerNumber || '');
-            formData.append('photoType', 'container');
-            formData.append('containerPhotoLocation', 'Container Left Wall');
-            
-            console.log('📊 File data created for upload');
-            
-            // Upload to Backblaze B2 and save to database
-            const uploadResponse = await fetch(`${BACKEND_URL}/api/upload/s3-container-photos`, {
-                method: 'POST',
-                body: formData,
-                headers: {
-                    'Content-Type': 'multipart/form-data',
-                },
+            // Store the photo data for batch upload at final submit
+            setLeftSidePhotoData({
+                ...containerData,
+                ...truckData,
+                leftSidePhoto: image  // Store for preview and batch upload
             });
             
-            const uploadResult = await uploadResponse.json();
+            console.log('✅ Left Wall photo stored successfully');
             
-            if (uploadResult.success) {
-                console.log('✅ Left Wall Photo uploaded successfully:', uploadResult);
-                
-                // Calculate file size from base64 data (approximate)
-                const fileSize = Math.round((image.length * 3) / 4);
-                console.log('📊 Estimated file size:', fileSize, 'bytes');
-                
-                // Store the upload result for later use
-                setLeftSidePhotoData({
-                    ...containerData,
-                    ...truckData,
-                    leftSidePhoto: image,
-                    leftSidePhotoBase64: image, // Store URI for back navigation preview
-                    leftSidePhotoUploadResult: uploadResult,
-                    leftSidePhotoSize: fileSize
-                });
-                
-                // Show damage check modal after successful upload
-                setShowDamageModal(true);
-            } else {
-                console.error('❌ Failed to upload left Wall Photo:', uploadResult.error);
-                Alert.alert('Upload Error', 'Failed to upload left Wall Photo. Please try again.');
-            }
+            // Show damage check modal
+            setShowDamageModal(true);
             
         } catch (error) {
-            console.error('❌ Error uploading left Wall Photo:', error);
-            Alert.alert('Error', 'An error occurred while uploading the photo. Please try again.');
+            console.error('❌ Error storing Left Wall photo:', error);
+            Alert.alert('Error', 'An error occurred. Please try again.');
         } finally {
             setIsProcessing(false);
         }
@@ -345,57 +300,15 @@ const StepSevenLeftSidePhoto = ({ containerData, truckData, onBack, onNavigateTo
                     
                     {/* Container Guide Overlay */}
                     <View style={cn('absolute inset-0 justify-center items-center')}>
-                        {/* Container Number and Trip Segment Display */}
-                        <View style={cn('absolute top-4 left-4 right-4')}>
-                            <View style={cn(`p-4 rounded-lg ${isDark ? 'bg-gray-700 border-gray-600' : 'bg-gray-50 border-gray-200'} border`)}>
-                                <View style={cn('flex-row items-center justify-between mb-3')}>
-                                    <View style={cn('flex-1')}>
-                                        <Text style={cn(`text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-600'} mb-1`)}>
-                                            Container Number
-                                        </Text>
-                                        <Text style={cn(`text-lg font-bold ${isDark ? 'text-white' : 'text-black'}`)}>
-                                            {containerData?.containerNumber || 'N/A'}
-                                        </Text>
-                                    </View>
-                                    <View style={cn('flex-1 ml-4')}>
-                                        <Text style={cn(`text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-600'} mb-1`)}>
-                                            Trip Segment
-                                        </Text>
-                                        <Text style={cn(`text-lg font-semibold ${isDark ? 'text-white' : 'text-black'}`)}>
-                                            {containerData?.tripSegmentNumber || 'N/A'}
-                                        </Text>
-                                    </View>
-                                </View>
-                                <View style={cn('flex-row items-center')}>
-                                    <View style={cn('flex-1')}>
-                                        <Text style={cn(`text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-600'} mb-1`)}>
-                                            Trailer Number
-                                        </Text>
-                                        <Text style={cn(`text-lg font-bold ${isDark ? 'text-white' : 'text-black'}`)}>
-                                            {trailerNumber || containerData?.trailerNumber || 'N/A'}
-                                        </Text>
-                                    </View>
-                                    <View style={cn('flex-1 ml-4')}>
-                                        <Text style={cn(`text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-600'} mb-1`)}>
-                                            Truck Number
-                                        </Text>
-                                        <Text style={cn(`text-lg font-semibold ${isDark ? 'text-white' : 'text-black'}`)}>
-                                            {truckNumber || truckData?.truckNumber || containerData?.truckNumber || 'N/A'}
-                                        </Text>
-                                    </View>
-                                </View>
-                            </View>
-                        </View>
-
                         {/* Container Guide Frame */}
                         <View style={cn('relative')}>
                             {/* Container Rectangle Outline */}
                             <View
                                 style={[
-                                    cn('border-2 border-green-500 bg-green-500/10 mt-8'),
+                                    cn('border-2 border-green-500 bg-green-500/10 -mt-33'),
                                     {
-                                        width: Dimensions.get('window').width * 0.9,
-                                        height: 420,
+                                        width: Dimensions.get('window').width * 0.7,
+                                        height: Dimensions.get('window').width * 1.2,
                                         borderRadius: 8,
                                     }
                                 ]}
@@ -451,15 +364,15 @@ const StepSevenLeftSidePhoto = ({ containerData, truckData, onBack, onNavigateTo
                                         Trailer Number
                                     </Text>
                                     <Text style={cn(`text-lg font-bold ${isDark ? 'text-white' : 'text-black'}`)}>
-                                        {trailerNumber || containerData?.trailerNumber || 'N/A'}
+                                        {containerData?.trailerNumber || 'N/A'}
                                     </Text>
                                 </View>
                                 <View style={cn('flex-1 ml-4')}>
                                     <Text style={cn(`text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-600'} mb-1`)}>
                                         Truck Number
                                     </Text>
-                                    <Text style={cn(`text-lg font-semibold ${isDark ? 'text-white' : 'text-black'}`)}>
-                                        {truckNumber || truckData?.truckNumber || containerData?.truckNumber || 'N/A'}
+                                    <Text style={cn(`text-lg font-bold ${isDark ? 'text-white' : 'text-black'}`)}>
+                                        {containerData?.truckNumber || 'N/A'}
                                     </Text>
                                 </View>
                             </View>
@@ -476,7 +389,7 @@ const StepSevenLeftSidePhoto = ({ containerData, truckData, onBack, onNavigateTo
                                 style={cn('relative')}
                             >
                                 <Image 
-                                    source={{ uri: `data:image/jpeg;base64,${image}` }} 
+                                    source={{ uri: image }} 
                                     style={cn('w-full h-64 rounded-lg')} 
                                 />
                                 <View style={cn('absolute inset-0 bg-black/30 rounded-lg items-center justify-center')}>
@@ -541,7 +454,7 @@ const StepSevenLeftSidePhoto = ({ containerData, truckData, onBack, onNavigateTo
                         <X size={32} color="white" />
                     </TouchableOpacity>
                     <Image 
-                        source={{ uri: `data:image/jpeg;base64,${image}` }} 
+                        source={{ uri: image }} 
                         style={cn('w-full h-full')} 
                         resizeMode="contain"
                     />

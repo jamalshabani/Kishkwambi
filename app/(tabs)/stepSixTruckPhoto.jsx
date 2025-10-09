@@ -362,47 +362,39 @@ const StepSixTruckPhoto = ({ onBack, onBackToBackWallDamage, containerData, onNa
         setIsProcessing(true);
 
         try {
-            // Upload truck photo to S3 with truck number
-            const uploadResult = await uploadTruckPhotoToS3(image, containerData?.tripSegmentNumber, currentTruckNumber);
+            console.log('📸 Storing truck photo for batch upload');
             
-            if (uploadResult.success) {
-                console.log('✅ Truck photo uploaded to S3 successfully');
-                
-                // Save truck details to database
-                const saveResult = await saveTruckDetailsToDatabase(
-                    containerData?.tripSegmentNumber, 
-                    currentTruckNumber, 
-                    uploadResult.truckPhoto
-                );
-                
-                if (!saveResult.success) {
-                    Alert.alert('Database Error', 'Failed to save truck details. Please try again.');
-                    return;
-                }
-                
-                // Prepare truck data for next step with S3 reference
-                const truckData = {
-                    ...containerData,
-                    truckPhoto: uploadResult.truckPhoto, // Use S3 reference instead of base64
-                    truckPhotoBase64: image, // Store URI for back navigation preview
-                    truckNumber: currentTruckNumber
-                };
-                
-                // Save truck photo data to state for navigation
-                setTruckPhotoData(truckData);
+            // Save truck details to database (truck number only, photo will be uploaded at final submit)
+            const saveResult = await saveTruckDetailsToDatabase(
+                containerData?.tripSegmentNumber, 
+                currentTruckNumber, 
+                null // Photo will be uploaded at final submit
+            );
+            
+            if (!saveResult.success) {
+                Alert.alert('Database Error', 'Failed to save truck details. Please try again.');
+                return;
+            }
+            
+            // Prepare truck data for next step with photo stored for batch upload
+            const truckData = {
+                ...containerData,
+                truckPhoto: image, // Store for preview and batch upload
+                truckNumber: currentTruckNumber
+            };
+            
+            // Save truck photo data to state for navigation
+            setTruckPhotoData(truckData);
 
-                console.log('✅ Truck details completed and saved to database successfully');
+            console.log('✅ Truck details saved to database successfully');
+            console.log('📸 Truck photo stored for batch upload');
 
-                // Navigate to next step
-                if (onNavigateToStepSeven) {
-                    onNavigateToStepSeven(truckData);
-                }
-            } else {
-                Alert.alert('Upload Failed', `Failed to upload truck photo: ${uploadResult.error}`);
-                console.error('❌ S3 upload failed:', uploadResult.error);
+            // Navigate to next step
+            if (onNavigateToStepSeven) {
+                onNavigateToStepSeven(truckData);
             }
         } catch (error) {
-            Alert.alert('Upload Error', 'An error occurred while uploading truck photo. Please try again.');
+            Alert.alert('Error', 'An error occurred. Please try again.');
             console.error('❌ Error in handleNext:', error);
         } finally {
             setIsProcessing(false);
@@ -494,40 +486,6 @@ const StepSixTruckPhoto = ({ onBack, onBackToBackWallDamage, containerData, onNa
                     
                     {/* Container Guide Overlay */}
                     <View style={cn('absolute inset-0 justify-center items-center')}>
-                        {/* Container Number and Trip Segment Display */}
-                        <View style={cn('absolute top-4 left-4 right-4')}>
-                            <View style={cn(`p-4 rounded-lg ${isDark ? 'bg-gray-700 border-gray-600' : 'bg-gray-50 border-gray-200'} border`)}>
-                                <View style={cn('flex-row items-center justify-between mb-3')}>
-                                    <View style={cn('flex-1')}>
-                                        <Text style={cn(`text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-600'} mb-1`)}>
-                                            Container Number
-                                        </Text>
-                                        <Text style={cn(`text-lg font-bold ${isDark ? 'text-white' : 'text-black'}`)}>
-                                            {containerData?.containerNumber || 'N/A'}
-                                        </Text>
-                                    </View>
-                                    <View style={cn('flex-1 ml-4')}>
-                                        <Text style={cn(`text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-600'} mb-1`)}>
-                                            Trip Segment
-                                        </Text>
-                                        <Text style={cn(`text-lg font-semibold ${isDark ? 'text-white' : 'text-black'}`)}>
-                                            {containerData?.tripSegmentNumber || 'N/A'}
-                                        </Text>
-                                    </View>
-                                </View>
-                                <View style={cn('flex-row items-center')}>
-                                    <View style={cn('flex-1')}>
-                                        <Text style={cn(`text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-600'} mb-1`)}>
-                                            Trailer Number
-                                        </Text>
-                                        <Text style={cn(`text-lg font-bold ${isDark ? 'text-white' : 'text-black'}`)}>
-                                            {trailerNumber || containerData?.trailerNumber || 'N/A'}
-                                        </Text>
-                                    </View>
-                                </View>
-                            </View>
-                        </View>
-
                         {/* Container Guide Frame */}
                         <View style={cn('relative')}>
                             {/* Container Rectangle Outline */}
@@ -535,8 +493,8 @@ const StepSixTruckPhoto = ({ onBack, onBackToBackWallDamage, containerData, onNa
                                 style={[
                                     cn('border-2 border-green-500 bg-green-500/10'),
                                     {
-                                        width: Dimensions.get('window').width * 0.9,
-                                        height: 350,
+                                        width: Dimensions.get('window').width * 0.85,
+                                        height: Dimensions.get('window').width * 0.85 * 0.94,
                                         borderRadius: 8,
                                     }
                                 ]}
@@ -603,7 +561,7 @@ const StepSixTruckPhoto = ({ onBack, onBackToBackWallDamage, containerData, onNa
                                             Trailer Number
                                         </Text>
                                         <Text style={cn(`text-lg font-bold ${isDark ? 'text-white' : 'text-black'}`)}>
-                                            {trailerNumber || containerData?.trailerNumber || 'N/A'}
+                                            {containerData?.trailerNumber || 'N/A'}
                                         </Text>
                                     </View>
                                 </View>
@@ -613,7 +571,7 @@ const StepSixTruckPhoto = ({ onBack, onBackToBackWallDamage, containerData, onNa
                                 
                                 <View style={cn('mb-2 flex items-center justify-center')}>
                                     <View style={cn('relative')}>
-                                        <Image source={{ uri: `data:image/jpeg;base64,${image}` }} style={cn('w-[200px] h-[200px] rounded-lg')} />
+                                        <Image source={{ uri: image }} style={cn('w-[280px] h-[280px] rounded-lg')} />
                                         {/* Eye Icon Overlay */}
                                         <TouchableOpacity
                                             onPress={() => setShowZoomModal(true)}
@@ -741,7 +699,7 @@ const StepSixTruckPhoto = ({ onBack, onBackToBackWallDamage, containerData, onNa
                         <X size={32} color="white" />
                     </TouchableOpacity>
                     <Image 
-                        source={{ uri: `data:image/jpeg;base64,${image}` }} 
+                        source={{ uri: image }} 
                         style={cn('w-full h-full')} 
                         resizeMode="contain"
                     />

@@ -66,20 +66,23 @@ const StepSevenDamagePhotos = ({ onBack, containerData, onNavigateToStepEight, o
 
     // Restore damage photos when navigating back
     useEffect(() => {
-        if (containerData?.localLeftSideDamagePhotos && containerData.localLeftSideDamagePhotos.length > 0) {
-            console.log('📸 Restoring Left Side damage photos from previous data');
-            console.log('📸 Number of photos to restore:', containerData.localLeftSideDamagePhotos.length);
+        if (containerData?.leftWallDamagePhotos && containerData.leftWallDamagePhotos.length > 0) {
+            console.log('📸 Restoring Left Wall damage photos from previous data');
+            console.log('📸 Number of photos to restore:', containerData.leftWallDamagePhotos.length);
             // Convert stored photos back to format expected by the component
-            const restoredPhotos = containerData.localLeftSideDamagePhotos.map((photo, index) => ({
-                id: photo.id || Date.now() + index, // Ensure each photo has a unique id
-                uri: photo.uri || `data:image/jpeg;base64,${photo.base64}`,
-                base64: photo.base64,
-                timestamp: photo.timestamp || new Date().toISOString()
-            }));
+            const restoredPhotos = containerData.leftWallDamagePhotos.map((photo, index) => {
+                console.log(`📸 Photo ${index} - has uri:`, !!photo.uri, 'has base64:', !!photo.base64);
+                return {
+                    id: photo.id || Date.now() + index, // Ensure each photo has a unique id
+                    uri: photo.uri, // Use the uri directly
+                    base64: photo.base64,
+                    timestamp: photo.timestamp || new Date().toISOString()
+                };
+            });
             setDamagePhotos(restoredPhotos);
             console.log('✅ Damage photos restored successfully');
         } else {
-            console.log('⚠️ No Left Side damage photos to restore');
+            console.log('⚠️ No Left Wall damage photos to restore');
         }
     }, [containerData]);
 
@@ -216,33 +219,26 @@ const StepSevenDamagePhotos = ({ onBack, containerData, onNavigateToStepEight, o
         setIsProcessing(true);
 
         try {
-            // Upload damage photos to S3
-            const uploadResult = await uploadDamagePhotosToS3(damagePhotos, containerData?.tripSegmentNumber);
+            console.log('📸 Storing Left Wall damage photos for batch upload');
+            
+            // Prepare damage data for next step - photos will be uploaded at final submit
+            const damageData = {
+                ...containerData,
+                leftSideDamageCount: damagePhotos.length,
+                leftWallDamagePhotos: damagePhotos // Store for data persistence and batch upload
+            };
+            
+            // Save damage data to state for navigation
+            setDamageData(damageData);
 
-            if (uploadResult.success) {
-                console.log('✅ Damage photos uploaded to S3 successfully');
+            console.log('✅ Left Wall damage photos stored successfully');
 
-                // Prepare damage data for next step with damage photo objects
-                const damageData = {
-                    ...containerData,
-                    leftSideDamagePhotos: uploadResult.damagePhotos, // Use damage photo objects from S3
-                    leftSideDamageCount: damagePhotos.length,
-                    localLeftSideDamagePhotos: damagePhotos // Keep local photos for reference
-                };
-                
-                // Save damage data to state for navigation
-                setDamageData(damageData);
-
-                // Navigate to Step Eight screen
-                if (onNavigateToStepEight) {
-                    onNavigateToStepEight(damageData);
-                }
-            } else {
-                Alert.alert('Upload Failed', `Failed to upload damage photos: ${uploadResult.error}`);
-                console.error('❌ S3 upload failed:', uploadResult.error);
+            // Navigate to Step Eight screen
+            if (onNavigateToStepEight) {
+                onNavigateToStepEight(damageData);
             }
         } catch (error) {
-            Alert.alert('Upload Error', 'An error occurred while uploading damage photos. Please try again.');
+            Alert.alert('Error', 'An error occurred. Please try again.');
             console.error('❌ Error in handleNext:', error);
         } finally {
             setIsProcessing(false);
@@ -358,20 +354,19 @@ const StepSevenDamagePhotos = ({ onBack, containerData, onNavigateToStepEight, o
                                         Trailer Number
                                     </Text>
                                     <Text style={cn(`text-lg font-bold ${isDark ? 'text-white' : 'text-black'}`)}>
-                                        {trailerNumber || containerData?.trailerNumber || 'N/A'}
+                                        {containerData?.trailerNumber || 'N/A'}
                                     </Text>
                                 </View>
                                 <View style={cn('flex-1 ml-4')}>
                                     <Text style={cn(`text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-600'} mb-1`)}>
                                         Truck Number
                                     </Text>
-                                    <Text style={cn(`text-lg font-semibold ${isDark ? 'text-white' : 'text-black'}`)}>
-                                        {truckNumber || containerData?.truckNumber || 'N/A'}
+                                    <Text style={cn(`text-lg font-bold ${isDark ? 'text-white' : 'text-black'}`)}>
+                                        {containerData?.truckNumber || 'N/A'}
                                     </Text>
                                 </View>
                             </View>
                         </View>
-
 
                         {/* Damage Photos Section */}
                         <View style={cn(`${isDark ? 'bg-gray-800' : 'bg-white'} rounded-lg shadow-lg p-4 mb-6`)}>
@@ -394,11 +389,11 @@ const StepSevenDamagePhotos = ({ onBack, containerData, onNavigateToStepEight, o
                                                     style={cn('relative')}
                                                 >
                                                     <Image
-                                                        source={{ uri: `data:image/jpeg;base64,${photo.base64}` }}
-                                                        style={cn('w-20 h-20 rounded-lg')}
+                                                        source={{ uri: photo.uri }}
+                                                        style={cn('w-40 h-40 rounded-lg')}
                                                     />
                                                     <View style={cn('absolute inset-0 bg-black/30 rounded-lg items-center justify-center')}>
-                                                        <Eye size={16} color="white" />
+                                                        <Eye size={28} color="white" />
                                                     </View>
                                                 </TouchableOpacity>
                                                 <TouchableOpacity
@@ -527,7 +522,7 @@ const StepSevenDamagePhotos = ({ onBack, containerData, onNavigateToStepEight, o
 
                     {/* Full Size Image */}
                     <Image
-                        source={{ uri: `data:image/jpeg;base64,${damagePhotos[selectedImageIndex]?.base64}` }}
+                        source={{ uri: damagePhotos[selectedImageIndex]?.uri }}
                         style={cn('w-full h-full')}
                         resizeMode="contain"
                     />

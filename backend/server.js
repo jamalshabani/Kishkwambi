@@ -155,14 +155,15 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
 // Connect to MongoDB
 async function connectToDatabase() {
     try {
-        const client = new MongoClient(MONGODB_URI, {
-            useNewUrlParser: true,
-            useUnifiedTopology: true,
-        });
+        console.log('🔌 Connecting to MongoDB...');
+        const client = new MongoClient(MONGODB_URI);
 
         await client.connect();
         db = client.db(DB_NAME);
+        console.log('✅ MongoDB connected successfully');
+        console.log(`📦 Database: ${DB_NAME}`);
     } catch (error) {
+        console.error('❌ MongoDB connection failed:', error.message);
         process.exit(1);
     }
 }
@@ -196,8 +197,10 @@ app.get('/api/users', async (req, res) => {
 app.post('/api/auth/login', async (req, res) => {
     try {
         const { email, password } = req.body;
+        console.log(`🔐 Login attempt for: ${email}`);
 
         if (!email || !password) {
+            console.log('❌ Missing credentials');
             return res.status(400).json({
                 success: false,
                 error: 'Email and password are required'
@@ -205,11 +208,13 @@ app.post('/api/auth/login', async (req, res) => {
         }
 
         if (!db) {
+            console.error('❌ Database not connected');
             throw new Error('Database not connected');
         }
 
         const collection = db.collection(COLLECTION_NAME);
         const user = await collection.findOne({ email });
+        console.log(`👤 User found: ${user ? 'Yes' : 'No'}`);
 
         if (!user) {
             return res.status(401).json({

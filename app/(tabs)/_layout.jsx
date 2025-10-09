@@ -110,7 +110,11 @@ export default function TabLayout() {
         setContainerData(null);
     };
 
-    const navigateBackToStepOne = () => {
+    const navigateBackToStepOne = (data) => {
+        // Update container data if provided for persistence (e.g., when navigating back from step 2)
+        if (data) {
+            setContainerData(data);
+        }
         setActiveTab('stepOneContainerPhoto');
     };
 
@@ -129,7 +133,11 @@ export default function TabLayout() {
         setActiveTab('stepOneDamagePhotos');
     };
 
-    const navigateBackToStepTwo = () => {
+    const navigateBackToStepTwo = (data) => {
+        // Update container data if provided for persistence (e.g., when navigating back from step 3)
+        if (data) {
+            setContainerData(data);
+        }
         setActiveTab('stepTwoContainerDetails');
     };
 
@@ -320,7 +328,7 @@ export default function TabLayout() {
             case 'profile':
                 return <Profile />;
             case 'stepOneContainerPhoto':
-                return <StepOneContainerPhoto onBack={navigateBackToDashboardFromStepOne} onNavigateToStepTwo={navigateToStepTwo} onNavigateToDamagePhotos={navigateToDamagePhotos} />;
+                return <StepOneContainerPhoto onBack={navigateBackToDashboardFromStepOne} onNavigateToStepTwo={navigateToStepTwo} onNavigateToDamagePhotos={navigateToDamagePhotos} containerData={containerData} />;
             case 'stepTwoContainerDetails':
                 return <StepTwoContainerDetails onBack={navigateBackToStepOne} containerData={containerData} onNavigateToStepThree={navigateToStepThree} onNavigateToDamagePhotos={navigateToDamagePhotos} onNavigateToStepThreeDirect={navigateToStepThree} />;
             case 'stepOneDamagePhotos':

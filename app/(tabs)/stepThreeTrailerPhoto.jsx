@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { View, Text, TouchableOpacity, Alert, Image, ScrollView, Animated, Modal, TextInput, KeyboardAvoidingView, Platform, ActivityIndicator } from 'react-native';
+import { View, Text, TouchableOpacity, Alert, Image, ScrollView, Animated, Modal, TextInput, KeyboardAvoidingView, Platform, ActivityIndicator, Dimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { CameraView, useCameraPermissions } from 'expo-camera';
@@ -81,23 +81,23 @@ const StepThreeTrailerPhoto = ({ onBack, onBackToDamagePhotos, containerData, on
                     }
                 } else {
                     console.log('❌ No Front Wall damage - navigating to step two');
-                    // Navigate to step two (container details)
+                    // Navigate to step two (container details) with data for persistence
                     if (onBack) {
-                        onBack();
+                        onBack(containerData);
                     }
                 }
             } else {
                 // If no data or error, default to step two
                 console.log('⚠️ No trip segment data found - defaulting to step two');
                 if (onBack) {
-                    onBack();
+                    onBack(containerData);
                 }
             }
         } catch (error) {
             console.error('❌ Error checking damage locations:', error);
-            // On error, default to step two
+            // On error, default to step two with data for persistence
             if (onBack) {
-                onBack();
+                onBack(containerData);
             }
         }
     };
@@ -373,47 +373,39 @@ const StepThreeTrailerPhoto = ({ onBack, onBackToDamagePhotos, containerData, on
         setIsProcessing(true);
 
         try {
-            // Upload trailer photo to S3
-            const uploadResult = await uploadTrailerPhotoToS3(image, containerData?.tripSegmentNumber);
+            console.log('📸 Storing trailer photo for batch upload');
             
-            if (uploadResult.success) {
-                console.log('✅ Trailer photo uploaded to S3 successfully');
-                
-                // Save trailer details to database
-                const saveResult = await saveTrailerDetailsToDatabase(
-                    containerData?.tripSegmentNumber, 
-                    licencePlateText, 
-                    uploadResult.trailerPhoto
-                );
-                
-                if (!saveResult.success) {
-                    Alert.alert('Database Error', 'Failed to save trailer details. Please try again.');
-                    return;
-                }
-                
-                // Prepare trailer data for next step with both S3 reference and base64 for preview
-                const trailerData = {
-                    ...containerData,
-                    trailerNumber: licencePlateText,
-                    trailerPhoto: image, // Store base64 for preview when navigating back
-                    trailerPhotoUrl: uploadResult.trailerPhoto // Store S3 URL for database reference
-                };
-                
-                // Save trailer data to state for navigation
-                setTrailerData(trailerData);
+            // Save trailer details to database (trailer number only, photo will be uploaded at final submit)
+            const saveResult = await saveTrailerDetailsToDatabase(
+                containerData?.tripSegmentNumber, 
+                licencePlateText,
+                null // Photo will be uploaded at final submit
+            );
+            
+            if (!saveResult.success) {
+                Alert.alert('Database Error', 'Failed to save trailer details. Please try again.');
+                return;
+            }
+            
+            // Prepare trailer data for next step with photo stored for batch upload
+            const trailerData = {
+                ...containerData,
+                trailerNumber: licencePlateText,
+                trailerPhoto: image // Store for preview and batch upload
+            };
+            
+            // Save trailer data to state for navigation
+            setTrailerData(trailerData);
 
-                console.log('✅ Trailer details completed and saved to database successfully');
+            console.log('✅ Trailer details saved to database successfully');
+            console.log('📸 Trailer photo stored for batch upload');
 
-                // Navigate to next step
-                if (onNavigateToStepFour) {
-                    onNavigateToStepFour(trailerData);
-                }
-            } else {
-                Alert.alert('Upload Failed', `Failed to upload trailer photo: ${uploadResult.error}`);
-                console.error('❌ S3 upload failed:', uploadResult.error);
+            // Navigate to next step
+            if (onNavigateToStepFour) {
+                onNavigateToStepFour(trailerData);
             }
         } catch (error) {
-            Alert.alert('Upload Error', 'An error occurred while uploading trailer photo. Please try again.');
+            Alert.alert('Error', 'An error occurred. Please try again.');
             console.error('❌ Error in handleNext:', error);
         } finally {
             setIsProcessing(false);
@@ -513,32 +505,6 @@ const StepThreeTrailerPhoto = ({ onBack, onBackToDamagePhotos, containerData, on
 
                     {/* Container Guide Overlay */}
                     <View style={cn('absolute inset-0 justify-center items-center')}>
-                        {/* Container Number and Trip Segment Display */}
-                        <View style={cn('absolute top-4 left-4 right-4')}>
-                            <View style={cn(`p-4 rounded-lg ${isDark ? 'bg-gray-700 border-gray-600' : 'bg-gray-50 border-gray-200'} border`)}>
-                                <View style={cn('flex-row items-center justify-between')}>
-                                    <View style={cn('flex-1')}>
-                                        <Text style={cn(`text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-600'} mb-1`)}>
-                                            Container Number
-                                        </Text>
-                                        <Text style={cn(`text-lg font-bold ${isDark ? 'text-white' : 'text-black'}`)}>
-                                            {containerData?.containerNumber || 'N/A'}
-                                        </Text>
-                                    </View>
-                                    <View style={cn('flex-1 ml-4')}>
-                                        <Text style={cn(`text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-600'} mb-1`)}>
-                                            Trip Segment
-                                        </Text>
-                                        <Text style={cn(`text-lg font-semibold ${isDark ? 'text-white' : 'text-black'}`)}>
-                                            {containerData?.tripSegmentNumber || 'N/A'}
-                                        </Text>
-                                    </View>
-                                </View>
-                            </View>
-                        </View>
-
-
-
                         {/* Container Guide Frame */}
                         <View style={cn('relative')}>
                             {/* Container Rectangle Outline */}
@@ -547,7 +513,7 @@ const StepThreeTrailerPhoto = ({ onBack, onBackToDamagePhotos, containerData, on
                                     cn('border-2 border-green-500 bg-green-500/10'),
                                     {
                                         width: Dimensions.get('window').width * 0.9,
-                                        height: 298, // Adjusted for 2.44m × 2.59m ratio (0.94:1)
+                                        height: Dimensions.get('window').width * 0.85 * 0.94, // Adjusted for 2.44m × 2.59m ratio (0.94:1)
                                         borderRadius: 8,
                                     }
                                 ]}
@@ -616,7 +582,7 @@ const StepThreeTrailerPhoto = ({ onBack, onBackToDamagePhotos, containerData, on
                                 
                                 <View style={cn('mb-2 flex items-center justify-center')}>
                                     <View style={cn('relative')}>
-                                        <Image source={{ uri: image }} style={cn('w-[200px] h-[200px] rounded-lg')} />
+                                        <Image source={{ uri: image }} style={cn('w-[280px] h-[280px] rounded-lg')} />
                                         {/* Eye Icon Overlay */}
                                         <TouchableOpacity
                                             onPress={() => setShowZoomModal(true)}
