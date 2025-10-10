@@ -1,10 +1,11 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { View, Text, TouchableOpacity, Alert, Image, ScrollView, Animated, Modal, ActivityIndicator } from 'react-native';
+import { View, Text, TouchableOpacity, Alert, Image, ScrollView, Animated, Modal, ActivityIndicator, Dimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as ImagePicker from 'expo-image-picker';
+import * as ImageManipulator from 'expo-image-manipulator';
 import { cn } from '../../lib/tw';
 import { useTheme } from '../../contexts/ThemeContext';
 import { API_CONFIG } from '../../lib/config';
@@ -90,6 +91,55 @@ const StepSevenDamagePhotos = ({ onBack, containerData, onNavigateToStepEight, o
     // Animation values for theme switcher
     const themeIconRotation = useRef(new Animated.Value(0)).current;
     const themeButtonScale = useRef(new Animated.Value(1)).current;
+
+    // Camera overlay dimensions
+    const screenWidth = Dimensions.get('window').width;
+    const screenHeight = Dimensions.get('window').height;
+    const damageFrameWidth = screenWidth * 0.85;
+    const damageFrameHeight = damageFrameWidth * 0.94;
+    const centerX = (screenWidth - damageFrameWidth) / 2;
+    const centerY = (screenHeight - damageFrameHeight) / 2 - 80;
+
+    const calculateCropArea = (imageWidth, imageHeight) => {
+        const imageAspectRatio = imageWidth / imageHeight;
+        const screenAspectRatio = screenWidth / screenHeight;
+        let displayWidth, displayHeight, offsetX, offsetY;
+        if (imageAspectRatio > screenAspectRatio) {
+            displayHeight = screenHeight;
+            displayWidth = screenHeight * imageAspectRatio;
+            offsetX = (displayWidth - screenWidth) / 2;
+            offsetY = 0;
+        } else {
+            displayWidth = screenWidth;
+            displayHeight = screenWidth / imageAspectRatio;
+            offsetX = 0;
+            offsetY = (displayHeight - screenHeight) / 2;
+        }
+        const scale = imageWidth / displayWidth;
+        let imageOverlayX = (centerX + offsetX) * scale;
+        let imageOverlayY = (centerY + offsetY) * scale;
+        let imageOverlayWidth = damageFrameWidth * scale;
+        let imageOverlayHeight = damageFrameHeight * scale;
+        imageOverlayX = Math.max(0, imageOverlayX);
+        imageOverlayY = Math.max(0, imageOverlayY);
+        if (imageOverlayX + imageOverlayWidth > imageWidth) imageOverlayWidth = imageWidth - imageOverlayX;
+        if (imageOverlayY + imageOverlayHeight > imageHeight) imageOverlayHeight = imageHeight - imageOverlayY;
+        return { x: Math.round(imageOverlayX), y: Math.round(imageOverlayY), width: Math.round(imageOverlayWidth), height: Math.round(imageOverlayHeight) };
+    };
+
+    const cropImageToDamageFrame = async (imageUri) => {
+        try {
+            const imageInfo = await ImageManipulator.manipulateAsync(imageUri, [], { format: ImageManipulator.SaveFormat.JPEG });
+            const cropArea = calculateCropArea(imageInfo.width, imageInfo.height);
+            if (cropArea.x < 0 || cropArea.y < 0 || cropArea.width <= 0 || cropArea.height <= 0) return imageUri;
+            if (cropArea.x + cropArea.width > imageInfo.width || cropArea.y + cropArea.height > imageInfo.height) return imageUri;
+            const croppedImage = await ImageManipulator.manipulateAsync(imageUri, [{ crop: { originX: cropArea.x, originY: cropArea.y, width: cropArea.width, height: cropArea.height } }], { compress: 0.6, format: ImageManipulator.SaveFormat.JPEG });
+            return croppedImage.uri;
+        } catch (error) {
+            console.error('❌ Crop error:', error);
+            return imageUri;
+        }
+    };
 
     const handleThemeToggle = () => {
         // Scale down animation
@@ -180,22 +230,40 @@ const StepSevenDamagePhotos = ({ onBack, containerData, onNavigateToStepEight, o
         try {
             setIsProcessing(true);
             const photo = await cameraRef.current.takePictureAsync({
-                quality: 0.4,
+                quality: 0.3,
                 base64: false,
                 skipProcessing: true,
                 exif: false,
             });
 
             if (photo?.uri) {
+                try {
+                    const fileInfo = await fetch(photo.uri);
+                    const blob = await fileInfo.blob();
+                    console.log(`📊 Original Left Wall damage photo size: ${(blob.size / 1024).toFixed(2)} KB`);
+                } catch (e) {}
+
+                const croppedImage = await cropImageToDamageFrame(photo.uri);
+
+                try {
+                    const fileInfo = await fetch(croppedImage);
+                    const blob = await fileInfo.blob();
+                    const originalFileInfo = await fetch(photo.uri);
+                    const originalBlob = await originalFileInfo.blob();
+                    const reduction = (((originalBlob.size - blob.size) / originalBlob.size) * 100).toFixed(1);
+                    console.log(`📊 Cropped Left Wall damage photo size: ${(blob.size / 1024).toFixed(2)} KB`);
+                    console.log(`📉 Size reduction: ${reduction}%`);
+                } catch (e) {}
+
                 const newPhoto = {
                     id: Date.now(),
-                    uri: photo.uri,
+                    uri: croppedImage,
                     base64: photo.base64,
                     timestamp: new Date().toISOString()
                 };
 
                 setDamagePhotos(prev => [...prev, newPhoto]);
-                console.log('📸 Damage photo taken successfully');
+                console.log('📸 Left Wall damage photo taken and cropped successfully');
                 setShowCamera(false);
             }
         } catch (error) {
@@ -481,23 +549,29 @@ const StepSevenDamagePhotos = ({ onBack, containerData, onNavigateToStepEight, o
                         ratio="1:1"
                     />
 
-                    {/* Damage Guide Overlay */}
-                    <View style={cn('absolute inset-0 justify-center items-center')}>
-                        {/* Instruction Text */}
-                        <View style={cn('absolute top-4 left-4 right-4 items-center')}>
-                            <View style={cn('bg-black/70 px-6 py-3 rounded-lg')}>
-                                <Text style={cn('text-white text-center text-lg font-semibold')}>
-                                    Take clear photos of the damage
-                                </Text>
-                            </View>
+                    {/* Custom Mask Overlay */}
+                    <View style={cn('absolute inset-0')} pointerEvents="box-none">
+                        <View style={{ position: 'absolute', top: 0, left: 0, width: screenWidth, height: centerY, backgroundColor: 'black' }} />
+                        <View style={{ position: 'absolute', top: centerY, left: 0, width: centerX, height: damageFrameHeight, backgroundColor: 'black' }} />
+                        <View style={{ position: 'absolute', top: centerY, left: centerX + damageFrameWidth, width: centerX, height: damageFrameHeight, backgroundColor: 'black' }} />
+                        <View style={{ position: 'absolute', top: centerY + damageFrameHeight, left: 0, width: screenWidth, height: screenHeight - (centerY + damageFrameHeight), backgroundColor: 'black' }} />
+                        <View style={{ position: 'absolute', top: centerY, left: centerX, width: damageFrameWidth, height: damageFrameHeight, borderWidth: 2, borderColor: '#10B981', backgroundColor: 'transparent' }} />
+                    </View>
+                    
+                    <View style={cn('absolute top-4 left-4 right-4 items-center')} pointerEvents="none">
+                        <View style={cn('bg-black/70 p-6 rounded-lg')}>
+                            <Text style={cn('text-white text-center text-lg font-semibold')}>
+                                Take clear photos of the damage
+                            </Text>
                         </View>
-
-                        {/* Camera Controls */}
-                        <View style={cn('absolute bottom-8 left-0 right-0 items-center')}>
+                    </View>
+                    
+                    <View style={cn('absolute bottom-0 left-0 bg-black/50 right-0 pb-20 pt-4')}>
+                        <View style={cn('flex-row items-center justify-center px-8')}>
                             <TouchableOpacity
                                 onPress={capturePhoto}
                                 disabled={isProcessing}
-                                style={cn(`w-20 h-20 rounded-full bg-white border-4 border-white/30 items-center justify-center ${isProcessing ? 'opacity-50' : ''}`)}
+                                style={cn('w-20 h-20 rounded-full bg-white border-4 border-white/30 items-center justify-center')}
                             >
                                 {isProcessing ? (
                                     <ActivityIndicator size="small" color="#6B7280" />
@@ -505,7 +579,6 @@ const StepSevenDamagePhotos = ({ onBack, containerData, onNavigateToStepEight, o
                                     <View style={cn('w-16 h-16 rounded-full bg-white')} />
                                 )}
                             </TouchableOpacity>
-
                         </View>
                     </View>
                 </View>

@@ -4,6 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { LinearGradient } from 'expo-linear-gradient';
+import * as ImageManipulator from 'expo-image-manipulator';
 import { cn } from '../../lib/tw';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useInspectionTimer } from '../../contexts/InspectionTimerContext';
@@ -83,6 +84,55 @@ const StepNineDriverDetails = ({ onBack, containerData, onComplete, onShowSucces
     const themeIconRotation = useRef(new Animated.Value(0)).current;
     const themeButtonScale = useRef(new Animated.Value(1)).current;
 
+    // Camera overlay dimensions (matching Front Wall)
+    const screenWidth = Dimensions.get('window').width;
+    const screenHeight = Dimensions.get('window').height;
+    const licenseFrameWidth = screenWidth * 0.85;
+    const licenseFrameHeight = licenseFrameWidth * 0.94;
+    const centerX = (screenWidth - licenseFrameWidth) / 2;
+    const centerY = (screenHeight - licenseFrameHeight) / 2 - 80;
+
+    const calculateCropArea = (imageWidth, imageHeight) => {
+        const imageAspectRatio = imageWidth / imageHeight;
+        const screenAspectRatio = screenWidth / screenHeight;
+        let displayWidth, displayHeight, offsetX, offsetY;
+        if (imageAspectRatio > screenAspectRatio) {
+            displayHeight = screenHeight;
+            displayWidth = screenHeight * imageAspectRatio;
+            offsetX = (displayWidth - screenWidth) / 2;
+            offsetY = 0;
+        } else {
+            displayWidth = screenWidth;
+            displayHeight = screenWidth / imageAspectRatio;
+            offsetX = 0;
+            offsetY = (displayHeight - screenHeight) / 2;
+        }
+        const scale = imageWidth / displayWidth;
+        let imageOverlayX = (centerX + offsetX) * scale;
+        let imageOverlayY = (centerY + offsetY) * scale;
+        let imageOverlayWidth = licenseFrameWidth * scale;
+        let imageOverlayHeight = licenseFrameHeight * scale;
+        imageOverlayX = Math.max(0, imageOverlayX);
+        imageOverlayY = Math.max(0, imageOverlayY);
+        if (imageOverlayX + imageOverlayWidth > imageWidth) imageOverlayWidth = imageWidth - imageOverlayX;
+        if (imageOverlayY + imageOverlayHeight > imageHeight) imageOverlayHeight = imageHeight - imageOverlayY;
+        return { x: Math.round(imageOverlayX), y: Math.round(imageOverlayY), width: Math.round(imageOverlayWidth), height: Math.round(imageOverlayHeight) };
+    };
+
+    const cropImageToLicenseFrame = async (imageUri) => {
+        try {
+            const imageInfo = await ImageManipulator.manipulateAsync(imageUri, [], { format: ImageManipulator.SaveFormat.JPEG });
+            const cropArea = calculateCropArea(imageInfo.width, imageInfo.height);
+            if (cropArea.x < 0 || cropArea.y < 0 || cropArea.width <= 0 || cropArea.height <= 0) return imageUri;
+            if (cropArea.x + cropArea.width > imageInfo.width || cropArea.y + cropArea.height > imageInfo.height) return imageUri;
+            const croppedImage = await ImageManipulator.manipulateAsync(imageUri, [{ crop: { originX: cropArea.x, originY: cropArea.y, width: cropArea.width, height: cropArea.height } }], { compress: 0.6, format: ImageManipulator.SaveFormat.JPEG });
+            return croppedImage.uri;
+        } catch (error) {
+            console.error('❌ Crop error:', error);
+            return imageUri;
+        }
+    };
+
     const handleThemeToggle = () => {
         // Scale down animation
         Animated.sequence([
@@ -126,22 +176,42 @@ const StepNineDriverDetails = ({ onBack, containerData, onComplete, onShowSucces
         try {
             setIsProcessing(true);
             const photo = await cameraRef.current.takePictureAsync({
-                quality: 0.4,
+                quality: 0.3,
                 base64: true, // Enable base64 for Vision AI
                 skipProcessing: true,
                 exif: false,
             });
 
             if (photo?.uri) {
-                setImage(photo.uri);
+                // Get file size of original photo
+                try {
+                    const fileInfo = await fetch(photo.uri);
+                    const blob = await fileInfo.blob();
+                    console.log(`📊 Original driver license photo size: ${(blob.size / 1024).toFixed(2)} KB (${(blob.size / 1024 / 1024).toFixed(2)} MB)`);
+                } catch (e) {}
+
+                // Crop the image to the license frame area
+                const croppedImage = await cropImageToLicenseFrame(photo.uri);
+
+                // Get file size of cropped photo
+                try {
+                    const fileInfo = await fetch(croppedImage);
+                    const blob = await fileInfo.blob();
+                    const originalFileInfo = await fetch(photo.uri);
+                    const originalBlob = await originalFileInfo.blob();
+                    const reduction = (((originalBlob.size - blob.size) / originalBlob.size) * 100).toFixed(1);
+                    console.log(`📊 Cropped driver license photo size: ${(blob.size / 1024).toFixed(2)} KB (${(blob.size / 1024 / 1024).toFixed(2)} MB)`);
+                    console.log(`📉 Size reduction: ${reduction}%`);
+                } catch (e) {}
+
+                setImage(croppedImage);
                 setShowCamera(false);
-                console.log('📸 Driver license photo taken successfully');
-                console.log('📸 Base64 length:', photo.base64?.length || 0);
+                console.log('📸 Driver license photo taken and cropped successfully');
 
                 // Show extraction loading
                 setIsExtracting(true);
                 
-                // Call Vision AI to extract driver details
+                // Call Vision AI to extract driver details (use original base64 for better OCR)
                 await extractDriverDetails(photo.base64);
                 
                 // Automatically show the form with extracted data
@@ -786,8 +856,25 @@ inwardLOLOBalance = 75000;
                         ratio="1:1"
                     />
 
+                    {/* Custom Mask Overlay - matching Front Wall */}
+                    <View style={cn('absolute inset-0')} pointerEvents="box-none">
+                        <View style={{ position: 'absolute', top: 0, left: 0, width: screenWidth, height: centerY, backgroundColor: 'black' }} />
+                        <View style={{ position: 'absolute', top: centerY, left: 0, width: centerX, height: licenseFrameHeight, backgroundColor: 'black' }} />
+                        <View style={{ position: 'absolute', top: centerY, left: centerX + licenseFrameWidth, width: centerX, height: licenseFrameHeight, backgroundColor: 'black' }} />
+                        <View style={{ position: 'absolute', top: centerY + licenseFrameHeight, left: 0, width: screenWidth, height: screenHeight - (centerY + licenseFrameHeight), backgroundColor: 'black' }} />
+                        <View style={{ position: 'absolute', top: centerY, left: centerX, width: licenseFrameWidth, height: licenseFrameHeight, borderWidth: 2, borderColor: '#10B981', backgroundColor: 'transparent' }} />
+                    </View>
+                    
+                    <View style={cn('absolute top-4 left-4 right-4 items-center')} pointerEvents="none">
+                        <View style={cn('bg-black/70 p-6 rounded-lg')}>
+                            <Text style={cn('text-white text-center text-lg font-semibold')}>
+                                Make sure the Driver License is clearly visible
+                            </Text>
+                        </View>
+                    </View>
+                    
                     {/* Camera Controls Overlay */}
-                    <View style={cn('absolute bottom-0 left-0 right-0 bg-black/50 pb-8 pt-4')}>
+                    <View style={cn('absolute bottom-0 left-0 bg-black/50 right-0 pb-20 pt-4')}>
                         <View style={cn('flex-row items-center justify-center px-8')}>
                             {/* Capture Button */}
                             <TouchableOpacity
@@ -796,7 +883,7 @@ inwardLOLOBalance = 75000;
                                 style={cn('w-20 h-20 rounded-full bg-white border-4 border-white/30 items-center justify-center')}
                             >
                                 {isProcessing ? (
-                                    <ActivityIndicator size="small" color="#000" />
+                                    <ActivityIndicator size="small" color="#6B7280" />
                                 ) : (
                                     <View style={cn('w-16 h-16 rounded-full bg-white')} />
                                 )}

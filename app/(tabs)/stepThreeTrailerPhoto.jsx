@@ -5,6 +5,7 @@ import { StatusBar } from 'expo-status-bar';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as ImagePicker from 'expo-image-picker';
+import * as ImageManipulator from 'expo-image-manipulator';
 import { cn } from '../../lib/tw';
 import { useTheme } from '../../contexts/ThemeContext';
 import TimerDisplay from '../../components/common/TimerDisplay';
@@ -106,6 +107,16 @@ const StepThreeTrailerPhoto = ({ onBack, onBackToDamagePhotos, containerData, on
     const themeIconRotation = useRef(new Animated.Value(0)).current;
     const themeButtonScale = useRef(new Animated.Value(1)).current;
 
+    // Camera overlay dimensions for trailer photos
+    const screenWidth = Dimensions.get('window').width;
+    const screenHeight = Dimensions.get('window').height;
+    const trailerFrameWidth = screenWidth * 0.85;
+    const trailerFrameHeight = trailerFrameWidth * 0.94; // Same aspect ratio as container
+    
+    // Calculate the center position for the trailer frame
+    const centerX = (screenWidth - trailerFrameWidth) / 2;
+    const centerY = (screenHeight - trailerFrameHeight) / 2 - 80; // -80 for offset
+
     const handleThemeToggle = () => {
         // Scale down animation
         Animated.sequence([
@@ -143,24 +154,131 @@ const StepThreeTrailerPhoto = ({ onBack, onBackToDamagePhotos, containerData, on
         }
     };
 
+    // Function to calculate crop area based on trailer frame dimensions
+    const calculateCropArea = (imageWidth, imageHeight) => {
+        const imageAspectRatio = imageWidth / imageHeight;
+        const screenAspectRatio = screenWidth / screenHeight;
+        
+        let displayWidth, displayHeight, offsetX, offsetY;
+        
+        if (imageAspectRatio > screenAspectRatio) {
+            displayHeight = screenHeight;
+            displayWidth = screenHeight * imageAspectRatio;
+            offsetX = (displayWidth - screenWidth) / 2;
+            offsetY = 0;
+        } else {
+            displayWidth = screenWidth;
+            displayHeight = screenWidth / imageAspectRatio;
+            offsetX = 0;
+            offsetY = (displayHeight - screenHeight) / 2;
+        }
+        
+        const scale = imageWidth / displayWidth;
+        const actualCenterX = centerX + offsetX;
+        const actualCenterY = centerY + offsetY;
+        
+        let imageOverlayX = actualCenterX * scale;
+        let imageOverlayY = actualCenterY * scale;
+        let imageOverlayWidth = trailerFrameWidth * scale;
+        let imageOverlayHeight = trailerFrameHeight * scale;
+        
+        imageOverlayX = Math.max(0, imageOverlayX);
+        imageOverlayY = Math.max(0, imageOverlayY);
+        
+        if (imageOverlayX + imageOverlayWidth > imageWidth) {
+            imageOverlayWidth = imageWidth - imageOverlayX;
+        }
+        if (imageOverlayY + imageOverlayHeight > imageHeight) {
+            imageOverlayHeight = imageHeight - imageOverlayY;
+        }
+        
+        return {
+            x: Math.round(imageOverlayX),
+            y: Math.round(imageOverlayY),
+            width: Math.round(imageOverlayWidth),
+            height: Math.round(imageOverlayHeight)
+        };
+    };
+
+    // Function to crop image to trailer frame area
+    const cropImageToTrailerFrame = async (imageUri) => {
+        try {
+            const imageInfo = await ImageManipulator.manipulateAsync(imageUri, [], { format: ImageManipulator.SaveFormat.JPEG });
+            const imageWidth = imageInfo.width;
+            const imageHeight = imageInfo.height;
+            
+            const cropArea = calculateCropArea(imageWidth, imageHeight);
+            
+            if (cropArea.x < 0 || cropArea.y < 0 || cropArea.width <= 0 || cropArea.height <= 0) {
+                console.warn('⚠️ Invalid crop parameters, using original image');
+                return imageUri;
+            }
+            
+            if (cropArea.x + cropArea.width > imageWidth || cropArea.y + cropArea.height > imageHeight) {
+                console.warn('⚠️ Crop area exceeds bounds, using original image');
+                return imageUri;
+            }
+            
+            const croppedImage = await ImageManipulator.manipulateAsync(
+                imageUri,
+                [{ crop: { originX: cropArea.x, originY: cropArea.y, width: cropArea.width, height: cropArea.height } }],
+                { compress: 0.6, format: ImageManipulator.SaveFormat.JPEG }
+            );
+            
+            return croppedImage.uri;
+        } catch (error) {
+            console.error('❌ Crop error:', error);
+            return imageUri;
+        }
+    };
+
     const takePicture = async () => {
         if (!cameraRef.current) return;
 
         try {
             setIsProcessing(true);
             const photo = await cameraRef.current.takePictureAsync({
-                quality: 0.4,
+                quality: 0.3,
                 base64: false,
                 skipProcessing: true,
                 exif: false,
             });
 
             if (photo?.uri) {
-                setImage(photo.uri);
-                console.log('📸 Trailer photo taken successfully');
+                // Get file size of original photo
+                try {
+                    const fileInfo = await fetch(photo.uri);
+                    const blob = await fileInfo.blob();
+                    const fileSizeKB = (blob.size / 1024).toFixed(2);
+                    const fileSizeMB = (blob.size / 1024 / 1024).toFixed(2);
+                    console.log(`📊 Original trailer photo size: ${fileSizeKB} KB (${fileSizeMB} MB)`);
+                } catch (sizeError) {
+                    console.warn('Could not determine original file size:', sizeError);
+                }
+
+                // Crop the image to the trailer frame area
+                const croppedImage = await cropImageToTrailerFrame(photo.uri);
+
+                // Get file size of cropped photo
+                try {
+                    const fileInfo = await fetch(croppedImage);
+                    const blob = await fileInfo.blob();
+                    const fileSizeKB = (blob.size / 1024).toFixed(2);
+                    const fileSizeMB = (blob.size / 1024 / 1024).toFixed(2);
+                    const originalFileInfo = await fetch(photo.uri);
+                    const originalBlob = await originalFileInfo.blob();
+                    const reduction = (((originalBlob.size - blob.size) / originalBlob.size) * 100).toFixed(1);
+                    console.log(`📊 Cropped trailer photo size: ${fileSizeKB} KB (${fileSizeMB} MB)`);
+                    console.log(`📉 Size reduction: ${reduction}% smaller after cropping`);
+                } catch (sizeError) {
+                    console.warn('Could not determine cropped file size:', sizeError);
+                }
+
+                setImage(croppedImage);
+                console.log('📸 Trailer photo taken and cropped successfully');
 
                 // Call PlateRecognizer API to extract licence plate
-                await recognizeLicencePlate(photo.uri);
+                await recognizeLicencePlate(croppedImage);
             }
         } catch (error) {
             console.error('❌ Error taking trailer photo:', error);
@@ -503,28 +621,83 @@ const StepThreeTrailerPhoto = ({ onBack, onBackToDamagePhotos, containerData, on
                         ratio="1:1"
                     />
 
-                    {/* Container Guide Overlay */}
-                    <View style={cn('absolute inset-0 justify-center items-center')}>
-                        {/* Container Guide Frame */}
-                        <View style={cn('relative')}>
-                            {/* Container Rectangle Outline */}
-                            <View
-                                style={[
-                                    cn('border-2 border-green-500 bg-green-500/10'),
-                                    {
-                                        width: Dimensions.get('window').width * 0.9,
-                                        height: Dimensions.get('window').width * 0.85 * 0.94, // Adjusted for 2.44m × 2.59m ratio (0.94:1)
-                                        borderRadius: 8,
-                                    }
-                                ]}
-                            />
+                    {/* Custom Mask Overlay - darkens everything except the trailer frame */}
+                    <View style={cn('absolute inset-0')} pointerEvents="box-none">
+                        {/* Top overlay */}
+                        <View 
+                            style={{
+                                position: 'absolute',
+                                top: 0,
+                                left: 0,
+                                width: screenWidth,
+                                height: centerY,
+                                backgroundColor: 'black'
+                            }}
+                        />
+                        
+                        {/* Left overlay */}
+                        <View 
+                            style={{
+                                position: 'absolute',
+                                top: centerY,
+                                left: 0,
+                                width: centerX,
+                                height: trailerFrameHeight,
+                                backgroundColor: 'black'
+                            }}
+                        />
+                        
+                        {/* Right overlay */}
+                        <View 
+                            style={{
+                                position: 'absolute',
+                                top: centerY,
+                                left: centerX + trailerFrameWidth,
+                                width: centerX,
+                                height: trailerFrameHeight,
+                                backgroundColor: 'black'
+                            }}
+                        />
+                        
+                        {/* Bottom overlay */}
+                        <View 
+                            style={{
+                                position: 'absolute',
+                                top: centerY + trailerFrameHeight,
+                                left: 0,
+                                width: screenWidth,
+                                height: screenHeight - (centerY + trailerFrameHeight),
+                                backgroundColor: 'black'
+                            }}
+                        />
+                        
+                        {/* Trailer Frame Guide - drawn on top */}
+                        <View 
+                            style={{
+                                position: 'absolute',
+                                top: centerY,
+                                left: centerX,
+                                width: trailerFrameWidth,
+                                height: trailerFrameHeight,
+                                borderWidth: 2,
+                                borderColor: '#10B981',
+                                backgroundColor: 'transparent',
+                            }}
+                        />
+                    </View>
+                    
+                    {/* Instruction Text - Above the mask */}
+                    <View style={cn('absolute top-4 left-4 right-4 items-center')} pointerEvents="none">
+                        <View style={cn('bg-black/70 p-6 rounded-lg')}>
+                            <Text style={cn('text-white text-center text-lg font-semibold')}>
+                                Make sure the Trailer Number is clearly visible
+                            </Text>
                         </View>
                     </View>
-
+                    
                     {/* Camera Controls Overlay */}
-                    <View style={cn('absolute bottom-0 left-0 right-0 bg-black/50 pb-8 pt-4')}>
+                    <View style={cn('absolute bottom-0 left-0 bg-black/50 right-0 pb-20 pt-4')}>
                         <View style={cn('flex-row items-center justify-center px-8')}>
-
                             {/* Capture Button */}
                             <TouchableOpacity
                                 onPress={takePicture}
@@ -532,12 +705,11 @@ const StepThreeTrailerPhoto = ({ onBack, onBackToDamagePhotos, containerData, on
                                 style={cn('w-20 h-20 rounded-full bg-white border-4 border-white/30 items-center justify-center')}
                             >
                                 {isProcessing ? (
-                                    <ActivityIndicator size="small" color="#000" />
+                                    <ActivityIndicator size="small" color="#6B7280" />
                                 ) : (
                                     <View style={cn('w-16 h-16 rounded-full bg-white')} />
                                 )}
                             </TouchableOpacity>
-
                         </View>
                     </View>
                 </View>

@@ -46,8 +46,7 @@ const StepOneContainerPhoto = ({ onBack, onNavigateToStepTwo, onNavigateToDamage
     // Restore container photo and data when navigating back
     useEffect(() => {
         if (incomingContainerData) {
-            console.log('🔄 Restoring container data from previous screen');
-            
+        
             // Restore container photo
             if (incomingContainerData.containerPhoto) {
                 console.log('📸 Restoring container photo');
@@ -78,14 +77,18 @@ const StepOneContainerPhoto = ({ onBack, onNavigateToStepTwo, onNavigateToDamage
             
             // Store the incoming container data
             setContainerData(incomingContainerData);
-            console.log('✅ Container data restored successfully');
         }
     }, [incomingContainerData]);
 
     // Camera overlay dimensions
     const screenWidth = Dimensions.get('window').width;
+    const screenHeight = Dimensions.get('window').height;
     const containerWidth = screenWidth * 0.85;
     const containerHeight = containerWidth * 0.94; // 2.44m × 2.59m ratio
+    
+    // Calculate the center position for the container frame
+    const centerX = (screenWidth - containerWidth) / 2;
+    const centerY = (screenHeight - containerHeight) / 2 - 80; // -80 for the -mt-20 offset
 
     const handleThemeToggle = () => {
         // Scale down animation
@@ -118,14 +121,39 @@ const StepOneContainerPhoto = ({ onBack, onNavigateToStepTwo, onNavigateToDamage
         if (cameraRef.current) {
             try {
                 const photo = await cameraRef.current.takePictureAsync({
-                    quality: 0.4,
+                    quality: 0.3,  // Reduced from 0.4 to 0.3 for smaller file size
                     base64: false,
                     skipProcessing: true,
                     exif: false,
                 });
                 
-                // Crop the image to the overlay area
+                // Get file size of original photo
+                try {
+                    const fileInfo = await fetch(photo.uri);
+                    const blob = await fileInfo.blob();
+                    const fileSizeKB = (blob.size / 1024).toFixed(2);
+                    const fileSizeMB = (blob.size / 1024 / 1024).toFixed(2);
+                    console.log(`📊 Original photo size: ${fileSizeKB} KB (${fileSizeMB} MB)`);
+                } catch (sizeError) {
+                    console.warn('Could not determine original file size:', sizeError);
+                }
+                
+                // Crop the image to the overlay area (Container Guide Frame)
                 const croppedImage = await cropImageToOverlay(photo.uri);
+                console.log('✂️ Cropped photo URI:', croppedImage);
+                
+                // Get file size of cropped photo
+                try {
+                    const fileInfo = await fetch(croppedImage);
+                    const blob = await fileInfo.blob();
+                    const fileSizeKB = (blob.size / 1024).toFixed(2);
+                    const fileSizeMB = (blob.size / 1024 / 1024).toFixed(2);
+                    console.log(`📊 Cropped photo size: ${fileSizeKB} KB (${fileSizeMB} MB)`);
+                } catch (sizeError) {
+                    console.warn('Could not determine cropped file size:', sizeError);
+                }
+                
+                // Set the cropped image for preview
                 setImage(croppedImage);
                 
                 // Process the cropped image with Vision AI
@@ -137,28 +165,54 @@ const StepOneContainerPhoto = ({ onBack, onNavigateToStepTwo, onNavigateToDamage
         }
     };
 
-    // Function to calculate crop area based on overlay dimensions
+    // Function to calculate crop area based on Container Guide Frame dimensions
     const calculateCropArea = (imageWidth, imageHeight) => {
-        const screenWidth = Dimensions.get('window').width;
-        const screenHeight = Dimensions.get('window').height;
+        // Calculate the aspect ratios
+        const imageAspectRatio = imageWidth / imageHeight;
+        const screenAspectRatio = screenWidth / screenHeight;
         
-        // Container overlay dimensions (from the mask)
-        const overlayWidth = 320;
-        const overlayHeight = 298;
+        // Determine how the camera image is displayed on screen (cover mode)
+        let displayWidth, displayHeight, offsetX, offsetY;
         
-        // Calculate the position of the overlay on screen (centered)
-        const screenOverlayX = (screenWidth - overlayWidth) / 2;
-        const screenOverlayY = (screenHeight - overlayHeight) / 2;
+        if (imageAspectRatio > screenAspectRatio) {
+            // Image is wider - will be cropped on sides
+            displayHeight = screenHeight;
+            displayWidth = screenHeight * imageAspectRatio;
+            offsetX = (displayWidth - screenWidth) / 2;
+            offsetY = 0;
+        } else {
+            // Image is taller - will be cropped on top/bottom
+            displayWidth = screenWidth;
+            displayHeight = screenWidth / imageAspectRatio;
+            offsetX = 0;
+            offsetY = (displayHeight - screenHeight) / 2;
+        }
         
-        // Calculate scale factors between image and screen
-        const scaleX = imageWidth / screenWidth;
-        const scaleY = imageHeight / screenHeight;
+        // Calculate scale factor from display to actual image
+        const scale = imageWidth / displayWidth;
         
-        // Convert screen coordinates to image coordinates
-        const imageOverlayX = screenOverlayX * scaleX;
-        const imageOverlayY = screenOverlayY * scaleY;
-        const imageOverlayWidth = overlayWidth * scaleX;
-        const imageOverlayHeight = overlayHeight * scaleY;
+        // Calculate the actual position in the camera feed
+        // centerX and centerY are screen coordinates, we need to adjust for camera offset
+        const actualCenterX = centerX + offsetX;
+        const actualCenterY = centerY + offsetY;
+        
+        // Convert to image coordinates
+        let imageOverlayX = actualCenterX * scale;
+        let imageOverlayY = actualCenterY * scale;
+        let imageOverlayWidth = containerWidth * scale;
+        let imageOverlayHeight = containerHeight * scale;
+        
+        // Validate and constrain crop area to image bounds
+        imageOverlayX = Math.max(0, imageOverlayX);
+        imageOverlayY = Math.max(0, imageOverlayY);
+        
+        // Ensure crop doesn't exceed image boundaries
+        if (imageOverlayX + imageOverlayWidth > imageWidth) {
+            imageOverlayWidth = imageWidth - imageOverlayX;
+        }
+        if (imageOverlayY + imageOverlayHeight > imageHeight) {
+            imageOverlayHeight = imageHeight - imageOverlayY;
+        }
         
         return {
             x: Math.round(imageOverlayX),
@@ -172,9 +226,11 @@ const StepOneContainerPhoto = ({ onBack, onNavigateToStepTwo, onNavigateToDamage
         };
     };
 
-    // Function to crop image to overlay area
+    // Function to crop image to overlay area (Container Guide Frame)
     const cropImageToOverlay = async (imageUri) => {
         try {
+            console.log('✂️ Starting crop process for Container Guide Frame area...');
+            
             // First, get the image dimensions
             const imageInfo = await ImageManipulator.manipulateAsync(
                 imageUri,
@@ -186,14 +242,34 @@ const StepOneContainerPhoto = ({ onBack, onNavigateToStepTwo, onNavigateToDamage
             const imageWidth = imageInfo.width;
             const imageHeight = imageInfo.height;
             
-            console.log('📐 Image dimensions:', { width: imageWidth, height: imageHeight });
+            console.log('📐 Original image dimensions:', { width: imageWidth, height: imageHeight });
             
-            // Calculate crop area based on actual image dimensions
+            // Calculate crop area based on Container Guide Frame dimensions
             const cropArea = calculateCropArea(imageWidth, imageHeight);
             
-            console.log('✂️ Crop area:', cropArea);
+            console.log('✂️ Crop area (matching Container Guide Frame):', {
+                x: cropArea.x,
+                y: cropArea.y,
+                width: cropArea.width,
+                height: cropArea.height
+            });
             
-            // Use ImageManipulator to crop the image
+            // Validate crop parameters before attempting to crop
+            if (cropArea.x < 0 || cropArea.y < 0 || cropArea.width <= 0 || cropArea.height <= 0) {
+                console.error('❌ Invalid crop parameters:', cropArea);
+                throw new Error('Invalid crop parameters: coordinates or dimensions are invalid');
+            }
+            
+            if (cropArea.x + cropArea.width > imageWidth || cropArea.y + cropArea.height > imageHeight) {
+                console.error('❌ Crop area exceeds image bounds:', {
+                    cropArea,
+                    imageWidth,
+                    imageHeight
+                });
+                throw new Error('Crop area exceeds image boundaries');
+            }
+            
+            // Use ImageManipulator to crop the image to the Container Guide Frame area
             const croppedImage = await ImageManipulator.manipulateAsync(
                 imageUri,
                 [
@@ -207,130 +283,29 @@ const StepOneContainerPhoto = ({ onBack, onNavigateToStepTwo, onNavigateToDamage
                     },
                 ],
                 {
-                    compress: 0.8,
+                    compress: 0.6,  // Reduced from 0.8 to 0.6 for smaller file size
                     format: ImageManipulator.SaveFormat.JPEG,
                 }
             );
             
-            console.log('✅ Image cropped successfully:', croppedImage.uri);
+            console.log('✅ Image cropped successfully to Container Guide Frame area');
+            console.log('✅ Cropped image dimensions:', { width: croppedImage.width, height: croppedImage.height });
+            
             return croppedImage.uri;
         } catch (error) {
             console.error('❌ Crop error:', error);
+            console.error('❌ Error details:', error.message);
+            
+            // Show user-friendly error message
+            Alert.alert(
+                'Crop Error', 
+                'Unable to crop image. Using full photo instead. Please ensure the container is properly positioned in the frame.',
+                [{ text: 'OK' }]
+            );
+            
             // Fallback to original image if cropping fails
+            console.warn('⚠️ Using original image as fallback');
             return imageUri;
-        }
-    };
-
-    // Function to convert image to base64
-    const convertImageToBase64 = async (imageUri) => {
-        try {
-            // For now, we'll use the original base64
-            // In a real implementation, you would convert the cropped image to base64
-            const response = await fetch(imageUri);
-            const blob = await response.blob();
-            return new Promise((resolve, reject) => {
-                const reader = new FileReader();
-                reader.onloadend = () => {
-                    const base64 = reader.result.split(',')[1];
-                    resolve(base64);
-                };
-                reader.onerror = reject;
-                reader.readAsDataURL(blob);
-            });
-        } catch (error) {
-            console.error('Base64 conversion error:', error);
-            return '';
-        }
-    };
-
-    // Function to convert require image to base64
-    const convertRequireImageToBase64 = async (imageSource) => {
-        try {
-            // For React Native, use the Image.resolveAssetSource method
-            const asset = Image.resolveAssetSource(imageSource);
-            if (asset && asset.uri) {
-                const response = await fetch(asset.uri);
-                const blob = await response.blob();
-                return new Promise((resolve, reject) => {
-                    const reader = new FileReader();
-                    reader.onloadend = () => {
-                        const base64 = reader.result.split(',')[1];
-                        resolve(base64);
-                    };
-                    reader.onerror = reject;
-                    reader.readAsDataURL(blob);
-                });
-            }
-            return '';
-        } catch (error) {
-            console.error('Require image Base64 conversion error:', error);
-            // Return empty string if conversion fails
-            return '';
-        }
-    };
-
-    // Function to upload container photo to S3
-    const uploadContainerPhoto = async (imageSource, tripSegmentNumber) => {
-        try {
-            console.log('📸 Uploading container photo to S3...');
-            
-            const BACKEND_URL = API_CONFIG.getBackendUrl();
-            
-            // Handle different image source types
-            let imageUri;
-            if (typeof imageSource === 'string') {
-                // It's already a URI string
-                imageUri = imageSource;
-            } else if (imageSource && imageSource.uri) {
-                // It's a require object with uri property
-                imageUri = imageSource.uri;
-            } else {
-                console.error('❌ Invalid image source type:', typeof imageSource);
-                return { success: false, error: 'Invalid image source' };
-            }
-            
-            console.log('📸 Image URI:', imageUri);
-            
-            // Create FormData for file upload
-            const formData = new FormData();
-            
-            // Add the image file
-            formData.append('photos', {
-                uri: imageUri,
-                type: 'image/jpeg',
-                name: 'container_photo.jpg'
-            });
-            
-            // Add metadata
-            formData.append('tripSegmentNumber', tripSegmentNumber);
-            formData.append('containerNumber', extractedData.containerNumber || '');
-            formData.append('photoType', 'container');
-            formData.append('containerPhotoLocation', 'Container Front Wall');
-            
-            console.log('📸 Uploading to:', `${BACKEND_URL}/api/upload/s3-container-photos`);
-            console.log('📸 Trip segment:', tripSegmentNumber);
-            
-            const response = await fetch(`${BACKEND_URL}/api/upload/s3-container-photos`, {
-                method: 'POST',
-                body: formData,
-                headers: {
-                    'Content-Type': 'multipart/form-data',
-                },
-            });
-            
-            const result = await response.json();
-            
-            if (result.success) {
-                console.log('✅ Container photo uploaded successfully to S3:', result.containerPhotos);
-            } else {
-                console.error('❌ Failed to upload container photo to S3:', result.error);
-            }
-            
-            return result;
-            
-        } catch (error) {
-            console.error('❌ Error uploading container photo to S3:', error);
-            return { success: false, error: error.message };
         }
     };
 
@@ -362,7 +337,7 @@ const StepOneContainerPhoto = ({ onBack, onNavigateToStepTwo, onNavigateToDamage
         } else if (isoCodeUpper.includes('L')) {
             return 'Livestock Container';
         } else {
-            return 'Unknown Container Type';
+            return 'Dry Container';
         }
     };
 
@@ -567,7 +542,6 @@ const StepOneContainerPhoto = ({ onBack, onNavigateToStepTwo, onNavigateToDamage
             const bestResults = extractParkRowResults(parkrowResponse.data);
             
             if (bestResults) {
-                console.log('ParkRow results:', bestResults);
                 
                 setExtractedData({
                     containerNumber: bestResults.containerNumber || '',
@@ -720,7 +694,7 @@ const StepOneContainerPhoto = ({ onBack, onNavigateToStepTwo, onNavigateToDamage
             {!image ? (
                 // Full Screen Camera View
                 <View style={cn('flex-1')}>
-                    {/* Camera View */}
+                    {/* Camera View with Masked Overlay */}
                     <CameraView
                         ref={cameraRef}
                         style={cn('flex-1')}
@@ -728,31 +702,77 @@ const StepOneContainerPhoto = ({ onBack, onNavigateToStepTwo, onNavigateToDamage
                         ratio="1:1"
                     />
                     
-                    {/* Overlay UI Elements */}
+                    {/* Custom Mask Overlay - darkens everything except the camera frame */}
                     <View style={cn('absolute inset-0')} pointerEvents="box-none">
-                        {/* Instruction Text */}
-                        <View style={cn('absolute top-4 left-4 right-4 items-center')} pointerEvents="none">
-                            <View style={cn('bg-black/70 p-6 rounded-lg')}>
-                                <Text style={cn('text-white text-center text-lg font-semibold')}>
-                                    Make sure the Container Number is clearly visible
-                                </Text>
-                            </View>
-                        </View>
+                        {/* Top overlay */}
+                        <View 
+                            style={{
+                                position: 'absolute',
+                                top: 0,
+                                left: 0,
+                                width: screenWidth,
+                                height: centerY,
+                                backgroundColor: 'black'
+                            }}
+                        />
                         
-                        {/* Container Guide Frame */}
-                        <View style={cn('absolute inset-0 justify-center items-center')} pointerEvents="none">
-                            <View style={cn('relative')}>
-                            {/* Container Rectangle Outline */}
-                            <View 
-                                style={[
-                                    cn('border-2 border-green-500 bg-green-500/10 -mt-20'),
-                                    {
-                                        width: containerWidth,
-                                        height: containerHeight,
-                                    }
-                                ]}
-                            />
-                            </View>
+                        {/* Left overlay */}
+                        <View 
+                            style={{
+                                position: 'absolute',
+                                top: centerY,
+                                left: 0,
+                                width: centerX,
+                                height: containerHeight,
+                                backgroundColor: 'black'
+                            }}
+                        />
+                        
+                        {/* Right overlay */}
+                        <View 
+                            style={{
+                                position: 'absolute',
+                                top: centerY,
+                                left: centerX + containerWidth,
+                                width: centerX,
+                                height: containerHeight,
+                                backgroundColor: 'black'
+                            }}
+                        />
+                        
+                        {/* Bottom overlay */}
+                        <View 
+                            style={{
+                                position: 'absolute',
+                                top: centerY + containerHeight,
+                                left: 0,
+                                width: screenWidth,
+                                height: screenHeight - (centerY + containerHeight),
+                                backgroundColor: 'black'
+                            }}
+                        />
+                        
+                        {/* Container Guide Frame - drawn on top */}
+                        <View 
+                            style={{
+                                position: 'absolute',
+                                top: centerY,
+                                left: centerX,
+                                width: containerWidth,
+                                height: containerHeight,
+                                borderWidth: 2,
+                                borderColor: '#10B981',
+                                backgroundColor: 'transparent',
+                            }}
+                        />
+                    </View>
+                    
+                    {/* Instruction Text - Above the mask */}
+                    <View style={cn('absolute top-4 left-4 right-4 items-center')} pointerEvents="none">
+                        <View style={cn('bg-black/70 p-6 rounded-lg')}>
+                            <Text style={cn('text-white text-center text-lg font-semibold')}>
+                                Make sure the Container Number is clearly visible
+                            </Text>
                         </View>
                     </View>
                     
@@ -786,11 +806,17 @@ const StepOneContainerPhoto = ({ onBack, onNavigateToStepTwo, onNavigateToDamage
                         <View style={cn(`${isDark ? 'bg-gray-800' : 'bg-white'} rounded-lg shadow-lg p-4 mb-6`)}>
                             <View style={cn('mb-2 flex items-center justify-center')}>
                                 <View style={cn('relative')}>
+                                    {/* Display cropped image preview (from Container Guide Frame area) */}
                                     <Image 
                                         source={typeof image === 'string' ? { uri: image } : image} 
-                                        style={cn('w-[280px] h-[280px] rounded-lg')} 
+                                        style={{
+                                            width: 280,
+                                            height: 280 * 0.94, // Maintain the same aspect ratio as the Container Guide Frame
+                                            borderRadius: 8,
+                                        }}
+                                        resizeMode="cover"
                                     />
-                                    {/* Eye Icon Overlay */}
+                                    {/* Eye Icon Overlay - Click to zoom cropped photo */}
                                     <TouchableOpacity
                                         onPress={() => setShowZoomModal(true)}
                                         style={cn('absolute inset-0 items-center justify-center')}
@@ -939,7 +965,7 @@ const StepOneContainerPhoto = ({ onBack, onNavigateToStepTwo, onNavigateToDamage
                 </KeyboardAvoidingView>
             )}
 
-            {/* Zoom Modal */}
+            {/* Zoom Modal - Shows Cropped Photo */}
             <Modal
                 visible={showZoomModal}
                 transparent={true}
@@ -955,7 +981,7 @@ const StepOneContainerPhoto = ({ onBack, onNavigateToStepTwo, onNavigateToDamage
                         <X size={24} color="white" />
                     </TouchableOpacity>
 
-                    {/* Full Size Image */}
+                    {/* Full Size Cropped Image (from Container Guide Frame area) */}
                     <Image 
                         source={typeof image === 'string' ? { uri: image } : image} 
                         style={cn('w-full h-full')}

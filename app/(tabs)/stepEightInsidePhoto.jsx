@@ -4,6 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { LinearGradient } from 'expo-linear-gradient';
+import * as ImageManipulator from 'expo-image-manipulator';
 import { cn } from '../../lib/tw';
 import { useTheme } from '../../contexts/ThemeContext';
 import TimerDisplay from '../../components/common/TimerDisplay';
@@ -129,6 +130,55 @@ const StepEightInsidePhoto = ({ onBack, onBackToLeftWallDamage, containerData, o
     const themeIconRotation = useRef(new Animated.Value(0)).current;
     const themeButtonScale = useRef(new Animated.Value(1)).current;
 
+    // Camera overlay dimensions
+    const screenWidth = Dimensions.get('window').width;
+    const screenHeight = Dimensions.get('window').height;
+    const insideFrameWidth = screenWidth * 0.85;
+    const insideFrameHeight = insideFrameWidth * 0.94;
+    const centerX = (screenWidth - insideFrameWidth) / 2;
+    const centerY = (screenHeight - insideFrameHeight) / 2 - 80;
+
+    const calculateCropArea = (imageWidth, imageHeight) => {
+        const imageAspectRatio = imageWidth / imageHeight;
+        const screenAspectRatio = screenWidth / screenHeight;
+        let displayWidth, displayHeight, offsetX, offsetY;
+        if (imageAspectRatio > screenAspectRatio) {
+            displayHeight = screenHeight;
+            displayWidth = screenHeight * imageAspectRatio;
+            offsetX = (displayWidth - screenWidth) / 2;
+            offsetY = 0;
+        } else {
+            displayWidth = screenWidth;
+            displayHeight = screenWidth / imageAspectRatio;
+            offsetX = 0;
+            offsetY = (displayHeight - screenHeight) / 2;
+        }
+        const scale = imageWidth / displayWidth;
+        let imageOverlayX = (centerX + offsetX) * scale;
+        let imageOverlayY = (centerY + offsetY) * scale;
+        let imageOverlayWidth = insideFrameWidth * scale;
+        let imageOverlayHeight = insideFrameHeight * scale;
+        imageOverlayX = Math.max(0, imageOverlayX);
+        imageOverlayY = Math.max(0, imageOverlayY);
+        if (imageOverlayX + imageOverlayWidth > imageWidth) imageOverlayWidth = imageWidth - imageOverlayX;
+        if (imageOverlayY + imageOverlayHeight > imageHeight) imageOverlayHeight = imageHeight - imageOverlayY;
+        return { x: Math.round(imageOverlayX), y: Math.round(imageOverlayY), width: Math.round(imageOverlayWidth), height: Math.round(imageOverlayHeight) };
+    };
+
+    const cropImageToInsideFrame = async (imageUri) => {
+        try {
+            const imageInfo = await ImageManipulator.manipulateAsync(imageUri, [], { format: ImageManipulator.SaveFormat.JPEG });
+            const cropArea = calculateCropArea(imageInfo.width, imageInfo.height);
+            if (cropArea.x < 0 || cropArea.y < 0 || cropArea.width <= 0 || cropArea.height <= 0) return imageUri;
+            if (cropArea.x + cropArea.width > imageInfo.width || cropArea.y + cropArea.height > imageInfo.height) return imageUri;
+            const croppedImage = await ImageManipulator.manipulateAsync(imageUri, [{ crop: { originX: cropArea.x, originY: cropArea.y, width: cropArea.width, height: cropArea.height } }], { compress: 0.6, format: ImageManipulator.SaveFormat.JPEG });
+            return croppedImage.uri;
+        } catch (error) {
+            console.error('❌ Crop error:', error);
+            return imageUri;
+        }
+    };
+
     const handleThemeToggle = () => {
         // Scale down animation
         Animated.sequence([
@@ -161,15 +211,33 @@ const StepEightInsidePhoto = ({ onBack, onBackToLeftWallDamage, containerData, o
         try {
             setIsProcessing(true);
             const photo = await cameraRef.current.takePictureAsync({
-                quality: 0.4,
+                quality: 0.3,
                 base64: false,
                 skipProcessing: true,
                 exif: false,
             });
 
             if (photo?.uri) {
-                setImage(photo.uri);
-                console.log('📸 Inside photo taken successfully');
+                try {
+                    const fileInfo = await fetch(photo.uri);
+                    const blob = await fileInfo.blob();
+                    console.log(`📊 Original Inside photo size: ${(blob.size / 1024).toFixed(2)} KB (${(blob.size / 1024 / 1024).toFixed(2)} MB)`);
+                } catch (e) {}
+
+                const croppedImage = await cropImageToInsideFrame(photo.uri);
+
+                try {
+                    const fileInfo = await fetch(croppedImage);
+                    const blob = await fileInfo.blob();
+                    const originalFileInfo = await fetch(photo.uri);
+                    const originalBlob = await originalFileInfo.blob();
+                    const reduction = (((originalBlob.size - blob.size) / originalBlob.size) * 100).toFixed(1);
+                    console.log(`📊 Cropped Inside photo size: ${(blob.size / 1024).toFixed(2)} KB (${(blob.size / 1024 / 1024).toFixed(2)} MB)`);
+                    console.log(`📉 Size reduction: ${reduction}%`);
+                } catch (e) {}
+
+                setImage(croppedImage);
+                console.log('📸 Inside photo taken and cropped successfully');
             }
         } catch (error) {
             console.error('❌ Error taking inside photo:', error);
@@ -499,36 +567,33 @@ const StepEightInsidePhoto = ({ onBack, onBackToLeftWallDamage, containerData, o
                         facing={facing}
                         ratio="1:1"
                     />
+
+                    {/* Custom Mask Overlay */}
+                    <View style={cn('absolute inset-0')} pointerEvents="box-none">
+                        <View style={{ position: 'absolute', top: 0, left: 0, width: screenWidth, height: centerY, backgroundColor: 'black' }} />
+                        <View style={{ position: 'absolute', top: centerY, left: 0, width: centerX, height: insideFrameHeight, backgroundColor: 'black' }} />
+                        <View style={{ position: 'absolute', top: centerY, left: centerX + insideFrameWidth, width: centerX, height: insideFrameHeight, backgroundColor: 'black' }} />
+                        <View style={{ position: 'absolute', top: centerY + insideFrameHeight, left: 0, width: screenWidth, height: screenHeight - (centerY + insideFrameHeight), backgroundColor: 'black' }} />
+                        <View style={{ position: 'absolute', top: centerY, left: centerX, width: insideFrameWidth, height: insideFrameHeight, borderWidth: 2, borderColor: '#10B981', backgroundColor: 'transparent' }} />
+                    </View>
                     
-                    {/* Container Guide Overlay */}
-                    <View style={cn('absolute inset-0 justify-center items-center')}>
-                        {/* Container Guide Frame */}
-                        <View style={cn('relative')}>
-                            {/* Container Rectangle Outline */}
-                            <View
-                                style={[
-                                    cn('border-2 border-green-500 bg-green-500/10 mt-8'),
-                                    {
-                                        width: Dimensions.get('window').width * 0.9,
-                                        height: Dimensions.get('window').width * 0.9,
-                                        borderRadius: 8,
-                                    }
-                                ]}
-                            />
+                    <View style={cn('absolute top-4 left-4 right-4 items-center')} pointerEvents="none">
+                        <View style={cn('bg-black/70 p-6 rounded-lg')}>
+                            <Text style={cn('text-white text-center text-lg font-semibold')}>
+                                Capture the Inside of the container
+                            </Text>
                         </View>
                     </View>
-
-                    {/* Camera Controls Overlay */}
-                    <View style={cn('absolute bottom-0 left-0 right-0 bg-black/50 pb-8 pt-4')}>
+                    
+                    <View style={cn('absolute bottom-0 left-0 bg-black/50 right-0 pb-20 pt-4')}>
                         <View style={cn('flex-row items-center justify-center px-8')}>
-                            {/* Capture Button */}
                             <TouchableOpacity
                                 onPress={takePicture}
                                 disabled={isProcessing}
                                 style={cn('w-20 h-20 rounded-full bg-white border-4 border-white/30 items-center justify-center')}
                             >
                                 {isProcessing ? (
-                                    <ActivityIndicator size="small" color="#000" />
+                                    <ActivityIndicator size="small" color="#6B7280" />
                                 ) : (
                                     <View style={cn('w-16 h-16 rounded-full bg-white')} />
                                 )}
