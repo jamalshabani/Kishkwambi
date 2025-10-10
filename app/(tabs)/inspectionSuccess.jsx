@@ -1,14 +1,15 @@
-import React, { useRef, useEffect } from 'react';
-import { View, Text, TouchableOpacity, Animated } from 'react-native';
+import React, { useRef, useEffect, useState } from 'react';
+import { View, Text, TouchableOpacity, Animated, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { LinearGradient } from 'expo-linear-gradient';
 import { cn } from '../../lib/tw';
 import { useTheme } from '../../contexts/ThemeContext';
-import { CheckCircle, Home, Clock, Sun, Moon } from 'lucide-react-native';
+import { CheckCircle, Home, Clock, Sun, Moon, Upload } from 'lucide-react-native';
 
-const InspectionSuccess = ({ onBackToDashboard, inspectionData }) => {
+const InspectionSuccess = ({ onBackToDashboard, inspectionData, uploadProgress, isUploading }) => {
     const { isDark, toggleTheme } = useTheme();
+    const [showSuccess, setShowSuccess] = useState(false);
     
     // Animation values
     const checkmarkScale = useRef(new Animated.Value(0)).current;
@@ -21,37 +22,41 @@ const InspectionSuccess = ({ onBackToDashboard, inspectionData }) => {
     const themeButtonScale = useRef(new Animated.Value(1)).current;
 
     useEffect(() => {
-        // Animate checkmark
-        Animated.sequence([
-            Animated.delay(300),
-            Animated.parallel([
-                Animated.timing(checkmarkScale, {
-                    toValue: 1,
-                    duration: 600,
-                    useNativeDriver: true,
-                }),
-                Animated.timing(checkmarkOpacity, {
-                    toValue: 1,
-                    duration: 600,
-                    useNativeDriver: true,
-                }),
-            ]),
-            Animated.delay(200),
-            // Animate content
-            Animated.parallel([
-                Animated.timing(contentOpacity, {
-                    toValue: 1,
-                    duration: 500,
-                    useNativeDriver: true,
-                }),
-                Animated.timing(contentTranslateY, {
-                    toValue: 0,
-                    duration: 500,
-                    useNativeDriver: true,
-                }),
-            ]),
-        ]).start();
-    }, []);
+        // Only animate when upload is complete
+        if (!isUploading && uploadProgress.percentage >= 100) {
+            setShowSuccess(true);
+            // Animate checkmark
+            Animated.sequence([
+                Animated.delay(300),
+                Animated.parallel([
+                    Animated.timing(checkmarkScale, {
+                        toValue: 1,
+                        duration: 600,
+                        useNativeDriver: true,
+                    }),
+                    Animated.timing(checkmarkOpacity, {
+                        toValue: 1,
+                        duration: 600,
+                        useNativeDriver: true,
+                    }),
+                ]),
+                Animated.delay(200),
+                // Animate content
+                Animated.parallel([
+                    Animated.timing(contentOpacity, {
+                        toValue: 1,
+                        duration: 500,
+                        useNativeDriver: true,
+                    }),
+                    Animated.timing(contentTranslateY, {
+                        toValue: 0,
+                        duration: 500,
+                        useNativeDriver: true,
+                    }),
+                ]),
+            ]).start();
+        }
+    }, [isUploading, uploadProgress]);
 
     const handleBackToDashboard = () => {
         if (onBackToDashboard) {
@@ -120,36 +125,86 @@ const InspectionSuccess = ({ onBackToDashboard, inspectionData }) => {
 
             {/* Main Content */}
             <View style={cn('flex-1 justify-center items-center p-6')}>
-                {/* Success Animation */}
-                <Animated.View
-                    style={[
-                        cn('items-center mb-8'),
-                        {
-                            opacity: checkmarkOpacity,
-                            transform: [{ scale: checkmarkScale }],
-                        },
-                    ]}
-                >
-                    <View style={cn('w-32 h-32 rounded-full items-center justify-center mb-4 mt-4')}>
-                        <LinearGradient
-                            colors={['#10B981', '#059669']}
-                            style={cn('w-32 h-32 rounded-full items-center justify-center')}
-                        >
-                            <CheckCircle size={80} color="white" />
-                        </LinearGradient>
-                    </View>
-                </Animated.View>
+                {isUploading || !showSuccess ? (
+                    // Upload Progress Screen
+                    <View style={cn('items-center w-full')}>
+                        <View style={cn('w-32 h-32 rounded-full items-center justify-center mb-6')}>
+                            <LinearGradient
+                                colors={['#F59E0B', '#000000']}
+                                style={cn('w-32 h-32 rounded-full items-center justify-center')}
+                            >
+                                <Upload size={60} color="white" />
+                            </LinearGradient>
+                        </View>
 
-                {/* Success Content */}
-                <Animated.View
-                    style={[
-                        cn('items-center'),
-                        {
-                            opacity: contentOpacity,
-                            transform: [{ translateY: contentTranslateY }],
-                        },
-                    ]}
-                >
+                        <Text style={cn(`text-2xl font-bold text-center mb-2 ${isDark ? 'text-white' : 'text-gray-800'}`)}>
+                            Uploading Photos
+                        </Text>
+
+                        <Text style={cn(`text-lg text-center mb-8 ${isDark ? 'text-gray-300' : 'text-gray-600'}`)}>
+                            Please wait while we save your inspection...
+                        </Text>
+
+                        {/* Progress Bar */}
+                        <View style={cn('w-full mb-4')}>
+                            <View style={cn(`h-4 ${isDark ? 'bg-gray-700' : 'bg-gray-200'} rounded-full overflow-hidden`)}>
+                                <View
+                                    style={[
+                                        cn('h-full rounded-full'),
+                                        { width: `${uploadProgress.percentage}%` }
+                                    ]}
+                                >
+                                    <LinearGradient
+                                        colors={['#F59E0B', '#000000']}
+                                        start={{ x: 0, y: 0 }}
+                                        end={{ x: 1, y: 0 }}
+                                        style={cn('h-full')}
+                                    />
+                                </View>
+                            </View>
+                        </View>
+
+                        <Text style={cn(`text-xl font-bold mb-2 ${isDark ? 'text-white' : 'text-gray-800'}`)}>
+                            {Math.round(uploadProgress.percentage)}%
+                        </Text>
+
+                        <Text style={cn(`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`)}>
+                            {Math.round(uploadProgress.current)} of {uploadProgress.total} photos uploaded
+                        </Text>
+                    </View>
+                ) : (
+                    // Success Screen
+                    <>
+                        {/* Success Animation */}
+                        <Animated.View
+                            style={[
+                                cn('items-center mb-8'),
+                                {
+                                    opacity: checkmarkOpacity,
+                                    transform: [{ scale: checkmarkScale }],
+                                },
+                            ]}
+                        >
+                            <View style={cn('w-32 h-32 rounded-full items-center justify-center mb-4 mt-4')}>
+                                <LinearGradient
+                                    colors={['#10B981', '#059669']}
+                                    style={cn('w-32 h-32 rounded-full items-center justify-center')}
+                                >
+                                    <CheckCircle size={80} color="white" />
+                                </LinearGradient>
+                            </View>
+                        </Animated.View>
+
+                        {/* Success Content */}
+                        <Animated.View
+                            style={[
+                                cn('items-center'),
+                                {
+                                    opacity: contentOpacity,
+                                    transform: [{ translateY: contentTranslateY }],
+                                },
+                            ]}
+                        >
                     <Text style={cn(`text-3xl font-bold text-center mb-4 ${isDark ? 'text-white' : 'text-gray-800'}`)}>
                         Inspection Complete!
                     </Text>
@@ -194,10 +249,10 @@ const InspectionSuccess = ({ onBackToDashboard, inspectionData }) => {
                             
                             <View style={cn('flex-row items-center justify-between')}>
                                 <Text style={cn(`text-sm ${isDark ? 'text-gray-300' : 'text-gray-600'}`)}>
-                                    Completion Time:
+                                    Inspection Duration:
                                 </Text>
                                 <Text style={cn(`font-semibold ${isDark ? 'text-white' : 'text-gray-800'}`)}>
-                                    {new Date().toLocaleTimeString()}
+                                    {inspectionData?.inspectionTime || 'N/A'}
                                 </Text>
                             </View>
                         </View>
@@ -220,8 +275,10 @@ const InspectionSuccess = ({ onBackToDashboard, inspectionData }) => {
                                 </Text>
                             </LinearGradient>
                         </TouchableOpacity>
-                    </View>
-                </Animated.View>
+                        </View>
+                    </Animated.View>
+                    </>
+                )}
             </View>
         </SafeAreaView>
     );

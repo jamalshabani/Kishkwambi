@@ -4,7 +4,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { LinearGradient } from 'expo-linear-gradient';
-import MaskedView from '@react-native-masked-view/masked-view';
 import * as ImageManipulator from 'expo-image-manipulator';
 import { cn } from '../../lib/tw';
 import { useTheme } from '../../contexts/ThemeContext';
@@ -83,22 +82,10 @@ const StepOneContainerPhoto = ({ onBack, onNavigateToStepTwo, onNavigateToDamage
         }
     }, [incomingContainerData]);
 
-    // Mask component for the container area
-    const ContainerMask = () => (
-        <View style={cn('flex-1 justify-center items-center')}>
-            {/* Container Rectangle - this will be the visible area */}
-            <View 
-                style={[
-                    cn('bg-white'),
-                    {
-                        width: 320,
-                        height: 298, // Adjusted for 2.44m × 2.59m ratio (0.94:1)
-                        borderRadius: 8,
-                    }
-                ]}
-            />
-        </View>
-    );
+    // Camera overlay dimensions
+    const screenWidth = Dimensions.get('window').width;
+    const containerWidth = screenWidth * 0.85;
+    const containerHeight = containerWidth * 0.94; // 2.44m × 2.59m ratio
 
     const handleThemeToggle = () => {
         // Scale down animation
@@ -733,23 +720,18 @@ const StepOneContainerPhoto = ({ onBack, onNavigateToStepTwo, onNavigateToDamage
             {!image ? (
                 // Full Screen Camera View
                 <View style={cn('flex-1')}>
-                    {/* Masked Camera View */}
-                    <MaskedView
+                    {/* Camera View */}
+                    <CameraView
+                        ref={cameraRef}
                         style={cn('flex-1')}
-                        maskElement={<ContainerMask />}
-                    >
-                        <CameraView
-                            ref={cameraRef}
-                            style={cn('flex-1')}
-                            facing={facing}
-                            ratio="1:1"
-                        />
-                    </MaskedView>
+                        facing={facing}
+                        ratio="1:1"
+                    />
                     
                     {/* Overlay UI Elements */}
-                    <View style={cn('absolute inset-0')}>
+                    <View style={cn('absolute inset-0')} pointerEvents="box-none">
                         {/* Instruction Text */}
-                        <View style={cn('absolute top-4 left-4 right-4 items-center')}>
+                        <View style={cn('absolute top-4 left-4 right-4 items-center')} pointerEvents="none">
                             <View style={cn('bg-black/70 p-6 rounded-lg')}>
                                 <Text style={cn('text-white text-center text-lg font-semibold')}>
                                     Make sure the Container Number is clearly visible
@@ -758,16 +740,15 @@ const StepOneContainerPhoto = ({ onBack, onNavigateToStepTwo, onNavigateToDamage
                         </View>
                         
                         {/* Container Guide Frame */}
-                        <View style={cn('absolute inset-0 justify-center items-center')}>
+                        <View style={cn('absolute inset-0 justify-center items-center')} pointerEvents="none">
                             <View style={cn('relative')}>
                             {/* Container Rectangle Outline */}
                             <View 
                                 style={[
-                                    cn('border-2 border-green-500 bg-green-500/10'),
+                                    cn('border-2 border-green-500 bg-green-500/10 -mt-20'),
                                     {
-                                        width: Dimensions.get('window').width * 0.85,
-                                        height: Dimensions.get('window').width * 0.85 * 0.94, // Adjusted for 2.44m × 2.59m ratio (0.94:1)
-                                        borderRadius: 8,
+                                        width: containerWidth,
+                                        height: containerHeight,
                                     }
                                 ]}
                             />
@@ -776,7 +757,7 @@ const StepOneContainerPhoto = ({ onBack, onNavigateToStepTwo, onNavigateToDamage
                     </View>
                     
                     {/* Camera Controls Overlay */}
-                    <View style={cn('absolute bottom-0 left-0 right-0 bg-black/50 pb-8 pt-4')}>
+                    <View style={cn('absolute bottom-0 left-0 bg-black/50 right-0 pb-20 pt-4')}>
                         <View style={cn('flex-row items-center justify-center px-8')}>
                             {/* Capture Button */}
                             <TouchableOpacity

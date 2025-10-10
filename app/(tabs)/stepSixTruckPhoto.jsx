@@ -198,6 +198,7 @@ const StepSixTruckPhoto = ({ onBack, onBackToBackWallDamage, containerData, onNa
             console.log('🚗 Calling PlateRecognizer API...');
 
             const BACKEND_URL = API_CONFIG.getBackendUrl();
+            console.log('🔗 Backend URL:', BACKEND_URL);
             
             const formData = new FormData();
             formData.append('image', {
@@ -206,16 +207,24 @@ const StepSixTruckPhoto = ({ onBack, onBackToBackWallDamage, containerData, onNa
                 name: 'truck.jpg'
             });
             
-            const response = await fetch(`${BACKEND_URL}/api/plate-recognizer/recognize`, {
-                method: 'POST',
-                body: formData,
-                headers: {
-                    'Content-Type': 'multipart/form-data',
-                },
-            });
+            // Add timeout to the fetch request
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+            
+            try {
+                const response = await fetch(`${BACKEND_URL}/api/plate-recognizer/recognize`, {
+                    method: 'POST',
+                    body: formData,
+                    headers: {
+                        'Content-Type': 'multipart/form-data',
+                    },
+                    signal: controller.signal,
+                });
+                
+                clearTimeout(timeoutId);
 
-            const result = await response.json();
-            console.log('🚗 PlateRecognizer response:', result);
+                const result = await response.json();
+                console.log('🚗 PlateRecognizer response:', result);
 
             if (result.success && result.data && result.data.licencePlate) {
                 const plateNumber = result.data.licencePlate.toUpperCase();
@@ -245,13 +254,36 @@ const StepSixTruckPhoto = ({ onBack, onBackToBackWallDamage, containerData, onNa
                     [{ text: 'OK' }]
                 );
             }
+            } catch (fetchError) {
+                if (fetchError.name === 'AbortError') {
+                    console.error('❌ Plate recognition request timed out');
+                    Alert.alert(
+                        'Request Timeout',
+                        'The request took too long. Please enter the truck number manually.',
+                        [{ text: 'OK' }]
+                    );
+                } else {
+                    throw fetchError; // Re-throw to outer catch
+                }
+            }
         } catch (error) {
             console.error('❌ Error recognizing truck number:', error);
-            Alert.alert(
-                'Recognition Error',
-                'Failed to recognize truck number. Please enter it manually.',
-                [{ text: 'OK' }]
-            );
+            console.error('❌ Error details:', error.message);
+            
+            // Check if it's a network error
+            if (error.message.includes('Network request failed')) {
+                Alert.alert(
+                    'Network Error',
+                    'Cannot connect to the server. Please check your network connection and try entering the truck number manually.',
+                    [{ text: 'OK' }]
+                );
+            } else {
+                Alert.alert(
+                    'Recognition Error',
+                    'Failed to recognize truck number. Please enter it manually.',
+                    [{ text: 'OK' }]
+                );
+            }
         } finally {
             setIsRecognizingPlate(false);
         }

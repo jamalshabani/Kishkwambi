@@ -50,6 +50,8 @@ export default function TabLayout() {
     const [driverData, setDriverData] = useState(null);
     const [showSuccessScreen, setShowSuccessScreen] = useState(false);
     const [inspectionData, setInspectionData] = useState(null);
+    const [uploadProgress, setUploadProgress] = useState({ current: 0, total: 0, percentage: 0 });
+    const [isUploading, setIsUploading] = useState(false);
 
     // Redirect to login if not authenticated
     useEffect(() => {
@@ -394,6 +396,16 @@ export default function TabLayout() {
     const navigateToSuccess = (data) => {
         setInspectionData(data);
         setShowSuccessScreen(true);
+        setIsUploading(true);
+        setUploadProgress({ current: 0, total: 0, percentage: 0 });
+    };
+    
+    const updateUploadProgress = (current, total) => {
+        const percentage = total > 0 ? (current / total) * 100 : 0;
+        setUploadProgress({ current, total, percentage });
+        if (current >= total) {
+            setIsUploading(false);
+        }
     };
 
     const navigateBackToDashboard = () => {
@@ -423,7 +435,7 @@ export default function TabLayout() {
     const renderContent = () => {
         // Show success screen if active
         if (showSuccessScreen) {
-            return <InspectionSuccess onBackToDashboard={navigateBackToDashboard} inspectionData={inspectionData} />;
+            return <InspectionSuccess onBackToDashboard={navigateBackToDashboard} inspectionData={inspectionData} uploadProgress={uploadProgress} isUploading={isUploading} />;
         }
 
         switch (activeTab) {
@@ -567,7 +579,7 @@ export default function TabLayout() {
                     ...inspectionRemarksData,
                     ...driverData
                 };
-                return <StepNineDriverDetails onBack={navigateBackToInspectionRemarks} containerData={driverDetailsData} onComplete={navigateToComplete} onShowSuccess={navigateToSuccess} />;
+                return <StepNineDriverDetails onBack={navigateBackToInspectionRemarks} containerData={driverDetailsData} onComplete={navigateToComplete} onShowSuccess={navigateToSuccess} onUpdateUploadProgress={updateUploadProgress} />;
             default:
                 return <Dashboard onTakePhoto={navigateToStepOne} />;
         }

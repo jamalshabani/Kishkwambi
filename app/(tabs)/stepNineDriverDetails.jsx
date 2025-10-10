@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { View, Text, TouchableOpacity, Alert, Image, ScrollView, Animated, Modal, TextInput, KeyboardAvoidingView, Platform, ActivityIndicator } from 'react-native';
+import { View, Text, TouchableOpacity, Alert, Image, ScrollView, Animated, Modal, TextInput, KeyboardAvoidingView, Platform, ActivityIndicator, Dimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { CameraView, useCameraPermissions } from 'expo-camera';
@@ -11,12 +11,11 @@ import TimerDisplay from '../../components/common/TimerDisplay';
 import { Sun, Moon, Eye, X, Camera, User, CreditCard, Phone, Mail, ArrowLeft } from 'lucide-react-native';
 import { API_CONFIG } from '../../lib/config';
 
-const StepNineDriverDetails = ({ onBack, containerData, onComplete, onShowSuccess }) => {
+const StepNineDriverDetails = ({ onBack, containerData, onComplete, onShowSuccess, onUpdateUploadProgress }) => {
     const { isDark, toggleTheme } = useTheme();
     const { stopTimer, resetTimer } = useInspectionTimer();
     const [permission, requestPermission] = useCameraPermissions();
     const [image, setImage] = useState(null);
-    const [showZoomModal, setShowZoomModal] = useState(false);
     const [showCamera, setShowCamera] = useState(false);
     const [showForm, setShowForm] = useState(false);
     const [isProcessing, setIsProcessing] = useState(false);
@@ -128,7 +127,7 @@ const StepNineDriverDetails = ({ onBack, containerData, onComplete, onShowSucces
             setIsProcessing(true);
             const photo = await cameraRef.current.takePictureAsync({
                 quality: 0.4,
-                base64: false,
+                base64: true, // Enable base64 for Vision AI
                 skipProcessing: true,
                 exif: false,
             });
@@ -137,6 +136,7 @@ const StepNineDriverDetails = ({ onBack, containerData, onComplete, onShowSucces
                 setImage(photo.uri);
                 setShowCamera(false);
                 console.log('📸 Driver license photo taken successfully');
+                console.log('📸 Base64 length:', photo.base64?.length || 0);
 
                 // Show extraction loading
                 setIsExtracting(true);
@@ -172,7 +172,6 @@ const StepNineDriverDetails = ({ onBack, containerData, onComplete, onShowSucces
             });
 
             const result = await response.json();
-            console.log('📊 Vision AI response:', result);
 
             if (result.success && result.data) {
                 const extractedData = result.data;
@@ -258,6 +257,196 @@ const StepNineDriverDetails = ({ onBack, containerData, onComplete, onShowSucces
         }
     };
 
+    const uploadAllPhotosToArrivedContainers = async (tripSegmentNumber, containerData, progressCallback) => {
+        try {
+            console.log('📸 Starting batch photo upload to arrivedContainers...');
+            
+            const BACKEND_URL = API_CONFIG.getBackendUrl();
+            const formData = new FormData();
+            
+            // Add trip segment number
+            formData.append('tripSegmentNumber', tripSegmentNumber);
+            
+            // Collect all photos with their types
+            const photos = [];
+            
+            // Container photo
+            if (containerData?.containerPhoto) {
+                photos.push({ uri: containerData.containerPhoto, type: 'ContainerPhoto' });
+            }
+            
+            // Trailer photo
+            if (containerData?.trailerPhoto) {
+                photos.push({ uri: containerData.trailerPhoto, type: 'TrailerPhoto' });
+            }
+            
+            // Right wall photo
+            if (containerData?.rightWallPhoto) {
+                photos.push({ uri: containerData.rightWallPhoto, type: 'RightWallPhoto' });
+            }
+            
+            // Back wall photo
+            if (containerData?.backWallPhoto) {
+                photos.push({ uri: containerData.backWallPhoto, type: 'BackWallPhoto' });
+            }
+            
+            // Truck photo
+            if (containerData?.truckPhoto) {
+                photos.push({ uri: containerData.truckPhoto, type: 'TruckPhoto' });
+            }
+            
+            // Left side photo
+            if (containerData?.leftSidePhoto) {
+                photos.push({ uri: containerData.leftSidePhoto, type: 'LeftSidePhoto' });
+            }
+            
+            // Inside photo
+            if (containerData?.insidePhoto) {
+                photos.push({ uri: containerData.insidePhoto, type: 'InsidePhoto' });
+            }
+            
+            // Damage photos from all locations
+            const damagePhotos = [];
+            if (containerData?.frontWallDamagePhotos && containerData.frontWallDamagePhotos.length > 0) {
+                containerData.frontWallDamagePhotos.forEach(photo => {
+                    damagePhotos.push({ uri: photo.uri, location: 'FrontWall' });
+                });
+            }
+            if (containerData?.rightWallDamagePhotos && containerData.rightWallDamagePhotos.length > 0) {
+                containerData.rightWallDamagePhotos.forEach(photo => {
+                    damagePhotos.push({ uri: photo.uri, location: 'RightWall' });
+                });
+            }
+            if (containerData?.backWallDamagePhotos && containerData.backWallDamagePhotos.length > 0) {
+                containerData.backWallDamagePhotos.forEach(photo => {
+                    damagePhotos.push({ uri: photo.uri, location: 'BackWall' });
+                });
+            }
+            if (containerData?.leftWallDamagePhotos && containerData.leftWallDamagePhotos.length > 0) {
+                containerData.leftWallDamagePhotos.forEach(photo => {
+                    damagePhotos.push({ uri: photo.uri, location: 'LeftWall' });
+                });
+            }
+            if (containerData?.insideDamagePhotos && containerData.insideDamagePhotos.length > 0) {
+                containerData.insideDamagePhotos.forEach(photo => {
+                    damagePhotos.push({ uri: photo.uri, location: 'Inside' });
+                });
+            }
+            
+            // Driver license photo
+            if (image) {
+                photos.push({ uri: image, type: 'DriverLicensePhoto' });
+            }
+            
+            const totalPhotos = photos.length + damagePhotos.length;
+            console.log(`📸 Total inspection photos: ${photos.length}`);
+            console.log(`📸 Total damage photos: ${damagePhotos.length}`);
+            console.log(`📸 Total photos to upload: ${totalPhotos}`);
+            
+            // Update progress: preparing upload
+            if (progressCallback) {
+                progressCallback(0, totalPhotos);
+            }
+            
+            // Add all photos to formData
+            photos.forEach((photo, index) => {
+                formData.append('photos', {
+                    uri: photo.uri,
+                    type: 'image/jpeg',
+                    name: `photo_${index}.jpg`
+                });
+                formData.append('photoTypes', photo.type);
+            });
+            
+            // Add damage photos
+            damagePhotos.forEach((photo, index) => {
+                formData.append('damagePhotos', {
+                    uri: photo.uri,
+                    type: 'image/jpeg',
+                    name: `damage_${index}.jpg`
+                });
+                formData.append('damageLocations', photo.location);
+            });
+            
+            // Simulate progress during upload (since we can't track individual photo uploads in one request)
+            let currentPhotoCount = 0;
+            const progressInterval = setInterval(() => {
+                // Increment progress gradually, simulating one photo at a time
+                if (progressCallback && currentPhotoCount < totalPhotos - 1) {
+                    currentPhotoCount += 1;
+                    progressCallback(currentPhotoCount, totalPhotos);
+                    console.log(`📊 Progress update: ${currentPhotoCount}/${totalPhotos}`);
+                }
+            }, 500); // Update every 500ms to simulate individual photo uploads
+            
+            console.log('📤 Sending request to:', `${BACKEND_URL}/api/upload/batch-photos-arrived-containers`);
+            console.log('📤 Backend URL:', BACKEND_URL);
+            console.log('📤 Total photos in formData:', totalPhotos);
+            
+            // Add timeout to the request (5 minutes for large uploads)
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 300000); // 5 minute timeout
+            
+            try {
+                // Don't set Content-Type manually - let React Native set it with the boundary
+                const response = await fetch(`${BACKEND_URL}/api/upload/batch-photos-arrived-containers`, {
+                    method: 'POST',
+                    body: formData,
+                    signal: controller.signal,
+                });
+                
+                clearTimeout(timeoutId);
+                clearInterval(progressInterval);
+                
+                console.log('📥 Response status:', response.status);
+                
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error('❌ Server error response:', errorText);
+                    throw new Error(`Server responded with status ${response.status}: ${errorText}`);
+                }
+                
+                const result = await response.json();
+                console.log('📥 Response data:', result);
+            
+                if (result.success) {
+                    // Update to 100% progress
+                    if (progressCallback) {
+                        progressCallback(totalPhotos, totalPhotos);
+                    }
+                    console.log('✅ All photos uploaded successfully:', result);
+                    return { success: true, photoReferences: result.photoReferences };
+                } else {
+                    console.error('❌ Failed to upload photos:', result.error);
+                    return { success: false, error: result.error };
+                }
+            } catch (fetchError) {
+                clearTimeout(timeoutId);
+                clearInterval(progressInterval);
+                
+                if (fetchError.name === 'AbortError') {
+                    console.error('❌ Upload request timed out after 5 minutes');
+                    return { success: false, error: 'Upload timed out. This may happen with many large photos. Please check your connection and try again.' };
+                }
+                throw fetchError;
+            }
+            
+        } catch (error) {
+            console.error('❌ Error uploading batch photos:', error);
+            console.error('❌ Error details:', error.message);
+            console.error('❌ Error stack:', error.stack);
+            console.error('❌ Backend URL was:', API_CONFIG.getBackendUrl());
+            
+            // Provide more helpful error messages
+            let errorMessage = error.message;
+            if (error.message.includes('Network request failed')) {
+                errorMessage = 'Cannot connect to server. Please check:\n1. Your device is on the same network\n2. Backend server is running\n3. Backend URL is correct: ' + API_CONFIG.getBackendUrl();
+            }
+            
+            return { success: false, error: errorMessage };
+        }
+    };
+
     const saveDriverDetailsToDatabase = async (tripSegmentNumber, driverDetails, driverPhotoUrl) => {
         try {
             console.log('💾 Saving driver details to database...');
@@ -283,7 +472,7 @@ const StepNineDriverDetails = ({ onBack, containerData, onComplete, onShowSucces
             if (containerData?.containerSize === '40ft') {
                 inwardLOLOBalance = 150000;
             } else if (containerData?.containerSize === '20ft') {
-                inwardLOLOBalance = 75000;
+inwardLOLOBalance = 75000;
             }
             
             const updateData = {
@@ -354,47 +543,52 @@ const StepNineDriverDetails = ({ onBack, containerData, onComplete, onShowSucces
         setIsProcessing(true);
 
         try {
-            let driverPhotoUrl = null;
+            // Stop the timer FIRST to get inspection time before showing success screen
+            const inspectionTime = stopTimer();
+            console.log('⏱️ Inspection completed in:', inspectionTime);
             
-            // Upload driver photo to S3 if available
-            if (image) {
-                const uploadResult = await uploadDriverPhotoToS3(image, containerData?.tripSegmentNumber);
-                if (uploadResult.success) {
-                    driverPhotoUrl = uploadResult.driverPhoto;
-                } else {
-                    Alert.alert('Upload Warning', 'Failed to upload driver photo, but continuing with details.');
-                }
+            // Prepare complete data with inspection time
+            const completeData = {
+                ...containerData,
+                driverDetails: {
+                    ...driverDetails,
+                },
+                inspectionTime: inspectionTime // Add inspection time to data
+            };
+            
+            // Show success screen FIRST (with upload progress at 0%)
+            if (onShowSuccess) {
+                onShowSuccess(completeData);
             }
+            
+            // Small delay to ensure success screen is rendered
+            await new Promise(resolve => setTimeout(resolve, 300));
+            
+            // Upload all photos to arrivedContainers folder with progress updates
+            console.log('📸 Uploading all inspection photos to arrivedContainers...');
+            const uploadResult = await uploadAllPhotosToArrivedContainers(
+                containerData?.tripSegmentNumber, 
+                containerData,
+                onUpdateUploadProgress
+            );
+            
+            if (!uploadResult.success) {
+                Alert.alert('Upload Error', 'Failed to upload photos. Please try again.');
+                return;
+            }
+            
+            console.log('✅ All photos uploaded successfully');
 
             // Save driver details to database
-            const saveResult = await saveDriverDetailsToDatabase(containerData?.tripSegmentNumber, driverDetails, driverPhotoUrl);
+            const saveResult = await saveDriverDetailsToDatabase(containerData?.tripSegmentNumber, driverDetails, null);
             
             if (!saveResult.success) {
                 Alert.alert('Database Error', 'Failed to save driver details. Please try again.');
                 return;
             }
 
-            // Prepare complete data
-            const completeData = {
-                ...containerData,
-                driverDetails: {
-                    ...driverDetails,
-                    photo: driverPhotoUrl
-                }
-            };
+            console.log('✅ Driver details and photos saved successfully');
             
-            // Save driver data to state for navigation
-            setDriverData(completeData);
-
-            console.log('✅ Driver details completed and saved to database successfully');
-            
-            // Reset the timer after successful completion
-            resetTimer();
-            
-            // Show success screen
-            if (onShowSuccess) {
-                onShowSuccess(completeData);
-            }
         } catch (error) {
             Alert.alert('Error', 'An error occurred while completing driver details. Please try again.');
             console.error('❌ Error in handleComplete:', error);
@@ -592,24 +786,6 @@ const StepNineDriverDetails = ({ onBack, containerData, onComplete, onShowSucces
                         ratio="1:1"
                     />
 
-                    {/* Driver License Guide Overlay */}
-                    <View style={cn('absolute inset-0 justify-center items-center')}>
-                        {/* Driver License Guide Frame */}
-                        <View style={cn('relative')}>
-                            {/* Driver License Rectangle Outline - 85.60mm x 54.00mm */}
-                            <View
-                                style={[
-                                    cn('border-2 border-green-500 bg-green-500/10'),
-                                    {
-                                        width: Dimensions.get('window').width * 0.8, // 80% of screen width
-                                        height: (Dimensions.get('window').width * 0.8) / 1.583, // Maintain driver's license aspect ratio (85.60mm x 54.00mm)
-                                        borderRadius: 8,
-                                    }
-                                ]}
-                            />
-                        </View>
-                    </View>
-
                     {/* Camera Controls Overlay */}
                     <View style={cn('absolute bottom-0 left-0 right-0 bg-black/50 pb-8 pt-4')}>
                         <View style={cn('flex-row items-center justify-center px-8')}>
@@ -638,7 +814,7 @@ const StepNineDriverDetails = ({ onBack, containerData, onComplete, onShowSucces
                         <View style={cn('p-6')}>
                             {/* Container Number and Trip Segment Display */}
                             <View style={cn(`mb-6 p-4 rounded-lg ${isDark ? 'bg-gray-700 border-gray-600' : 'bg-gray-50 border-gray-200'} border`)}>
-                                <View style={cn('flex-row items-center justify-between')}>
+                                <View style={cn('flex-row items-center justify-between mb-3')}>
                                     <View style={cn('flex-1')}>
                                         <Text style={cn(`text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-600'} mb-1`)}>
                                             Container Number
@@ -656,56 +832,25 @@ const StepNineDriverDetails = ({ onBack, containerData, onComplete, onShowSucces
                                         </Text>
                                     </View>
                                 </View>
-                            </View>
-
-                            {/* Driver Photo Section (if taken) */}
-                            {image && (
-                                <View style={cn(`${isDark ? 'bg-gray-800' : 'bg-white'} rounded-lg shadow-lg p-4 mb-6`)}>
-                                    <Text style={cn(`text-lg font-bold mb-4 ${isDark ? 'text-white' : 'text-black'}`)}>
-                                        Driver License Photo
-                                    </Text>
-                                    
-                                    <TouchableOpacity
-                                        onPress={() => setShowZoomModal(true)}
-                                        style={cn('relative')}
-                                    >
-                                        <Image 
-                                            source={{ uri: `data:image/jpeg;base64,${image}` }} 
-                                            style={cn('w-full h-48 rounded-lg')} 
-                                        />
-                                        <View style={cn('absolute inset-0 bg-black/30 rounded-lg items-center justify-center')}>
-                                            <Eye size={32} color="white" />
-                                        </View>
-                                    </TouchableOpacity>
-                                    
-                                    <View style={cn('flex-row mt-4 gap-2')}>
-                                        <TouchableOpacity
-                                            onPress={openCamera}
-                                            style={cn('flex-1 rounded-lg overflow-hidden')}
-                                        >
-                                            <LinearGradient
-                                                colors={['#000000', '#F59E0B']}
-                                                start={{ x: 0, y: 0 }}
-                                                end={{ x: 1, y: 0 }}
-                                                style={cn('p-4 items-center')}
-                                            >
-                                                <Text style={cn('text-white font-semibold')}>Retake Photo</Text>
-                                            </LinearGradient>
-                                        </TouchableOpacity>
+                                <View style={cn('flex-row items-center')}>
+                                    <View style={cn('flex-1')}>
+                                        <Text style={cn(`text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-600'} mb-1`)}>
+                                            Trailer Number
+                                        </Text>
+                                        <Text style={cn(`text-lg font-bold ${isDark ? 'text-white' : 'text-black'}`)}>
+                                            {trailerNumber || containerData?.trailerNumber || 'N/A'}
+                                        </Text>
                                     </View>
-
-                                    {isRecognizing && (
-                                        <View style={cn('mt-4 p-3 bg-blue-100 rounded-lg')}>
-                                            <View style={cn('flex-row items-center')}>
-                                                <ActivityIndicator size="small" color="#3B82F6" style={cn('mr-2')} />
-                                                <Text style={cn('text-blue-800 font-medium')}>
-                                                    Extracting driver details...
-                                                </Text>
-                                            </View>
-                                        </View>
-                                    )}
+                                    <View style={cn('flex-1 ml-4')}>
+                                        <Text style={cn(`text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-600'} mb-1`)}>
+                                            Truck Number
+                                        </Text>
+                                        <Text style={cn(`text-lg font-semibold ${isDark ? 'text-white' : 'text-black'}`)}>
+                                            {truckNumber || containerData?.truckNumber || 'N/A'}
+                                        </Text>
+                                    </View>
                                 </View>
-                            )}
+                            </View>
 
                             {/* Driver Details Form */}
                             <View style={cn(`${isDark ? 'bg-gray-800' : 'bg-white'} rounded-lg shadow-lg p-4 mb-6`)}>
@@ -713,106 +858,111 @@ const StepNineDriverDetails = ({ onBack, containerData, onComplete, onShowSucces
                                     Driver Information
                                 </Text>
 
-                                {/* Driver First Name */}
-                                <View style={cn('mb-4')}>
-                                    <Text style={cn(`text-sm font-medium mb-2 ${isDark ? 'text-gray-300' : 'text-gray-600'}`)}>
-                                        Driver First Name <Text style={cn('text-red-500')}>*</Text>
-                                    </Text>
-                                    <View style={cn('rounded-lg overflow-hidden')}>
-                                        <LinearGradient
-                                            colors={focusedField === 'firstName' ? ['#000000', '#F59E0B'] : ['transparent', 'transparent']}
-                                            start={{ x: 0, y: 0 }}
-                                            end={{ x: 1, y: 0 }}
-                                            style={cn('p-[2px] rounded-lg')}
-                                        >
-                                            <TextInput
-                                                style={cn(`px-3 py-3 rounded-lg ${isDark ? 'bg-gray-700 text-white' : 'bg-gray-50 text-black'} ${focusedField === 'firstName' ? '' : 'border'} ${focusedField === 'firstName' ? '' : (isDark ? 'border-gray-600' : 'border-gray-300')}`)}
-                                                placeholder="Enter driver first name"
-                                                placeholderTextColor={isDark ? '#9CA3AF' : '#6B7280'}
-                                                value={driverDetails.firstName}
-                                                onChangeText={(value) => handleInputChange('firstName', value)}
-                                                onFocus={() => setFocusedField('firstName')}
-                                                onBlur={() => setFocusedField(null)}
-                                            />
-                                        </LinearGradient>
+                                {/* Row 1: Driver First Name and Last Name */}
+                                <View style={cn('flex-row gap-2 mb-4')}>
+                                    {/* Driver First Name */}
+                                    <View style={cn('flex-1')}>
+                                        <Text style={cn(`text-sm font-medium mb-2 ${isDark ? 'text-gray-300' : 'text-gray-600'}`)}>
+                                            First Name <Text style={cn('text-red-500')}>*</Text>
+                                        </Text>
+                                        <View style={cn('rounded-lg overflow-hidden')}>
+                                            <LinearGradient
+                                                colors={focusedField === 'firstName' ? ['#000000', '#F59E0B'] : ['transparent', 'transparent']}
+                                                start={{ x: 0, y: 0 }}
+                                                end={{ x: 1, y: 0 }}
+                                                style={cn('p-[2px] rounded-lg')}
+                                            >
+                                                <TextInput
+                                                    style={cn(`px-3 py-3 rounded-lg ${isDark ? 'bg-gray-700 text-white' : 'bg-gray-50 text-black'} ${focusedField === 'firstName' ? '' : 'border'} ${focusedField === 'firstName' ? '' : (isDark ? 'border-gray-600' : 'border-gray-300')}`)}
+                                                    placeholder="First name"
+                                                    placeholderTextColor={isDark ? '#9CA3AF' : '#6B7280'}
+                                                    value={driverDetails.firstName}
+                                                    onChangeText={(value) => handleInputChange('firstName', value)}
+                                                    onFocus={() => setFocusedField('firstName')}
+                                                    onBlur={() => setFocusedField(null)}
+                                                />
+                                            </LinearGradient>
+                                        </View>
+                                    </View>
+
+                                    {/* Driver Last Name */}
+                                    <View style={cn('flex-1')}>
+                                        <Text style={cn(`text-sm font-medium mb-2 ${isDark ? 'text-gray-300' : 'text-gray-600'}`)}>
+                                            Last Name <Text style={cn('text-red-500')}>*</Text>
+                                        </Text>
+                                        <View style={cn('rounded-lg overflow-hidden')}>
+                                            <LinearGradient
+                                                colors={focusedField === 'lastName' ? ['#000000', '#F59E0B'] : ['transparent', 'transparent']}
+                                                start={{ x: 0, y: 0 }}
+                                                end={{ x: 1, y: 0 }}
+                                                style={cn('p-[2px] rounded-lg')}
+                                            >
+                                                <TextInput
+                                                    style={cn(`px-3 py-3 rounded-lg ${isDark ? 'bg-gray-700 text-white' : 'bg-gray-50 text-black'} ${focusedField === 'lastName' ? '' : 'border'} ${focusedField === 'lastName' ? '' : (isDark ? 'border-gray-600' : 'border-gray-300')}`)}
+                                                    placeholder="Last name"
+                                                    placeholderTextColor={isDark ? '#9CA3AF' : '#6B7280'}
+                                                    value={driverDetails.lastName}
+                                                    onChangeText={(value) => handleInputChange('lastName', value)}
+                                                    onFocus={() => setFocusedField('lastName')}
+                                                    onBlur={() => setFocusedField(null)}
+                                                />
+                                            </LinearGradient>
+                                        </View>
                                     </View>
                                 </View>
 
-                                {/* Driver Last Name */}
-                                <View style={cn('mb-4')}>
-                                    <Text style={cn(`text-sm font-medium mb-2 ${isDark ? 'text-gray-300' : 'text-gray-600'}`)}>
-                                        Driver Last Name <Text style={cn('text-red-500')}>*</Text>
-                                    </Text>
-                                    <View style={cn('rounded-lg overflow-hidden')}>
-                                        <LinearGradient
-                                            colors={focusedField === 'lastName' ? ['#000000', '#F59E0B'] : ['transparent', 'transparent']}
-                                            start={{ x: 0, y: 0 }}
-                                            end={{ x: 1, y: 0 }}
-                                            style={cn('p-[2px] rounded-lg')}
-                                        >
-                                            <TextInput
-                                                style={cn(`px-3 py-3 rounded-lg ${isDark ? 'bg-gray-700 text-white' : 'bg-gray-50 text-black'} ${focusedField === 'lastName' ? '' : 'border'} ${focusedField === 'lastName' ? '' : (isDark ? 'border-gray-600' : 'border-gray-300')}`)}
-                                                placeholder="Enter driver last name"
-                                                placeholderTextColor={isDark ? '#9CA3AF' : '#6B7280'}
-                                                value={driverDetails.lastName}
-                                                onChangeText={(value) => handleInputChange('lastName', value)}
-                                                onFocus={() => setFocusedField('lastName')}
-                                                onBlur={() => setFocusedField(null)}
-                                            />
-                                        </LinearGradient>
+                                {/* Row 2: Driver License Number and Phone Number */}
+                                <View style={cn('flex-row gap-2 mb-4')}>
+                                    {/* Driver License Number */}
+                                    <View style={cn('flex-1')}>
+                                        <Text style={cn(`text-sm font-medium mb-2 ${isDark ? 'text-gray-300' : 'text-gray-600'}`)}>
+                                            License Number <Text style={cn('text-red-500')}>*</Text>
+                                        </Text>
+                                        <View style={cn('rounded-lg overflow-hidden')}>
+                                            <LinearGradient
+                                                colors={focusedField === 'licenseNumber' ? ['#000000', '#F59E0B'] : ['transparent', 'transparent']}
+                                                start={{ x: 0, y: 0 }}
+                                                end={{ x: 1, y: 0 }}
+                                                style={cn('p-[2px] rounded-lg')}
+                                            >
+                                                <TextInput
+                                                    style={cn(`px-3 py-3 rounded-lg ${isDark ? 'bg-gray-700 text-white' : 'bg-gray-50 text-black'} ${focusedField === 'licenseNumber' ? '' : 'border'} ${focusedField === 'licenseNumber' ? '' : (isDark ? 'border-gray-600' : 'border-gray-300')}`)}
+                                                    placeholder="License #"
+                                                    placeholderTextColor={isDark ? '#9CA3AF' : '#6B7280'}
+                                                    value={driverDetails.licenseNumber}
+                                                    onChangeText={(value) => handleInputChange('licenseNumber', value)}
+                                                    keyboardType="phone-pad"
+                                                    onFocus={() => setFocusedField('licenseNumber')}
+                                                    onBlur={() => setFocusedField(null)}
+                                                />
+                                            </LinearGradient>
+                                        </View>
                                     </View>
-                                </View>
 
-
-                                {/* Driver License Number */}
-                                <View style={cn('mb-4')}>
-                                    <Text style={cn(`text-sm font-medium mb-2 ${isDark ? 'text-gray-300' : 'text-gray-600'}`)}>
-                                        Driver License Number <Text style={cn('text-red-500')}>*</Text>
-                                    </Text>
-                                    <View style={cn('rounded-lg overflow-hidden')}>
-                                        <LinearGradient
-                                            colors={focusedField === 'licenseNumber' ? ['#000000', '#F59E0B'] : ['transparent', 'transparent']}
-                                            start={{ x: 0, y: 0 }}
-                                            end={{ x: 1, y: 0 }}
-                                            style={cn('p-[2px] rounded-lg')}
-                                        >
-                                            <TextInput
-                                                style={cn(`px-3 py-3 rounded-lg ${isDark ? 'bg-gray-700 text-white' : 'bg-gray-50 text-black'} ${focusedField === 'licenseNumber' ? '' : 'border'} ${focusedField === 'licenseNumber' ? '' : (isDark ? 'border-gray-600' : 'border-gray-300')}`)}
-                                                placeholder="Enter driver license number"
-                                                placeholderTextColor={isDark ? '#9CA3AF' : '#6B7280'}
-                                                value={driverDetails.licenseNumber}
-                                                onChangeText={(value) => handleInputChange('licenseNumber', value)}
-                                                keyboardType="phone-pad"
-                                                onFocus={() => setFocusedField('licenseNumber')}
-                                                onBlur={() => setFocusedField(null)}
-                                            />
-                                        </LinearGradient>
-                                    </View>
-                                </View>
-
-                                {/* Driver Phone Number */}
-                                <View style={cn('mb-4')}>
-                                    <Text style={cn(`text-sm font-medium mb-2 ${isDark ? 'text-gray-300' : 'text-gray-600'}`)}>
-                                        Driver Phone Number <Text style={cn('text-red-500')}>*</Text>
-                                    </Text>
-                                    <View style={cn('rounded-lg overflow-hidden')}>
-                                        <LinearGradient
-                                            colors={focusedField === 'phoneNumber' ? ['#000000', '#F59E0B'] : ['transparent', 'transparent']}
-                                            start={{ x: 0, y: 0 }}
-                                            end={{ x: 1, y: 0 }}
-                                            style={cn('p-[2px] rounded-lg')}
-                                        >
-                                            <TextInput
-                                                style={cn(`px-3 py-3 rounded-lg ${isDark ? 'bg-gray-700 text-white' : 'bg-gray-50 text-black'} ${focusedField === 'phoneNumber' ? '' : 'border'} ${focusedField === 'phoneNumber' ? '' : (isDark ? 'border-gray-600' : 'border-gray-300')}`)}
-                                                placeholder="Enter driver phone number"
-                                                placeholderTextColor={isDark ? '#9CA3AF' : '#6B7280'}
-                                                value={driverDetails.phoneNumber}
-                                                onChangeText={(value) => handleInputChange('phoneNumber', value)}
-                                                keyboardType="phone-pad"
-                                                onFocus={() => setFocusedField('phoneNumber')}
-                                                onBlur={() => setFocusedField(null)}
-                                            />
-                                        </LinearGradient>
+                                    {/* Driver Phone Number */}
+                                    <View style={cn('flex-1')}>
+                                        <Text style={cn(`text-sm font-medium mb-2 ${isDark ? 'text-gray-300' : 'text-gray-600'}`)}>
+                                            Phone Number <Text style={cn('text-red-500')}>*</Text>
+                                        </Text>
+                                        <View style={cn('rounded-lg overflow-hidden')}>
+                                            <LinearGradient
+                                                colors={focusedField === 'phoneNumber' ? ['#000000', '#F59E0B'] : ['transparent', 'transparent']}
+                                                start={{ x: 0, y: 0 }}
+                                                end={{ x: 1, y: 0 }}
+                                                style={cn('p-[2px] rounded-lg')}
+                                            >
+                                                <TextInput
+                                                    style={cn(`px-3 py-3 rounded-lg ${isDark ? 'bg-gray-700 text-white' : 'bg-gray-50 text-black'} ${focusedField === 'phoneNumber' ? '' : 'border'} ${focusedField === 'phoneNumber' ? '' : (isDark ? 'border-gray-600' : 'border-gray-300')}`)}
+                                                    placeholder="Phone #"
+                                                    placeholderTextColor={isDark ? '#9CA3AF' : '#6B7280'}
+                                                    value={driverDetails.phoneNumber}
+                                                    onChangeText={(value) => handleInputChange('phoneNumber', value)}
+                                                    keyboardType="phone-pad"
+                                                    onFocus={() => setFocusedField('phoneNumber')}
+                                                    onBlur={() => setFocusedField(null)}
+                                                />
+                                            </LinearGradient>
+                                        </View>
                                     </View>
                                 </View>
 
@@ -866,28 +1016,6 @@ const StepNineDriverDetails = ({ onBack, containerData, onComplete, onShowSucces
                     </ScrollView>
                 </KeyboardAvoidingView>
             )}
-
-            {/* Zoom Modal */}
-            <Modal
-                visible={showZoomModal}
-                transparent={true}
-                animationType="fade"
-                onRequestClose={() => setShowZoomModal(false)}
-            >
-                <View style={cn('flex-1 bg-black items-center justify-center')}>
-                    <TouchableOpacity
-                        onPress={() => setShowZoomModal(false)}
-                        style={cn('absolute top-12 right-6 z-10')}
-                    >
-                        <X size={32} color="white" />
-                    </TouchableOpacity>
-                    <Image 
-                        source={{ uri: `data:image/jpeg;base64,${image}` }} 
-                        style={cn('w-full h-full')} 
-                        resizeMode="contain"
-                    />
-                </View>
-            </Modal>
 
             {/* Extraction Loading Overlay */}
             {isExtracting && (

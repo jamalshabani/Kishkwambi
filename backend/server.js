@@ -31,18 +31,16 @@ const s3Client = new S3Client({
 
 const S3_BUCKET_NAME = process.env.B2_BUCKET_NAME || 'simba-terminal-photos';
 
-// Shared directory configuration
-const SHARED_ASSETS_DIR = path.join(__dirname, '..', '..', 'shared-assets');
-const ARRIVED_CONTAINERS_DIR = path.join(SHARED_ASSETS_DIR, 'arrivedContainers');
+// Backend directory configuration
+const ARRIVED_CONTAINERS_DIR = path.join(__dirname, 'arrivedContainers');
 
-// Ensure shared directories exist
-async function ensureSharedDirectories() {
+// Ensure backend directories exist
+async function ensureBackendDirectories() {
     try {
-        await fs.mkdir(SHARED_ASSETS_DIR, { recursive: true });
         await fs.mkdir(ARRIVED_CONTAINERS_DIR, { recursive: true });
-        console.log('✅ Shared directories created/verified');
+        console.log('✅ Backend arrivedContainers directory created/verified:', ARRIVED_CONTAINERS_DIR);
     } catch (error) {
-        console.error('❌ Error creating shared directories:', error);
+        console.error('❌ Error creating backend directories:', error);
     }
 }
 
@@ -3069,12 +3067,226 @@ app.post('/api/upload/mobile-photos', upload.array('photos', 10), async (req, re
     }
 });
 
+// Batch upload endpoint for all inspection photos to LOCAL backend/arrivedContainers folder
+// NOTE: This saves to LOCAL FILESYSTEM ONLY (backend/arrivedContainers/)
+// NOT uploaded to Backblaze B2 - that will be handled separately later
+app.post('/api/upload/batch-photos-arrived-containers', uploadS3.fields([
+    { name: 'photos', maxCount: 20 },
+    { name: 'damagePhotos', maxCount: 50 }
+]), async (req, res) => {
+        try {
+            console.log('📸 DEBUG - Request body:', req.body);
+            console.log('📸 DEBUG - Request files:', req.files);
+            
+            const { tripSegmentNumber, photoTypes, damageLocations } = req.body;
+            
+            console.log('📸 Received batch photo upload for backend/arrivedContainers folder:', {
+                tripSegmentNumber,
+                photoTypes: Array.isArray(photoTypes) ? photoTypes.length : 1,
+                damageLocations: Array.isArray(damageLocations) ? damageLocations.length : 1,
+                inspectionPhotoCount: req.files?.photos?.length || 0,
+                damagePhotoCount: req.files?.damagePhotos?.length || 0
+            });
+
+            if (!tripSegmentNumber) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'Trip segment number is required'
+                });
+            }
+
+            if (!db) {
+                throw new Error('Database not connected');
+            }
+
+            const tripsegmentsCollection = db.collection('tripsegments');
+            
+            // Create folder for this trip segment in backend/arrivedContainers
+            const containerFolderPath = path.join(ARRIVED_CONTAINERS_DIR, tripSegmentNumber);
+            await fs.mkdir(containerFolderPath, { recursive: true });
+            console.log(`📁 Created/verified folder: ${containerFolderPath}`);
+
+            const containerPhotosArray = [];
+            const damagePhotosArray = [];
+            let trailerPhotoUrl = null;
+            let truckPhotoUrl = null;
+            let driverLicensePhotoUrl = null;
+
+            // Process inspection photos (container, trailer, truck, walls, inside, driver license)
+            if (req.files?.photos && req.files.photos.length > 0) {
+                const photoTypesArray = Array.isArray(photoTypes) ? photoTypes : [photoTypes];
+                
+                for (let i = 0; i < req.files.photos.length; i++) {
+                    const file = req.files.photos[i];
+                    const photoType = photoTypesArray[i] || 'Photo';
+                    const timestamp = Date.now() + i; // Ensure unique timestamps
+                    const sequenceNumber = i + 1;
+                    
+                    // Generate filename
+                    const filename = generateFilename(tripSegmentNumber, photoType, sequenceNumber, timestamp);
+                    const filePath = path.join(containerFolderPath, filename);
+                    
+                    // Save to backend/arrivedContainers folder
+                    await fs.writeFile(filePath, file.buffer);
+                    console.log(`✅ Saved ${photoType} to backend/arrivedContainers: ${filename}`);
+                    
+                    const photoUrl = `backend/arrivedContainers/${tripSegmentNumber}/${filename}`;
+                    
+                    // Categorize photos based on type
+                    if (photoType === 'TrailerPhoto') {
+                        trailerPhotoUrl = photoUrl;
+                    } else if (photoType === 'TruckPhoto') {
+                        truckPhotoUrl = photoUrl;
+                    } else if (photoType === 'DriverLicensePhoto') {
+                        driverLicensePhotoUrl = photoUrl;
+                    } else {
+                        // Map photo types to standard location names
+                        let locationName = '';
+                        switch(photoType) {
+                            case 'ContainerPhoto':
+                                locationName = 'Front Wall';
+                                break;
+                            case 'RightWallPhoto':
+                                locationName = 'Right Wall';
+                                break;
+                            case 'BackWallPhoto':
+                                locationName = 'Back Wall';
+                                break;
+                            case 'LeftSidePhoto':
+                                locationName = 'Left Wall';
+                                break;
+                            case 'InsidePhoto':
+                                locationName = 'Inside';
+                                break;
+                            default:
+                                locationName = photoType.replace('Photo', '').replace(/([A-Z])/g, ' $1').trim();
+                        }
+                        
+                        containerPhotosArray.push({
+                            containerPhotoLocation: locationName,
+                            containerPhotoUrl: photoUrl,
+                            uploadedAt: new Date(timestamp).toISOString()
+                        });
+                    }
+                }
+            }
+
+            // Process damage photos
+            if (req.files?.damagePhotos && req.files.damagePhotos.length > 0) {
+                const damageLocationsArray = Array.isArray(damageLocations) ? damageLocations : [damageLocations];
+                
+                for (let i = 0; i < req.files.damagePhotos.length; i++) {
+                    const file = req.files.damagePhotos[i];
+                    const location = damageLocationsArray[i] || 'Unknown';
+                    const timestamp = Date.now() + i + 1000; // Offset to avoid collisions
+                    const sequenceNumber = i + 1;
+                    
+                    // Generate filename for damage photo
+                    const filename = generateFilename(tripSegmentNumber, 'DamagePhoto', sequenceNumber, timestamp);
+                    const filePath = path.join(containerFolderPath, filename);
+                    
+                    // Save to backend/arrivedContainers folder
+                    await fs.writeFile(filePath, file.buffer);
+                    console.log(`✅ Saved damage photo (${location}) to backend/arrivedContainers: ${filename}`);
+                    
+                    // Map location names to standard format
+                    let standardLocation = '';
+                    switch(location) {
+                        case 'FrontWall':
+                            standardLocation = 'Front Wall';
+                            break;
+                        case 'RightWall':
+                            standardLocation = 'Right Wall';
+                            break;
+                        case 'BackWall':
+                            standardLocation = 'Back Wall';
+                            break;
+                        case 'LeftWall':
+                            standardLocation = 'Left Wall';
+                            break;
+                        case 'Inside':
+                            standardLocation = 'Inside';
+                            break;
+                        default:
+                            standardLocation = location.replace(/([A-Z])/g, ' $1').trim();
+                    }
+                    
+                    damagePhotosArray.push({
+                        damageLocation: standardLocation,
+                        damagePhotoUrl: `backend/arrivedContainers/${tripSegmentNumber}/${filename}`,
+                        uploadedAt: new Date(timestamp).toISOString()
+                    });
+                }
+            }
+
+            // Save photo references to database
+            const updateData = {
+                $push: { 
+                    containerPhotos: { $each: containerPhotosArray },
+                    damagePhotos: { $each: damagePhotosArray }
+                },
+                $set: {
+                    photoUploadDate: new Date().toISOString()
+                }
+            };
+            
+            // Add trailer photo if exists
+            if (trailerPhotoUrl) {
+                updateData.$set.trailerPhoto = trailerPhotoUrl;
+            }
+            
+            // Add truck photo if exists
+            if (truckPhotoUrl) {
+                updateData.$set.truckPhoto = truckPhotoUrl;
+            }
+            
+            // Add driver license photo if exists
+            if (driverLicensePhotoUrl) {
+                updateData.$set.driverLicensePhoto = driverLicensePhotoUrl;
+            }
+            
+            const updateResult = await tripsegmentsCollection.updateOne(
+                { tripSegmentNumber: tripSegmentNumber },
+                updateData
+            );
+
+            if (updateResult.modifiedCount === 0) {
+                console.warn('⚠️ No document was updated for trip segment:', tripSegmentNumber);
+            }
+
+            console.log('✅ All photos saved to backend/arrivedContainers folder and database updated');
+            console.log(`📊 Saved ${containerPhotosArray.length} container photos to containerPhotos field`);
+            console.log(`📊 Saved ${damagePhotosArray.length} damage photos to damagePhotos field`);
+            console.log(`📊 Trailer photo: ${trailerPhotoUrl ? 'Saved' : 'None'}`);
+            console.log(`📊 Truck photo: ${truckPhotoUrl ? 'Saved' : 'None'}`);
+            console.log(`📊 Driver license photo: ${driverLicensePhotoUrl ? 'Saved' : 'None'}`);
+
+            res.json({
+                success: true,
+                message: 'All photos saved to backend/arrivedContainers successfully',
+                photoReferences: {
+                    containerPhotos: containerPhotosArray,
+                    damagePhotos: damagePhotosArray
+                },
+                totalPhotos: containerPhotosArray.length + damagePhotosArray.length,
+                localPath: `backend/arrivedContainers/${tripSegmentNumber}/`
+            });
+
+        } catch (error) {
+            console.error('❌ Error in batch photo upload:', error);
+            res.status(500).json({
+                success: false,
+                error: error.message || 'Failed to upload batch photos'
+            });
+    }
+});
+
 // Start server
 async function startServer() {
-    // Ensure shared directories exist
-    await ensureSharedDirectories();
+    // Ensure backend directories exist
+    await ensureBackendDirectories();
     
-    // PlateRecognizer API endpoint for trailer licence plate recognition
+    // PlateRecognizer API endpoint for trailer licence plate recognition  
     app.post('/api/plate-recognizer/recognize', uploadS3.single('image'), async (req, res) => {
         try {
             console.log('🚗 Received trailer photo for plate recognition');
@@ -3129,9 +3341,7 @@ async function startServer() {
             });
 
             const data = await response.json();
-            
-            console.log('=== PLATERECOGNIZER API RESPONSE ===');
-            console.log(JSON.stringify(data, null, 2));
+        
 
             if (data.results && data.results.length > 0) {
                 const plateResult = data.results[0];
