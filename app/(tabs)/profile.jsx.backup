@@ -56,6 +56,7 @@ const Profile = () => {
         } catch (error) {
             setPasswordErrorMessage('An error occurred while changing password');
             setShowPasswordErrorModal(true);
+            console.error('Password change error:', error);
         } finally {
             setPasswordLoading(false);
         }
@@ -271,9 +272,12 @@ const Profile = () => {
                                 try {
                                     const result = await signOut();
                                     if (result.success) {
+                                        console.log('Logout successful');
                                     } else {
+                                        console.log('Logout failed:', result.error);
                                     }
                                 } catch (error) {
+                                    console.log('Logout error:', error);
                                 }
                             }}
                             disabled={loading}

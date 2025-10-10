@@ -37,7 +37,6 @@ const StepFiveBackWallPhoto = ({ onBack, onBackToRightWallDamage, containerData,
                     }
                 }
             } catch (error) {
-                console.error('❌ Error fetching trailer number:', error);
             }
         };
         fetchTrailerNumber();
@@ -46,7 +45,6 @@ const StepFiveBackWallPhoto = ({ onBack, onBackToRightWallDamage, containerData,
     // Restore back wall photo when navigating back
     useEffect(() => {
         if (containerData?.backWallPhoto) {
-            console.log('🔄 Restoring back wall photo from navigation data');
             setImage(containerData.backWallPhoto);
         }
     }, [containerData?.backWallPhoto]);
@@ -54,7 +52,6 @@ const StepFiveBackWallPhoto = ({ onBack, onBackToRightWallDamage, containerData,
     // Conditional back navigation - check if Right Wall damage exists
     const handleBackNavigation = async () => {
         try {
-            console.log('🔙 Checking damage locations for conditional navigation...');
             const BACKEND_URL = API_CONFIG.getBackendUrl();
             
             // Fetch trip segment damage status to check damage locations
@@ -73,17 +70,14 @@ const StepFiveBackWallPhoto = ({ onBack, onBackToRightWallDamage, containerData,
             
             if (result.success) {
                 const damageLocations = result.damageLocations || [];
-                console.log('📊 Damage locations:', damageLocations);
                 
                 // Check if "Right Wall" is in damage locations
                 if (damageLocations.includes('Right Wall')) {
-                    console.log('✅ Right Wall damage found - navigating to Right Wall damage photos');
                     // Navigate to Right Wall damage photos with containerData
                     if (onBackToRightWallDamage) {
                         onBackToRightWallDamage(containerData);
                     }
                 } else {
-                    console.log('❌ No Right Wall damage - navigating to step four (Right Wall photo)');
                     // Navigate to step four (Right Wall photo preview) with data for persistence
                     if (onBack) {
                         onBack(containerData);
@@ -91,13 +85,11 @@ const StepFiveBackWallPhoto = ({ onBack, onBackToRightWallDamage, containerData,
                 }
             } else {
                 // If no data or error, default to step four with data for persistence
-                console.log('⚠️ No trip segment data found - defaulting to step four');
                 if (onBack) {
                     onBack(containerData);
                 }
             }
         } catch (error) {
-            console.error('❌ Error checking damage locations:', error);
             // On error, default to step four with data for persistence
             if (onBack) {
                 onBack(containerData);
@@ -201,12 +193,10 @@ const StepFiveBackWallPhoto = ({ onBack, onBackToRightWallDamage, containerData,
             const cropArea = calculateCropArea(imageWidth, imageHeight);
             
             if (cropArea.x < 0 || cropArea.y < 0 || cropArea.width <= 0 || cropArea.height <= 0) {
-                console.warn('⚠️ Invalid crop parameters, using original image');
                 return imageUri;
             }
             
             if (cropArea.x + cropArea.width > imageWidth || cropArea.y + cropArea.height > imageHeight) {
-                console.warn('⚠️ Crop area exceeds bounds, using original image');
                 return imageUri;
             }
             
@@ -218,7 +208,6 @@ const StepFiveBackWallPhoto = ({ onBack, onBackToRightWallDamage, containerData,
             
             return croppedImage.uri;
         } catch (error) {
-            console.error('❌ Crop error:', error);
             return imageUri;
         }
     };
@@ -242,9 +231,7 @@ const StepFiveBackWallPhoto = ({ onBack, onBackToRightWallDamage, containerData,
                     const blob = await fileInfo.blob();
                     const fileSizeKB = (blob.size / 1024).toFixed(2);
                     const fileSizeMB = (blob.size / 1024 / 1024).toFixed(2);
-                    console.log(`📊 Original Back Wall photo size: ${fileSizeKB} KB (${fileSizeMB} MB)`);
                 } catch (sizeError) {
-                    console.warn('Could not determine original file size:', sizeError);
                 }
 
                 // Crop the image to the back wall frame area
@@ -259,17 +246,12 @@ const StepFiveBackWallPhoto = ({ onBack, onBackToRightWallDamage, containerData,
                     const originalFileInfo = await fetch(photo.uri);
                     const originalBlob = await originalFileInfo.blob();
                     const reduction = (((originalBlob.size - blob.size) / originalBlob.size) * 100).toFixed(1);
-                    console.log(`📊 Cropped Back Wall photo size: ${fileSizeKB} KB (${fileSizeMB} MB)`);
-                    console.log(`📉 Size reduction: ${reduction}% smaller after cropping`);
                 } catch (sizeError) {
-                    console.warn('Could not determine cropped file size:', sizeError);
                 }
 
                 setImage(croppedImage);
-                console.log('📸 Back Wall photo taken and cropped successfully');
             }
         } catch (error) {
-            console.error('❌ Error taking Back Wall photo:', error);
             Alert.alert('Error', 'Failed to take photo. Please try again.');
         } finally {
             setIsProcessing(false);
@@ -278,7 +260,6 @@ const StepFiveBackWallPhoto = ({ onBack, onBackToRightWallDamage, containerData,
 
     const uploadFrontWallPhotoToS3 = async (imageBase64, tripSegmentNumber) => {
         try {
-            console.log('📸 Uploading Back Wall photo to S3...');
             
             const BACKEND_URL = API_CONFIG.getBackendUrl();
             
@@ -296,8 +277,6 @@ const StepFiveBackWallPhoto = ({ onBack, onBackToRightWallDamage, containerData,
             formData.append('tripSegmentNumber', tripSegmentNumber);
             formData.append('photoType', 'frontWall');
             
-            console.log('📸 Uploading to:', `${BACKEND_URL}/api/upload/s3-front-wall-photo`);
-            console.log('📸 Trip segment:', tripSegmentNumber);
             
             const uploadResponse = await fetch(`${BACKEND_URL}/api/upload/s3-front-wall-photo`, {
                 method: 'POST',
@@ -310,15 +289,12 @@ const StepFiveBackWallPhoto = ({ onBack, onBackToRightWallDamage, containerData,
             const result = await uploadResponse.json();
             
             if (result.success) {
-                console.log('✅ Back Wall photo uploaded successfully to S3:', result.frontWallPhoto);
                 return { success: true, frontWallPhoto: result.frontWallPhoto };
             } else {
-                console.error('❌ Failed to upload Back Wall photo to S3:', result.error);
                 return { success: false, error: result.error };
             }
             
         } catch (error) {
-            console.error('❌ Error uploading Back Wall photo to S3:', error);
             return { success: false, error: error.message };
         }
     };
@@ -329,7 +305,6 @@ const StepFiveBackWallPhoto = ({ onBack, onBackToRightWallDamage, containerData,
         if (isDamaged) {
             // Update hasDamages in database to "Yes"
             try {
-                console.log('🔧 Updating damage status in database...');
                 
                 const BACKEND_URL = API_CONFIG.getBackendUrl();
                 
@@ -349,9 +324,7 @@ const StepFiveBackWallPhoto = ({ onBack, onBackToRightWallDamage, containerData,
                 const updateResult = await updateResponse.json();
                 
                 if (updateResult.success) {
-                    console.log('✅ Damage status updated successfully:', updateResult);
                 } else {
-                    console.error('❌ Failed to update damage status:', updateResult.error);
                 }
                 
                 // Use the already uploaded photo data
@@ -366,7 +339,6 @@ const StepFiveBackWallPhoto = ({ onBack, onBackToRightWallDamage, containerData,
                 }
                 
             } catch (error) {
-                console.error('❌ Error updating damage status:', error);
                 Alert.alert('Error', 'Failed to update damage status. Please try again.');
             }
         } else {
@@ -391,7 +363,6 @@ const StepFiveBackWallPhoto = ({ onBack, onBackToRightWallDamage, containerData,
 
         try {
             setIsProcessing(true);
-            console.log('📸 Storing Back Wall photo for batch upload');
             
             // Store the photo data for batch upload at final submit
             const photoData = {
@@ -401,7 +372,6 @@ const StepFiveBackWallPhoto = ({ onBack, onBackToRightWallDamage, containerData,
             
             setFrontWallPhotoData(photoData);
             
-            console.log('✅ Back Wall photo stored successfully');
             
             // Check if Back Wall damage already exists in database
             const BACKEND_URL = API_CONFIG.getBackendUrl();
@@ -416,11 +386,9 @@ const StepFiveBackWallPhoto = ({ onBack, onBackToRightWallDamage, containerData,
                 const damageResult = await damageCheckResponse.json();
                 const damageLocations = damageResult.damageLocations || [];
                 
-                console.log('📊 Existing damage locations:', damageLocations);
                 
                 // If Back Wall damage already exists, skip modal and go directly to damage photos
                 if (damageLocations.includes('Back Wall')) {
-                    console.log('✅ Back Wall damage already exists - navigating to damage photos');
                     if (onNavigateToDamagePhotosDirect) {
                         onNavigateToDamagePhotosDirect(photoData);
                     } else if (onNavigateToDamagePhotos) {
@@ -434,7 +402,6 @@ const StepFiveBackWallPhoto = ({ onBack, onBackToRightWallDamage, containerData,
             setShowDamageModal(true);
             
         } catch (error) {
-            console.error('❌ Error storing Back Wall photo:', error);
             Alert.alert('Error', 'An error occurred. Please try again.');
         } finally {
             setIsProcessing(false);

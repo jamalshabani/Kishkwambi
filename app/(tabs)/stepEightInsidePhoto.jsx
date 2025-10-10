@@ -38,7 +38,6 @@ const StepEightInsidePhoto = ({ onBack, onBackToLeftWallDamage, containerData, o
                     }
                 }
             } catch (error) {
-                console.error('❌ Error fetching trailer number:', error);
             }
         };
         fetchTrailerNumber();
@@ -58,7 +57,6 @@ const StepEightInsidePhoto = ({ onBack, onBackToLeftWallDamage, containerData, o
                     }
                 }
             } catch (error) {
-                console.error('❌ Error fetching truck number:', error);
             }
         };
         fetchTruckNumber();
@@ -67,7 +65,6 @@ const StepEightInsidePhoto = ({ onBack, onBackToLeftWallDamage, containerData, o
     // Restore photo when navigating back
     useEffect(() => {
         if (containerData?.insidePhoto) {
-            console.log('🔄 Restoring inside photo from navigation data');
             setImage(containerData.insidePhoto);
         }
     }, [containerData?.insidePhoto]);
@@ -75,7 +72,6 @@ const StepEightInsidePhoto = ({ onBack, onBackToLeftWallDamage, containerData, o
     // Conditional back navigation - check if Left Wall damage exists
     const handleBackNavigation = async () => {
         try {
-            console.log('🔙 Checking damage locations for conditional navigation...');
             const BACKEND_URL = API_CONFIG.getBackendUrl();
             
             // Fetch trip segment damage status to check damage locations
@@ -94,17 +90,14 @@ const StepEightInsidePhoto = ({ onBack, onBackToLeftWallDamage, containerData, o
             
             if (result.success) {
                 const damageLocations = result.damageLocations || [];
-                console.log('📊 Damage locations:', damageLocations);
                 
                 // Check if "Left Wall" is in damage locations
                 if (damageLocations.includes('Left Wall')) {
-                    console.log('✅ Left Wall damage found - navigating to Left Wall damage photos');
                     // Navigate to Left Wall damage photos with containerData
                     if (onBackToLeftWallDamage) {
                         onBackToLeftWallDamage(containerData);
                     }
                 } else {
-                    console.log('❌ No Left Wall damage - navigating to step seven (Left Wall photo)');
                     // Navigate to step seven (Left Wall photo preview)
                     if (onBack) {
                         onBack(containerData);
@@ -112,13 +105,11 @@ const StepEightInsidePhoto = ({ onBack, onBackToLeftWallDamage, containerData, o
                 }
             } else {
                 // If no data or error, default to step seven
-                console.log('⚠️ No trip segment data found - defaulting to step seven');
                 if (onBack) {
                     onBack(containerData);
                 }
             }
         } catch (error) {
-            console.error('❌ Error checking damage locations:', error);
             // On error, default to step seven
             if (onBack) {
                 onBack(containerData);
@@ -174,7 +165,6 @@ const StepEightInsidePhoto = ({ onBack, onBackToLeftWallDamage, containerData, o
             const croppedImage = await ImageManipulator.manipulateAsync(imageUri, [{ crop: { originX: cropArea.x, originY: cropArea.y, width: cropArea.width, height: cropArea.height } }], { compress: 0.6, format: ImageManipulator.SaveFormat.JPEG });
             return croppedImage.uri;
         } catch (error) {
-            console.error('❌ Crop error:', error);
             return imageUri;
         }
     };
@@ -221,7 +211,6 @@ const StepEightInsidePhoto = ({ onBack, onBackToLeftWallDamage, containerData, o
                 try {
                     const fileInfo = await fetch(photo.uri);
                     const blob = await fileInfo.blob();
-                    console.log(`📊 Original Inside photo size: ${(blob.size / 1024).toFixed(2)} KB (${(blob.size / 1024 / 1024).toFixed(2)} MB)`);
                 } catch (e) {}
 
                 const croppedImage = await cropImageToInsideFrame(photo.uri);
@@ -232,15 +221,11 @@ const StepEightInsidePhoto = ({ onBack, onBackToLeftWallDamage, containerData, o
                     const originalFileInfo = await fetch(photo.uri);
                     const originalBlob = await originalFileInfo.blob();
                     const reduction = (((originalBlob.size - blob.size) / originalBlob.size) * 100).toFixed(1);
-                    console.log(`📊 Cropped Inside photo size: ${(blob.size / 1024).toFixed(2)} KB (${(blob.size / 1024 / 1024).toFixed(2)} MB)`);
-                    console.log(`📉 Size reduction: ${reduction}%`);
                 } catch (e) {}
 
                 setImage(croppedImage);
-                console.log('📸 Inside photo taken and cropped successfully');
             }
         } catch (error) {
-            console.error('❌ Error taking inside photo:', error);
             Alert.alert('Error', 'Failed to take photo. Please try again.');
         } finally {
             setIsProcessing(false);
@@ -249,7 +234,6 @@ const StepEightInsidePhoto = ({ onBack, onBackToLeftWallDamage, containerData, o
 
     const uploadInsidePhotoToS3 = async (imageBase64, tripSegmentNumber) => {
         try {
-            console.log('📸 Uploading inside photo to S3...');
             
             const BACKEND_URL = API_CONFIG.getBackendUrl();
             
@@ -267,8 +251,6 @@ const StepEightInsidePhoto = ({ onBack, onBackToLeftWallDamage, containerData, o
             formData.append('tripSegmentNumber', tripSegmentNumber);
             formData.append('photoType', 'inside');
             
-            console.log('📸 Uploading to:', `${BACKEND_URL}/api/upload/s3-inside-photo`);
-            console.log('📸 Trip segment:', tripSegmentNumber);
             
             const uploadResponse = await fetch(`${BACKEND_URL}/api/upload/s3-inside-photo`, {
                 method: 'POST',
@@ -281,15 +263,12 @@ const StepEightInsidePhoto = ({ onBack, onBackToLeftWallDamage, containerData, o
             const result = await uploadResponse.json();
             
             if (result.success) {
-                console.log('✅ Inside photo uploaded successfully to S3:', result.insidePhoto);
                 return { success: true, insidePhoto: result.insidePhoto };
             } else {
-                console.error('❌ Failed to upload inside photo to S3:', result.error);
                 return { success: false, error: result.error };
             }
             
         } catch (error) {
-            console.error('❌ Error uploading inside photo to S3:', error);
             return { success: false, error: error.message };
         }
     };
@@ -302,7 +281,6 @@ const StepEightInsidePhoto = ({ onBack, onBackToLeftWallDamage, containerData, o
 
         try {
             setIsProcessing(true);
-            console.log('📸 Storing inside photo for batch upload');
             
             const BACKEND_URL = API_CONFIG.getBackendUrl();
             
@@ -314,11 +292,9 @@ const StepEightInsidePhoto = ({ onBack, onBackToLeftWallDamage, containerData, o
             
             setInsidePhotoData(photoData);
             
-            console.log('✅ Inside photo stored successfully');
             
             // Automatically set container load status to "Empty" in database
             try {
-                console.log('🔧 Setting container load status to Empty...');
                 
                 const loadStatusResponse = await fetch(`${BACKEND_URL}/api/update-container-load-status`, {
                     method: 'POST',
@@ -334,12 +310,9 @@ const StepEightInsidePhoto = ({ onBack, onBackToLeftWallDamage, containerData, o
                 const loadStatusResult = await loadStatusResponse.json();
                 
                 if (loadStatusResult.success) {
-                    console.log('✅ Container load status set to Empty successfully:', loadStatusResult);
                 } else {
-                    console.error('❌ Failed to set container load status:', loadStatusResult.error);
                 }
             } catch (error) {
-                console.error('❌ Error setting container load status:', error);
             }
             
             // Check if Inside damage already exists in database
@@ -354,11 +327,9 @@ const StepEightInsidePhoto = ({ onBack, onBackToLeftWallDamage, containerData, o
                 const damageResult = await damageCheckResponse.json();
                 const damageLocations = damageResult.damageLocations || [];
                 
-                console.log('📊 Existing damage locations:', damageLocations);
                 
                 // If Inside damage already exists, skip modal and go directly to damage photos
                 if (damageLocations.includes('Inside')) {
-                    console.log('✅ Inside damage already exists - navigating to damage photos');
                     if (onNavigateToDamagePhotosDirect) {
                         onNavigateToDamagePhotosDirect(photoData);
                     } else if (onNavigateToDamagePhotos) {
@@ -372,7 +343,6 @@ const StepEightInsidePhoto = ({ onBack, onBackToLeftWallDamage, containerData, o
             setShowDamageModal(true);
             
         } catch (error) {
-            console.error('❌ Error storing inside photo:', error);
             Alert.alert('Error', 'An error occurred. Please try again.');
         } finally {
             setIsProcessing(false);
@@ -382,7 +352,6 @@ const StepEightInsidePhoto = ({ onBack, onBackToLeftWallDamage, containerData, o
 
     const checkOverallDamageStatusAndNavigate = async (finalPhotoData) => {
         try {
-            console.log('🔍 Checking overall damage status...');
             
             const BACKEND_URL = API_CONFIG.getBackendUrl();
             
@@ -397,7 +366,6 @@ const StepEightInsidePhoto = ({ onBack, onBackToLeftWallDamage, containerData, o
             const result = await response.json();
             
             if (result.success) {
-                console.log('📊 Overall damage status:', result.hasDamages);
                 
                 if (result.hasDamages === 'Yes') {
                     // There are damages - show Inspection Remarks screen
@@ -411,7 +379,6 @@ const StepEightInsidePhoto = ({ onBack, onBackToLeftWallDamage, containerData, o
                     }
                 }
             } else {
-                console.error('❌ Failed to check damage status:', result.error);
                 // Default to showing Inspection Remarks if we can't check
                 if (onNavigateToInspectionRemarks) {
                     onNavigateToInspectionRemarks(finalPhotoData);
@@ -419,7 +386,6 @@ const StepEightInsidePhoto = ({ onBack, onBackToLeftWallDamage, containerData, o
             }
             
         } catch (error) {
-            console.error('❌ Error checking damage status:', error);
             // Default to showing Inspection Remarks if there's an error
             if (onNavigateToInspectionRemarks) {
                 onNavigateToInspectionRemarks(finalPhotoData);
@@ -433,7 +399,6 @@ const StepEightInsidePhoto = ({ onBack, onBackToLeftWallDamage, containerData, o
         if (isDamaged) {
             // Update hasDamages in database to "Yes"
             try {
-                console.log('🔧 Updating damage status in database...');
                 
                 const BACKEND_URL = API_CONFIG.getBackendUrl();
                 
@@ -453,9 +418,7 @@ const StepEightInsidePhoto = ({ onBack, onBackToLeftWallDamage, containerData, o
                 const updateResult = await updateResponse.json();
                 
                 if (updateResult.success) {
-                    console.log('✅ Damage status updated successfully:', updateResult);
                 } else {
-                    console.error('❌ Failed to update damage status:', updateResult.error);
                 }
                 
                 // Use the already uploaded photo data
@@ -470,7 +433,6 @@ const StepEightInsidePhoto = ({ onBack, onBackToLeftWallDamage, containerData, o
                 }
                 
             } catch (error) {
-                console.error('❌ Error updating damage status:', error);
                 Alert.alert('Error', 'Failed to update damage status. Please try again.');
             }
         } else {

@@ -50,6 +50,7 @@ const StepEightHalfInspectionRemarks = ({ onBack, onBackToInsideDamagePhotos, co
                     }
                 }
             } catch (error) {
+                console.error('❌ Error fetching trailer number:', error);
             }
         };
         fetchTrailerNumber();
@@ -69,6 +70,7 @@ const StepEightHalfInspectionRemarks = ({ onBack, onBackToInsideDamagePhotos, co
                     }
                 }
             } catch (error) {
+                console.error('❌ Error fetching truck number:', error);
             }
         };
         fetchTruckNumber();
@@ -77,6 +79,7 @@ const StepEightHalfInspectionRemarks = ({ onBack, onBackToInsideDamagePhotos, co
     // Restore inspection remarks when navigating back
     useEffect(() => {
         if (containerData?.damageRemarks) {
+            console.log('🔄 Restoring inspection remarks:', containerData.damageRemarks);
             setInspectionRemarks(containerData.damageRemarks);
             
             // Update selected suggestions based on restored remarks
@@ -126,6 +129,7 @@ const StepEightHalfInspectionRemarks = ({ onBack, onBackToInsideDamagePhotos, co
     // Conditional back navigation - check if Inside damage exists
     const handleBackNavigation = async () => {
         try {
+            console.log('🔙 Checking damage locations for conditional navigation...');
             const BACKEND_URL = API_CONFIG.getBackendUrl();
             
             // Fetch trip segment damage status to check damage locations
@@ -144,14 +148,17 @@ const StepEightHalfInspectionRemarks = ({ onBack, onBackToInsideDamagePhotos, co
             
             if (result.success) {
                 const damageLocations = result.damageLocations || [];
+                console.log('📊 Damage locations:', damageLocations);
                 
                 // Check if "Inside" is in damage locations
                 if (damageLocations.includes('Inside')) {
+                    console.log('✅ Inside damage found - navigating to Inside damage photos');
                     // Navigate to Inside damage photos with containerData
                     if (onBackToInsideDamagePhotos) {
                         onBackToInsideDamagePhotos(containerData);
                     }
                 } else {
+                    console.log('❌ No Inside damage - navigating to Inside photo preview');
                     // Navigate to Inside photo preview with data for persistence
                     if (onBack) {
                         onBack(containerData);
@@ -159,11 +166,13 @@ const StepEightHalfInspectionRemarks = ({ onBack, onBackToInsideDamagePhotos, co
                 }
             } else {
                 // If no data or error, default to Inside photo preview with data for persistence
+                console.log('⚠️ No trip segment data found - defaulting to Inside photo preview');
                 if (onBack) {
                     onBack(containerData);
                 }
             }
         } catch (error) {
+            console.error('❌ Error checking damage locations:', error);
             // On error, default to Inside photo preview with data for persistence
             if (onBack) {
                 onBack(containerData);
@@ -213,6 +222,7 @@ const StepEightHalfInspectionRemarks = ({ onBack, onBackToInsideDamagePhotos, co
         
         try {
             // Save damage remarks to database
+            console.log('💾 Saving damage remarks to database...');
             
             const BACKEND_URL = API_CONFIG.getBackendUrl();
             
@@ -230,7 +240,9 @@ const StepEightHalfInspectionRemarks = ({ onBack, onBackToInsideDamagePhotos, co
             const result = await response.json();
             
             if (result.success) {
+                console.log('✅ Damage remarks saved successfully:', result);
             } else {
+                console.error('❌ Failed to save damage remarks:', result.error);
             }
             
             // Prepare data for next step
@@ -245,6 +257,7 @@ const StepEightHalfInspectionRemarks = ({ onBack, onBackToInsideDamagePhotos, co
             }
             
         } catch (error) {
+            console.error('❌ Error saving damage remarks:', error);
             // Still navigate even if saving fails
             const remarksData = {
                 ...containerData,

@@ -33,10 +33,12 @@ const StepThreeTrailerPhoto = ({ onBack, onBackToDamagePhotos, containerData, on
     // Restore trailer data when navigating back
     useEffect(() => {
         if (containerData?.trailerPhoto) {
+            console.log('📸 Restoring trailer photo from previous data');
             setImage(containerData.trailerPhoto);
         }
         
         if (containerData?.trailerNumber) {
+            console.log('🚗 Restoring trailer number from previous data:', containerData.trailerNumber);
             const plateArray = containerData.trailerNumber.split('');
             const newLicencePlate = Array(7).fill('');
             
@@ -52,6 +54,7 @@ const StepThreeTrailerPhoto = ({ onBack, onBackToDamagePhotos, containerData, on
     // Conditional back navigation - check if Front Wall damage exists
     const handleBackNavigation = async () => {
         try {
+            console.log('🔙 Checking damage locations for conditional navigation...');
             const BACKEND_URL = API_CONFIG.getBackendUrl();
             
             // Fetch trip segment damage status to check damage locations
@@ -70,14 +73,17 @@ const StepThreeTrailerPhoto = ({ onBack, onBackToDamagePhotos, containerData, on
             
             if (result.success) {
                 const damageLocations = result.damageLocations || [];
+                console.log('📊 Damage locations:', damageLocations);
                 
                 // Check if "Front Wall" is in damage locations
                 if (damageLocations.includes('Front Wall')) {
+                    console.log('✅ Front Wall damage found - navigating to damage photos');
                     // Navigate to Front Wall damage photos with containerData
                     if (onBackToDamagePhotos) {
                         onBackToDamagePhotos(containerData);
                     }
                 } else {
+                    console.log('❌ No Front Wall damage - navigating to step two');
                     // Navigate to step two (container details) with data for persistence
                     if (onBack) {
                         onBack(containerData);
@@ -85,11 +91,13 @@ const StepThreeTrailerPhoto = ({ onBack, onBackToDamagePhotos, containerData, on
                 }
             } else {
                 // If no data or error, default to step two
+                console.log('⚠️ No trip segment data found - defaulting to step two');
                 if (onBack) {
                     onBack(containerData);
                 }
             }
         } catch (error) {
+            console.error('❌ Error checking damage locations:', error);
             // On error, default to step two with data for persistence
             if (onBack) {
                 onBack(containerData);
@@ -204,10 +212,12 @@ const StepThreeTrailerPhoto = ({ onBack, onBackToDamagePhotos, containerData, on
             const cropArea = calculateCropArea(imageWidth, imageHeight);
             
             if (cropArea.x < 0 || cropArea.y < 0 || cropArea.width <= 0 || cropArea.height <= 0) {
+                console.warn('⚠️ Invalid crop parameters, using original image');
                 return imageUri;
             }
             
             if (cropArea.x + cropArea.width > imageWidth || cropArea.y + cropArea.height > imageHeight) {
+                console.warn('⚠️ Crop area exceeds bounds, using original image');
                 return imageUri;
             }
             
@@ -219,6 +229,7 @@ const StepThreeTrailerPhoto = ({ onBack, onBackToDamagePhotos, containerData, on
             
             return croppedImage.uri;
         } catch (error) {
+            console.error('❌ Crop error:', error);
             return imageUri;
         }
     };
@@ -242,13 +253,17 @@ const StepThreeTrailerPhoto = ({ onBack, onBackToDamagePhotos, containerData, on
                     const blob = await fileInfo.blob();
                     const fileSizeKB = (blob.size / 1024).toFixed(2);
                     const fileSizeMB = (blob.size / 1024 / 1024).toFixed(2);
+                    console.log(`📊 Original trailer photo size: ${fileSizeKB} KB (${fileSizeMB} MB)`);
                 } catch (sizeError) {
+                    console.warn('Could not determine original file size:', sizeError);
                 }
 
                 // Crop the image to the trailer frame area
                 const croppedImage = await cropImageToTrailerFrame(photo.uri);
+                console.log('✂️ Cropped image URI:', croppedImage);
 
                 // Wait to ensure the cropped file is fully written to disk
+                console.log('⏳ Waiting for file system to flush...');
                 await new Promise(resolve => setTimeout(resolve, 1000));
 
                 // Get file size of cropped photo
@@ -260,15 +275,20 @@ const StepThreeTrailerPhoto = ({ onBack, onBackToDamagePhotos, containerData, on
                     const originalFileInfo = await fetch(photo.uri);
                     const originalBlob = await originalFileInfo.blob();
                     const reduction = (((originalBlob.size - blob.size) / originalBlob.size) * 100).toFixed(1);
+                    console.log(`📊 Cropped trailer photo size: ${fileSizeKB} KB (${fileSizeMB} MB)`);
+                    console.log(`📉 Size reduction: ${reduction}% smaller after cropping`);
                 } catch (sizeError) {
+                    console.warn('Could not determine cropped file size:', sizeError);
                 }
 
                 setImage(croppedImage);
+                console.log('📸 Trailer photo taken and cropped successfully');
 
                 // Call PlateRecognizer API to extract licence plate
                 await recognizeLicencePlate(croppedImage);
             }
         } catch (error) {
+            console.error('❌ Error taking trailer photo:', error);
             Alert.alert('Error', 'Failed to take photo. Please try again.');
         } finally {
             setIsProcessing(false);
@@ -278,13 +298,18 @@ const StepThreeTrailerPhoto = ({ onBack, onBackToDamagePhotos, containerData, on
     const recognizeLicencePlate = async (imageUri) => {
         try {
             setIsRecognizingPlate(true);
+            console.log('🚗 Calling PlateRecognizer API...');
+            console.log('🔗 Image URI to send:', imageUri);
 
             const BACKEND_URL = API_CONFIG.getBackendUrl();
+            console.log('🔗 Backend URL:', BACKEND_URL);
             
             // Verify the file exists before sending
             try {
                 const testFetch = await fetch(imageUri);
+                console.log('✅ File accessible, status:', testFetch.status);
             } catch (testError) {
+                console.error('❌ File not accessible:', testError.message);
                 throw new Error('Cropped image file is not accessible yet');
             }
             
@@ -295,6 +320,7 @@ const StepThreeTrailerPhoto = ({ onBack, onBackToDamagePhotos, containerData, on
                 name: 'trailer.jpg'
             });
             
+            console.log('📤 Sending request to:', `${BACKEND_URL}/api/plate-recognizer/recognize`);
             
             const response = await fetch(`${BACKEND_URL}/api/plate-recognizer/recognize`, {
                 method: 'POST',
@@ -304,12 +330,15 @@ const StepThreeTrailerPhoto = ({ onBack, onBackToDamagePhotos, containerData, on
                 },
             });
 
+            console.log('📥 Response status:', response.status);
             const result = await response.json();
+            console.log('📊 PlateRecognizer response:', result);
 
             if (result.success && result.data.licencePlate) {
                 const detectedPlate = result.data.licencePlate;
                 const confidence = result.data.confidence;
 
+                console.log(`✅ Detected licence plate: ${detectedPlate} (confidence: ${confidence})`);
 
                 // Auto-fill the licence plate input fields
                 const plateArray = detectedPlate.split('');
@@ -322,6 +351,7 @@ const StepThreeTrailerPhoto = ({ onBack, onBackToDamagePhotos, containerData, on
 
                 setLicencePlate(newLicencePlate);
             } else {
+                console.log('❌ No licence plate detected or API error');
                 Alert.alert(
                     'No Licence Plate Detected',
                     'Please manually enter the trailer licence plate number.',
@@ -329,6 +359,8 @@ const StepThreeTrailerPhoto = ({ onBack, onBackToDamagePhotos, containerData, on
                 );
             }
         } catch (error) {
+            console.error('❌ Error calling PlateRecognizer API:', error);
+            console.error('❌ Error details:', error.message);
             
             // Check if it's a network error
             if (error.message.includes('Network request failed')) {
@@ -369,14 +401,17 @@ const StepThreeTrailerPhoto = ({ onBack, onBackToDamagePhotos, containerData, on
 
             if (!result.canceled && result.assets[0]) {
                 setImage(result.assets[0].uri);
+                console.log('📷 Trailer image selected from gallery');
             }
         } catch (error) {
+            console.error('❌ Error picking image:', error);
             Alert.alert('Error', 'Failed to select image. Please try again.');
         }
     };
 
     const uploadTrailerPhotoToS3 = async (imageBase64, tripSegmentNumber) => {
         try {
+            console.log('📸 Uploading trailer photo to S3...');
             
             const BACKEND_URL = API_CONFIG.getBackendUrl();
             
@@ -394,6 +429,8 @@ const StepThreeTrailerPhoto = ({ onBack, onBackToDamagePhotos, containerData, on
             formData.append('tripSegmentNumber', tripSegmentNumber);
             formData.append('photoType', 'trailer');
             
+            console.log('📸 Uploading to:', `${BACKEND_URL}/api/upload/s3-trailer-photo`);
+            console.log('📸 Trip segment:', tripSegmentNumber);
             
             const uploadResponse = await fetch(`${BACKEND_URL}/api/upload/s3-trailer-photo`, {
                 method: 'POST',
@@ -406,18 +443,22 @@ const StepThreeTrailerPhoto = ({ onBack, onBackToDamagePhotos, containerData, on
             const result = await uploadResponse.json();
             
             if (result.success) {
+                console.log('✅ Trailer photo uploaded successfully to S3:', result.trailerPhoto);
                 return { success: true, trailerPhoto: result.trailerPhoto };
             } else {
+                console.error('❌ Failed to upload trailer photo to S3:', result.error);
                 return { success: false, error: result.error };
             }
             
         } catch (error) {
+            console.error('❌ Error uploading trailer photo to S3:', error);
             return { success: false, error: error.message };
         }
     };
 
     const saveTrailerDetailsToDatabase = async (tripSegmentNumber, trailerNumber, trailerPhotoUrl) => {
         try {
+            console.log('💾 Saving trailer details to database...');
             
             const BACKEND_URL = API_CONFIG.getBackendUrl();
             
@@ -431,6 +472,7 @@ const StepThreeTrailerPhoto = ({ onBack, onBackToDamagePhotos, containerData, on
                 updateData.trailerPhoto = trailerPhotoUrl;
             }
 
+            console.log('📊 Update data:', updateData);
 
             const response = await fetch(`${BACKEND_URL}/api/trip-segments/update-trailer-details`, {
                 method: 'PUT',
@@ -443,18 +485,24 @@ const StepThreeTrailerPhoto = ({ onBack, onBackToDamagePhotos, containerData, on
             // Check if response is ok before parsing JSON
             if (!response.ok) {
                 const errorText = await response.text();
+                console.error('❌ HTTP Error:', response.status, response.statusText);
+                console.error('❌ Error response body:', errorText);
                 throw new Error(`HTTP ${response.status}: ${response.statusText}`);
             }
 
             const result = await response.json();
+            console.log('📊 Database update response:', result);
 
             if (result.success) {
+                console.log('✅ Trailer details saved to database successfully');
                 return { success: true };
             } else {
+                console.error('❌ Failed to save trailer details to database:', result.error);
                 return { success: false, error: result.error };
             }
 
         } catch (error) {
+            console.error('❌ Error saving trailer details to database:', error);
             return { success: false, error: error.message };
         }
     };
@@ -475,6 +523,7 @@ const StepThreeTrailerPhoto = ({ onBack, onBackToDamagePhotos, containerData, on
         setIsProcessing(true);
 
         try {
+            console.log('📸 Storing trailer photo for batch upload');
             
             // Save trailer details to database (trailer number only, photo will be uploaded at final submit)
             const saveResult = await saveTrailerDetailsToDatabase(
@@ -498,6 +547,8 @@ const StepThreeTrailerPhoto = ({ onBack, onBackToDamagePhotos, containerData, on
             // Save trailer data to state for navigation
             setTrailerData(trailerData);
 
+            console.log('✅ Trailer details saved to database successfully');
+            console.log('📸 Trailer photo stored for batch upload');
 
             // Navigate to next step
             if (onNavigateToStepFour) {
@@ -505,6 +556,7 @@ const StepThreeTrailerPhoto = ({ onBack, onBackToDamagePhotos, containerData, on
             }
         } catch (error) {
             Alert.alert('Error', 'An error occurred. Please try again.');
+            console.error('❌ Error in handleNext:', error);
         } finally {
             setIsProcessing(false);
         }

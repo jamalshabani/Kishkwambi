@@ -42,6 +42,7 @@ const StepNineDriverDetails = ({ onBack, containerData, onComplete, onShowSucces
                     }
                 }
             } catch (error) {
+                console.error('❌ Error fetching trailer number:', error);
             }
         };
         fetchTrailerNumber();
@@ -61,6 +62,7 @@ const StepNineDriverDetails = ({ onBack, containerData, onComplete, onShowSucces
                     }
                 }
             } catch (error) {
+                console.error('❌ Error fetching truck number:', error);
             }
         };
         fetchTruckNumber();
@@ -126,6 +128,7 @@ const StepNineDriverDetails = ({ onBack, containerData, onComplete, onShowSucces
             const croppedImage = await ImageManipulator.manipulateAsync(imageUri, [{ crop: { originX: cropArea.x, originY: cropArea.y, width: cropArea.width, height: cropArea.height } }], { compress: 0.6, format: ImageManipulator.SaveFormat.JPEG });
             return croppedImage.uri;
         } catch (error) {
+            console.error('❌ Crop error:', error);
             return imageUri;
         }
     };
@@ -184,6 +187,7 @@ const StepNineDriverDetails = ({ onBack, containerData, onComplete, onShowSucces
                 try {
                     const fileInfo = await fetch(photo.uri);
                     const blob = await fileInfo.blob();
+                    console.log(`📊 Original driver license photo size: ${(blob.size / 1024).toFixed(2)} KB (${(blob.size / 1024 / 1024).toFixed(2)} MB)`);
                 } catch (e) {}
 
                 // Crop the image to the license frame area
@@ -199,10 +203,13 @@ const StepNineDriverDetails = ({ onBack, containerData, onComplete, onShowSucces
                     const originalFileInfo = await fetch(photo.uri);
                     const originalBlob = await originalFileInfo.blob();
                     const reduction = (((originalBlob.size - blob.size) / originalBlob.size) * 100).toFixed(1);
+                    console.log(`📊 Cropped driver license photo size: ${(blob.size / 1024).toFixed(2)} KB (${(blob.size / 1024 / 1024).toFixed(2)} MB)`);
+                    console.log(`📉 Size reduction: ${reduction}%`);
                 } catch (e) {}
 
                 setImage(croppedImage);
                 setShowCamera(false);
+                console.log('📸 Driver license photo taken and cropped successfully');
 
                 // Show extraction loading
                 setIsExtracting(true);
@@ -214,6 +221,7 @@ const StepNineDriverDetails = ({ onBack, containerData, onComplete, onShowSucces
                 setShowForm(true);
             }
         } catch (error) {
+            console.error('❌ Error taking driver license photo:', error);
             Alert.alert('Error', 'Failed to take photo. Please try again.');
         } finally {
             setIsProcessing(false);
@@ -224,6 +232,7 @@ const StepNineDriverDetails = ({ onBack, containerData, onComplete, onShowSucces
     const extractDriverDetails = async (base64Image) => {
         try {
             setIsRecognizing(true);
+            console.log('🔍 Calling Vision AI for driver license recognition...');
 
             const BACKEND_URL = API_CONFIG.getBackendUrl();
 
@@ -257,7 +266,9 @@ const StepNineDriverDetails = ({ onBack, containerData, onComplete, onShowSucces
                     licenseNumber: extractedData.licenseNumber || prev.licenseNumber,
                     transporterName: capitalizeWords(extractedData.transporterName || prev.transporterName)
                 }));
+                console.log('✅ Driver details extracted and formatted successfully');
             } else {
+                console.log('⚠️ No driver details extracted, manual input required');
                 Alert.alert(
                     'Manual Input Required',
                     'Unable to extract driver details from the photo. Please enter the information manually.',
@@ -265,6 +276,7 @@ const StepNineDriverDetails = ({ onBack, containerData, onComplete, onShowSucces
                 );
             }
         } catch (error) {
+            console.error('❌ Error extracting driver details:', error);
             Alert.alert('Recognition Error', 'Failed to extract driver details. Please enter manually.');
         } finally {
             setIsRecognizing(false);
@@ -273,6 +285,7 @@ const StepNineDriverDetails = ({ onBack, containerData, onComplete, onShowSucces
 
     const uploadDriverPhotoToS3 = async (imageBase64, tripSegmentNumber) => {
         try {
+            console.log('📸 Uploading driver photo to S3...');
             
             const BACKEND_URL = API_CONFIG.getBackendUrl();
             
@@ -290,6 +303,8 @@ const StepNineDriverDetails = ({ onBack, containerData, onComplete, onShowSucces
             formData.append('tripSegmentNumber', tripSegmentNumber);
             formData.append('photoType', 'driver');
             
+            console.log('📸 Uploading to:', `${BACKEND_URL}/api/upload/s3-driver-photo`);
+            console.log('📸 Trip segment:', tripSegmentNumber);
             
             const uploadResponse = await fetch(`${BACKEND_URL}/api/upload/s3-driver-photo`, {
                 method: 'POST',
@@ -302,18 +317,22 @@ const StepNineDriverDetails = ({ onBack, containerData, onComplete, onShowSucces
             const result = await uploadResponse.json();
             
             if (result.success) {
+                console.log('✅ Driver photo uploaded successfully to S3:', result.driverPhoto);
                 return { success: true, driverPhoto: result.driverPhoto };
             } else {
+                console.error('❌ Failed to upload driver photo to S3:', result.error);
                 return { success: false, error: result.error };
             }
             
         } catch (error) {
+            console.error('❌ Error uploading driver photo to S3:', error);
             return { success: false, error: error.message };
         }
     };
 
     const uploadAllPhotosToArrivedContainers = async (tripSegmentNumber, containerData, progressCallback) => {
         try {
+            console.log('📸 Starting batch photo upload to arrivedContainers...');
             
             const BACKEND_URL = API_CONFIG.getBackendUrl();
             const formData = new FormData();
@@ -393,6 +412,9 @@ const StepNineDriverDetails = ({ onBack, containerData, onComplete, onShowSucces
             }
             
             const totalPhotos = photos.length + damagePhotos.length;
+            console.log(`📸 Total inspection photos: ${photos.length}`);
+            console.log(`📸 Total damage photos: ${damagePhotos.length}`);
+            console.log(`📸 Total photos to upload: ${totalPhotos}`);
             
             // Update progress: preparing upload
             if (progressCallback) {
@@ -426,9 +448,13 @@ const StepNineDriverDetails = ({ onBack, containerData, onComplete, onShowSucces
                 if (progressCallback && currentPhotoCount < totalPhotos - 1) {
                     currentPhotoCount += 1;
                     progressCallback(currentPhotoCount, totalPhotos);
+                    console.log(`📊 Progress update: ${currentPhotoCount}/${totalPhotos}`);
                 }
             }, 500); // Update every 500ms to simulate individual photo uploads
             
+            console.log('📤 Sending request to:', `${BACKEND_URL}/api/upload/batch-photos-arrived-containers`);
+            console.log('📤 Backend URL:', BACKEND_URL);
+            console.log('📤 Total photos in formData:', totalPhotos);
             
             // Add timeout to the request (5 minutes for large uploads)
             const controller = new AbortController();
@@ -445,21 +471,26 @@ const StepNineDriverDetails = ({ onBack, containerData, onComplete, onShowSucces
                 clearTimeout(timeoutId);
                 clearInterval(progressInterval);
                 
+                console.log('📥 Response status:', response.status);
                 
                 if (!response.ok) {
                     const errorText = await response.text();
+                    console.error('❌ Server error response:', errorText);
                     throw new Error(`Server responded with status ${response.status}: ${errorText}`);
                 }
                 
                 const result = await response.json();
+                console.log('📥 Response data:', result);
             
                 if (result.success) {
                     // Update to 100% progress
                     if (progressCallback) {
                         progressCallback(totalPhotos, totalPhotos);
                     }
+                    console.log('✅ All photos uploaded successfully:', result);
                     return { success: true, photoReferences: result.photoReferences };
                 } else {
+                    console.error('❌ Failed to upload photos:', result.error);
                     return { success: false, error: result.error };
                 }
             } catch (fetchError) {
@@ -467,12 +498,17 @@ const StepNineDriverDetails = ({ onBack, containerData, onComplete, onShowSucces
                 clearInterval(progressInterval);
                 
                 if (fetchError.name === 'AbortError') {
+                    console.error('❌ Upload request timed out after 5 minutes');
                     return { success: false, error: 'Upload timed out. This may happen with many large photos. Please check your connection and try again.' };
                 }
                 throw fetchError;
             }
             
         } catch (error) {
+            console.error('❌ Error uploading batch photos:', error);
+            console.error('❌ Error details:', error.message);
+            console.error('❌ Error stack:', error.stack);
+            console.error('❌ Backend URL was:', API_CONFIG.getBackendUrl());
             
             // Provide more helpful error messages
             let errorMessage = error.message;
@@ -486,6 +522,7 @@ const StepNineDriverDetails = ({ onBack, containerData, onComplete, onShowSucces
 
     const saveDriverDetailsToDatabase = async (tripSegmentNumber, driverDetails, driverPhotoUrl) => {
         try {
+            console.log('💾 Saving driver details to database...');
             
             const BACKEND_URL = API_CONFIG.getBackendUrl();
             
@@ -501,6 +538,7 @@ const StepNineDriverDetails = ({ onBack, containerData, onComplete, onShowSucces
             
             // Stop the timer and get the inspection time
             const inspectionTime = stopTimer();
+            console.log('⏱️ Inspection completed in:', inspectionTime);
             
             // Determine inwardLOLOBalance based on container size
             let inwardLOLOBalance = 150000; // Default for 40ft
@@ -530,6 +568,7 @@ inwardLOLOBalance = 75000;
                 updateData.driverPhoto = driverPhotoUrl;
             }
 
+            console.log('📊 Update data:', updateData);
 
             const response = await fetch(`${BACKEND_URL}/api/trip-segments/update-driver-details`, {
                 method: 'PUT',
@@ -540,14 +579,18 @@ inwardLOLOBalance = 75000;
             });
 
             const result = await response.json();
+            console.log('📊 Database update response:', result);
 
             if (result.success) {
+                console.log('✅ Driver details saved to database successfully');
                 return { success: true };
             } else {
+                console.error('❌ Failed to save driver details to database:', result.error);
                 return { success: false, error: result.error };
             }
 
         } catch (error) {
+            console.error('❌ Error saving driver details to database:', error);
             return { success: false, error: error.message };
         }
     };
@@ -563,16 +606,19 @@ inwardLOLOBalance = 75000;
         // Validate trip segment number
         if (!containerData?.tripSegmentNumber) {
             Alert.alert('Missing Trip Segment', 'Trip segment information is missing. Please go back and try again.');
+            console.error('❌ Missing tripSegmentNumber:', containerData);
             return;
         }
 
         //console.log('📊 Container data:', containerData);
+        console.log('📊 Trip segment number:', containerData?.tripSegmentNumber);
 
         setIsProcessing(true);
 
         try {
             // Stop the timer FIRST to get inspection time before showing success screen
             const inspectionTime = stopTimer();
+            console.log('⏱️ Inspection completed in:', inspectionTime);
             
             // Prepare complete data with inspection time
             const completeData = {
@@ -592,6 +638,7 @@ inwardLOLOBalance = 75000;
             await new Promise(resolve => setTimeout(resolve, 300));
             
             // Upload all photos to arrivedContainers folder with progress updates
+            console.log('📸 Uploading all inspection photos to arrivedContainers...');
             const uploadResult = await uploadAllPhotosToArrivedContainers(
                 containerData?.tripSegmentNumber, 
                 containerData,
@@ -603,6 +650,7 @@ inwardLOLOBalance = 75000;
                 return;
             }
             
+            console.log('✅ All photos uploaded successfully');
 
             // Save driver details to database
             const saveResult = await saveDriverDetailsToDatabase(containerData?.tripSegmentNumber, driverDetails, null);
@@ -612,9 +660,11 @@ inwardLOLOBalance = 75000;
                 return;
             }
 
+            console.log('✅ Driver details and photos saved successfully');
             
         } catch (error) {
             Alert.alert('Error', 'An error occurred while completing driver details. Please try again.');
+            console.error('❌ Error in handleComplete:', error);
         } finally {
             setIsProcessing(false);
         }

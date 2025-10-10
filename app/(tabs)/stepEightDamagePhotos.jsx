@@ -40,7 +40,6 @@ const StepEightDamagePhotos = ({ onBack, containerData, onNavigateToStepNine, on
                     }
                 }
             } catch (error) {
-                console.error('❌ Error fetching trailer number:', error);
             }
         };
         fetchTrailerNumber();
@@ -60,7 +59,6 @@ const StepEightDamagePhotos = ({ onBack, containerData, onNavigateToStepNine, on
                     }
                 }
             } catch (error) {
-                console.error('❌ Error fetching truck number:', error);
             }
         };
         fetchTruckNumber();
@@ -69,8 +67,6 @@ const StepEightDamagePhotos = ({ onBack, containerData, onNavigateToStepNine, on
     // Restore damage photos when navigating back
     useEffect(() => {
         if (containerData?.insideDamagePhotos && containerData.insideDamagePhotos.length > 0) {
-            console.log('📸 Restoring Inside damage photos from previous data');
-            console.log('📸 Number of photos to restore:', containerData.insideDamagePhotos.length);
             // Convert stored photos back to format expected by the component
             const restoredPhotos = containerData.insideDamagePhotos
                 .filter(photo => photo.uri) // Only restore photos with valid URIs
@@ -80,9 +76,7 @@ const StepEightDamagePhotos = ({ onBack, containerData, onNavigateToStepNine, on
                     timestamp: photo.timestamp || new Date().toISOString()
                 }));
             setDamagePhotos(restoredPhotos);
-            console.log('✅ Damage photos restored successfully:', restoredPhotos.length);
         } else {
-            console.log('⚠️ No Inside damage photos to restore');
         }
     }, [containerData]);
 
@@ -134,7 +128,6 @@ const StepEightDamagePhotos = ({ onBack, containerData, onNavigateToStepNine, on
             const croppedImage = await ImageManipulator.manipulateAsync(imageUri, [{ crop: { originX: cropArea.x, originY: cropArea.y, width: cropArea.width, height: cropArea.height } }], { compress: 0.6, format: ImageManipulator.SaveFormat.JPEG });
             return croppedImage.uri;
         } catch (error) {
-            console.error('❌ Crop error:', error);
             return imageUri;
         }
     };
@@ -168,7 +161,6 @@ const StepEightDamagePhotos = ({ onBack, containerData, onNavigateToStepNine, on
 
     const uploadDamagePhotosToS3 = async (photos, tripSegmentNumber) => {
         try {
-            console.log('📸 Starting S3 upload for damage photos...');
             const BACKEND_URL = API_CONFIG.getBackendUrl();
 
             // Create FormData for file upload
@@ -189,9 +181,6 @@ const StepEightDamagePhotos = ({ onBack, containerData, onNavigateToStepNine, on
             formData.append('containerNumber', containerData?.containerNumber || '');
             formData.append('damageLocation', 'Inside'); // Set damage location to Inside
 
-            console.log('📸 Uploading to:', `${BACKEND_URL}/api/upload/s3-damage-photos`);
-            console.log('📸 Trip segment:', tripSegmentNumber);
-            console.log('📸 Photo count:', photos.length);
 
             const response = await fetch(`${BACKEND_URL}/api/upload/s3-damage-photos`, {
                 method: 'POST',
@@ -204,15 +193,12 @@ const StepEightDamagePhotos = ({ onBack, containerData, onNavigateToStepNine, on
             const result = await response.json();
 
             if (result.success) {
-                console.log('✅ Damage photos uploaded successfully to S3:', result.damagePhotos);
                 return { success: true, damagePhotos: result.damagePhotos };
             } else {
-                console.error('❌ Failed to upload damage photos to S3:', result.error);
                 return { success: false, error: result.error };
             }
 
         } catch (error) {
-            console.error('❌ Error uploading damage photos to S3:', error);
             return { success: false, error: error.message };
         }
     };
@@ -237,7 +223,6 @@ const StepEightDamagePhotos = ({ onBack, containerData, onNavigateToStepNine, on
                 try {
                     const fileInfo = await fetch(photo.uri);
                     const blob = await fileInfo.blob();
-                    console.log(`📊 Original Inside damage photo size: ${(blob.size / 1024).toFixed(2)} KB`);
                 } catch (e) {}
 
                 const croppedImage = await cropImageToDamageFrame(photo.uri);
@@ -248,8 +233,6 @@ const StepEightDamagePhotos = ({ onBack, containerData, onNavigateToStepNine, on
                     const originalFileInfo = await fetch(photo.uri);
                     const originalBlob = await originalFileInfo.blob();
                     const reduction = (((originalBlob.size - blob.size) / originalBlob.size) * 100).toFixed(1);
-                    console.log(`📊 Cropped Inside damage photo size: ${(blob.size / 1024).toFixed(2)} KB`);
-                    console.log(`📉 Size reduction: ${reduction}%`);
                 } catch (e) {}
 
                 const newPhoto = {
@@ -259,10 +242,8 @@ const StepEightDamagePhotos = ({ onBack, containerData, onNavigateToStepNine, on
                 };
 
                 setDamagePhotos(prev => [...prev, newPhoto]);
-                console.log('📸 Inside damage photo taken and cropped successfully');
             }
         } catch (error) {
-            console.error('❌ Error capturing damage photo:', error);
             Alert.alert('Error', 'Failed to capture photo. Please try again.');
         } finally {
             setIsProcessing(false);
@@ -288,7 +269,6 @@ const StepEightDamagePhotos = ({ onBack, containerData, onNavigateToStepNine, on
         setIsProcessing(true);
 
         try {
-            console.log('📸 Storing Inside damage photos for batch upload');
             
             // Prepare damage data for next step - photos will be uploaded at final submit
             const damageData = {
@@ -300,7 +280,6 @@ const StepEightDamagePhotos = ({ onBack, containerData, onNavigateToStepNine, on
             // Save damage data to state for navigation
             setDamageData(damageData);
 
-            console.log('✅ Inside damage photos stored successfully');
 
             // Navigate to Inspection Remarks screen (since there are damages)
             if (onNavigateToInspectionRemarks) {
@@ -308,7 +287,6 @@ const StepEightDamagePhotos = ({ onBack, containerData, onNavigateToStepNine, on
             }
         } catch (error) {
             Alert.alert('Error', 'An error occurred. Please try again.');
-            console.error('❌ Error in handleNext:', error);
         } finally {
             setIsProcessing(false);
         }

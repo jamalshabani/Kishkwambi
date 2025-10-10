@@ -38,7 +38,6 @@ export default function StepFourRightSidePhoto({ containerData, trailerData, onB
             try {
                 if (!containerData?.tripSegmentNumber) return;
                 
-                console.log('🚗 Fetching trailer number from database...');
                 const BACKEND_URL = API_CONFIG.getBackendUrl();
                 
                 const response = await fetch(`${BACKEND_URL}/api/trip-segments/${containerData.tripSegmentNumber}/trailer-details`, {
@@ -51,12 +50,10 @@ export default function StepFourRightSidePhoto({ containerData, trailerData, onB
                 if (response.ok) {
                     const result = await response.json();
                     if (result.success && result.trailerNumber) {
-                        console.log('✅ Trailer number fetched:', result.trailerNumber);
                         setTrailerNumber(result.trailerNumber);
                     }
                 }
             } catch (error) {
-                console.error('❌ Error fetching trailer number:', error);
             }
         };
         
@@ -66,7 +63,6 @@ export default function StepFourRightSidePhoto({ containerData, trailerData, onB
     // Restore right side photo when navigating back
     useEffect(() => {
         if (containerData?.rightWallPhoto) {
-            console.log('🔄 Restoring right side photo from navigation data');
             setImage(containerData.rightWallPhoto);
         }
     }, [containerData?.rightWallPhoto]);
@@ -146,12 +142,10 @@ export default function StepFourRightSidePhoto({ containerData, trailerData, onB
             const cropArea = calculateCropArea(imageWidth, imageHeight);
             
             if (cropArea.x < 0 || cropArea.y < 0 || cropArea.width <= 0 || cropArea.height <= 0) {
-                console.warn('⚠️ Invalid crop parameters, using original image');
                 return imageUri;
             }
             
             if (cropArea.x + cropArea.width > imageWidth || cropArea.y + cropArea.height > imageHeight) {
-                console.warn('⚠️ Crop area exceeds bounds, using original image');
                 return imageUri;
             }
             
@@ -163,7 +157,6 @@ export default function StepFourRightSidePhoto({ containerData, trailerData, onB
             
             return croppedImage.uri;
         } catch (error) {
-            console.error('❌ Crop error:', error);
             return imageUri;
         }
     };
@@ -187,9 +180,7 @@ export default function StepFourRightSidePhoto({ containerData, trailerData, onB
                     const blob = await fileInfo.blob();
                     const fileSizeKB = (blob.size / 1024).toFixed(2);
                     const fileSizeMB = (blob.size / 1024 / 1024).toFixed(2);
-                    console.log(`📊 Original Right Wall photo size: ${fileSizeKB} KB (${fileSizeMB} MB)`);
                 } catch (sizeError) {
-                    console.warn('Could not determine original file size:', sizeError);
                 }
 
                 // Crop the image to the right wall frame area
@@ -204,17 +195,12 @@ export default function StepFourRightSidePhoto({ containerData, trailerData, onB
                     const originalFileInfo = await fetch(photo.uri);
                     const originalBlob = await originalFileInfo.blob();
                     const reduction = (((originalBlob.size - blob.size) / originalBlob.size) * 100).toFixed(1);
-                    console.log(`📊 Cropped Right Wall photo size: ${fileSizeKB} KB (${fileSizeMB} MB)`);
-                    console.log(`📉 Size reduction: ${reduction}% smaller after cropping`);
                 } catch (sizeError) {
-                    console.warn('Could not determine cropped file size:', sizeError);
                 }
 
                 setImage(croppedImage);
-                console.log('📸 Right wall photo taken and cropped successfully');
             }
         } catch (error) {
-            console.error('❌ Error taking right wall photo:', error);
             Alert.alert('Error', 'Failed to take photo. Please try again.');
         } finally {
             setIsProcessing(false);
@@ -234,7 +220,6 @@ export default function StepFourRightSidePhoto({ containerData, trailerData, onB
 
         try {
             setIsProcessing(true);
-            console.log('📸 Storing right wall photo for batch upload');
             
             // Store the photo data for batch upload at final submit
             const photoData = {
@@ -245,7 +230,6 @@ export default function StepFourRightSidePhoto({ containerData, trailerData, onB
             
             setRightWallPhotoData(photoData);
             
-            console.log('✅ Right wall photo stored successfully');
             
             // Check if Right Wall damage already exists in database
             const BACKEND_URL = API_CONFIG.getBackendUrl();
@@ -260,11 +244,9 @@ export default function StepFourRightSidePhoto({ containerData, trailerData, onB
                 const damageResult = await damageCheckResponse.json();
                 const damageLocations = damageResult.damageLocations || [];
                 
-                console.log('📊 Existing damage locations:', damageLocations);
                 
                 // If Right Wall damage already exists, skip modal and go directly to damage photos
                 if (damageLocations.includes('Right Wall')) {
-                    console.log('✅ Right Wall damage already exists - navigating to damage photos');
                     if (onNavigateToDamagePhotosDirect) {
                         onNavigateToDamagePhotosDirect(photoData);
                     } else if (onNavigateToDamagePhotos) {
@@ -278,7 +260,6 @@ export default function StepFourRightSidePhoto({ containerData, trailerData, onB
             setShowDamageModal(true);
             
         } catch (error) {
-            console.error('❌ Error storing right wall photo:', error);
             Alert.alert('Error', 'An error occurred. Please try again.');
         } finally {
             setIsProcessing(false);
@@ -291,7 +272,6 @@ export default function StepFourRightSidePhoto({ containerData, trailerData, onB
         if (isDamaged) {
             // Update hasDamages in database to "Yes"
             try {
-                console.log('🔧 Updating damage status in database...');
                 
                 const BACKEND_URL = API_CONFIG.getBackendUrl();
                 
@@ -311,9 +291,7 @@ export default function StepFourRightSidePhoto({ containerData, trailerData, onB
                 const updateResult = await updateResponse.json();
                 
                 if (updateResult.success) {
-                    console.log('✅ Damage status updated successfully:', updateResult);
                 } else {
-                    console.error('❌ Failed to update damage status:', updateResult.error);
                 }
                 
                 // Use the already uploaded photo data
@@ -330,7 +308,6 @@ export default function StepFourRightSidePhoto({ containerData, trailerData, onB
                 }
                 
             } catch (error) {
-                console.error('❌ Error updating damage status:', error);
                 Alert.alert('Error', 'Failed to update damage status. Please try again.');
             }
         } else {

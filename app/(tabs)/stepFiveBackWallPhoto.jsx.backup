@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { View, Text, TouchableOpacity, Alert, Image, ScrollView, ActivityIndicator, Modal, Dimensions, Animated } from 'react-native';
+import { View, Text, TouchableOpacity, Alert, Image, ScrollView, Animated, Modal, ActivityIndicator, Dimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { CameraView, useCameraPermissions } from 'expo-camera';
@@ -8,31 +8,20 @@ import * as ImageManipulator from 'expo-image-manipulator';
 import { cn } from '../../lib/tw';
 import { useTheme } from '../../contexts/ThemeContext';
 import TimerDisplay from '../../components/common/TimerDisplay';
+import { Sun, Moon, Eye, X, ArrowLeft } from 'lucide-react-native';
 import { API_CONFIG } from '../../lib/config';
-import { Moon, Sun, Camera, Eye, X, ArrowLeft } from 'lucide-react-native';
 
-const StepSevenLeftSidePhoto = ({ containerData, truckData, onBack, onNavigateToStepEight, onNavigateToDamagePhotos, onNavigateToDamagePhotosDirect }) => {
+const StepFiveBackWallPhoto = ({ onBack, onBackToRightWallDamage, containerData, onNavigateToStepSix, onNavigateToDamagePhotos, onNavigateToDamagePhotosDirect }) => {
     const { isDark, toggleTheme } = useTheme();
-    const [facing, setFacing] = useState('back');
+    const [permission, requestPermission] = useCameraPermissions();
     const [image, setImage] = useState(null);
     const [showZoomModal, setShowZoomModal] = useState(false);
-    const [leftSidePhotoData, setLeftSidePhotoData] = useState(null);
     const [isProcessing, setIsProcessing] = useState(false);
+    const [facing, setFacing] = useState('back');
+    const [frontWallPhotoData, setFrontWallPhotoData] = useState(null);
     const [showDamageModal, setShowDamageModal] = useState(false);
     const cameraRef = useRef(null);
     const [trailerNumber, setTrailerNumber] = useState(null);
-    const [truckNumber, setTruckNumber] = useState(null);
-
-    const [permission, requestPermission] = useCameraPermissions();
-
-    // Camera overlay dimensions for left wall photos
-    const screenWidth = Dimensions.get('window').width;
-    const screenHeight = Dimensions.get('window').height;
-    const leftWallFrameWidth = screenWidth * 0.60;
-    const leftWallFrameHeight = screenHeight * 0.70;
-    
-    const centerX = (screenWidth - leftWallFrameWidth) / 2;
-    const centerY = 80;
 
     // Fetch trailer number from database
     useEffect(() => {
@@ -48,59 +37,121 @@ const StepSevenLeftSidePhoto = ({ containerData, truckData, onBack, onNavigateTo
                     }
                 }
             } catch (error) {
+                console.error('❌ Error fetching trailer number:', error);
             }
         };
         fetchTrailerNumber();
     }, [containerData?.tripSegmentNumber]);
 
-    // Fetch truck number from database
+    // Restore back wall photo when navigating back
     useEffect(() => {
-        const fetchTruckNumber = async () => {
-            try {
-                if (!containerData?.tripSegmentNumber) return;
-                const BACKEND_URL = API_CONFIG.getBackendUrl();
-                const response = await fetch(`${BACKEND_URL}/api/trip-segments/${containerData.tripSegmentNumber}/truck-details`);
-                if (response.ok) {
-                    const result = await response.json();
-                    if (result.success && result.truckNumber) {
-                        setTruckNumber(result.truckNumber);
+        if (containerData?.backWallPhoto) {
+            console.log('🔄 Restoring back wall photo from navigation data');
+            setImage(containerData.backWallPhoto);
+        }
+    }, [containerData?.backWallPhoto]);
+
+    // Conditional back navigation - check if Right Wall damage exists
+    const handleBackNavigation = async () => {
+        try {
+            console.log('🔙 Checking damage locations for conditional navigation...');
+            const BACKEND_URL = API_CONFIG.getBackendUrl();
+            
+            // Fetch trip segment damage status to check damage locations
+            const response = await fetch(`${BACKEND_URL}/api/trip-segments/${containerData?.tripSegmentNumber}/damage-status`, {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+            });
+            
+            if (!response.ok) {
+                throw new Error('Failed to fetch trip segment damage status');
+            }
+            
+            const result = await response.json();
+            
+            if (result.success) {
+                const damageLocations = result.damageLocations || [];
+                console.log('📊 Damage locations:', damageLocations);
+                
+                // Check if "Right Wall" is in damage locations
+                if (damageLocations.includes('Right Wall')) {
+                    console.log('✅ Right Wall damage found - navigating to Right Wall damage photos');
+                    // Navigate to Right Wall damage photos with containerData
+                    if (onBackToRightWallDamage) {
+                        onBackToRightWallDamage(containerData);
+                    }
+                } else {
+                    console.log('❌ No Right Wall damage - navigating to step four (Right Wall photo)');
+                    // Navigate to step four (Right Wall photo preview) with data for persistence
+                    if (onBack) {
+                        onBack(containerData);
                     }
                 }
-            } catch (error) {
+            } else {
+                // If no data or error, default to step four with data for persistence
+                console.log('⚠️ No trip segment data found - defaulting to step four');
+                if (onBack) {
+                    onBack(containerData);
+                }
             }
-        };
-        fetchTruckNumber();
-    }, [containerData?.tripSegmentNumber]);
-
-    // Restore left side photo when navigating back
-    useEffect(() => {
-        if (containerData?.leftSidePhoto) {
-            setImage(containerData.leftSidePhoto);
+        } catch (error) {
+            console.error('❌ Error checking damage locations:', error);
+            // On error, default to step four with data for persistence
+            if (onBack) {
+                onBack(containerData);
+            }
         }
-    }, [containerData?.leftSidePhoto]);
+    };
 
-    if (!permission) {
-        // Camera permissions are still loading
-        return <View />;
-    }
+    // Animation values for theme switcher
+    const themeIconRotation = useRef(new Animated.Value(0)).current;
+    const themeButtonScale = useRef(new Animated.Value(1)).current;
 
-    if (!permission.granted) {
-        // Camera permissions are not granted yet
-        return (
-            <View style={cn('flex-1 justify-center items-center')}>
-                <Text style={cn('text-center mb-4')}>We need your permission to show the camera</Text>
-                <TouchableOpacity onPress={requestPermission} style={cn('bg-blue-500 px-4 py-2 rounded')}>
-                    <Text style={cn('text-white')}>Grant Permission</Text>
-                </TouchableOpacity>
-            </View>
-        );
-    }
+    // Camera overlay dimensions for back wall photos
+    const screenWidth = Dimensions.get('window').width;
+    const screenHeight = Dimensions.get('window').height;
+    const backWallFrameWidth = screenWidth * 0.85;
+    const backWallFrameHeight = backWallFrameWidth * 0.94;
+    
+    // Calculate the center position for the back wall frame
+    const centerX = (screenWidth - backWallFrameWidth) / 2;
+    const centerY = (screenHeight - backWallFrameHeight) / 2 - 80;
 
-    // Function to calculate crop area
+    const handleThemeToggle = () => {
+        // Scale down animation
+        Animated.sequence([
+            Animated.timing(themeButtonScale, {
+                toValue: 0.8,
+                duration: 100,
+                useNativeDriver: true,
+            }),
+            Animated.timing(themeButtonScale, {
+                toValue: 1,
+                duration: 100,
+                useNativeDriver: true,
+            })
+        ]).start();
+
+        // Rotation animation
+        Animated.timing(themeIconRotation, {
+            toValue: themeIconRotation._value + 180,
+            duration: 300,
+            useNativeDriver: true,
+        }).start();
+
+        // Toggle theme
+        toggleTheme();
+    };
+
+    // Function to calculate crop area based on back wall frame dimensions
     const calculateCropArea = (imageWidth, imageHeight) => {
         const imageAspectRatio = imageWidth / imageHeight;
         const screenAspectRatio = screenWidth / screenHeight;
+        
         let displayWidth, displayHeight, offsetX, offsetY;
+        
         if (imageAspectRatio > screenAspectRatio) {
             displayHeight = screenHeight;
             displayWidth = screenHeight * imageAspectRatio;
@@ -112,27 +163,62 @@ const StepSevenLeftSidePhoto = ({ containerData, truckData, onBack, onNavigateTo
             offsetX = 0;
             offsetY = (displayHeight - screenHeight) / 2;
         }
+        
         const scale = imageWidth / displayWidth;
-        let imageOverlayX = (centerX + offsetX) * scale;
-        let imageOverlayY = (centerY + offsetY) * scale;
-        let imageOverlayWidth = leftWallFrameWidth * scale;
-        let imageOverlayHeight = leftWallFrameHeight * scale;
+        const actualCenterX = centerX + offsetX;
+        const actualCenterY = centerY + offsetY;
+        
+        let imageOverlayX = actualCenterX * scale;
+        let imageOverlayY = actualCenterY * scale;
+        let imageOverlayWidth = backWallFrameWidth * scale;
+        let imageOverlayHeight = backWallFrameHeight * scale;
+        
         imageOverlayX = Math.max(0, imageOverlayX);
         imageOverlayY = Math.max(0, imageOverlayY);
-        if (imageOverlayX + imageOverlayWidth > imageWidth) imageOverlayWidth = imageWidth - imageOverlayX;
-        if (imageOverlayY + imageOverlayHeight > imageHeight) imageOverlayHeight = imageHeight - imageOverlayY;
-        return { x: Math.round(imageOverlayX), y: Math.round(imageOverlayY), width: Math.round(imageOverlayWidth), height: Math.round(imageOverlayHeight) };
+        
+        if (imageOverlayX + imageOverlayWidth > imageWidth) {
+            imageOverlayWidth = imageWidth - imageOverlayX;
+        }
+        if (imageOverlayY + imageOverlayHeight > imageHeight) {
+            imageOverlayHeight = imageHeight - imageOverlayY;
+        }
+        
+        return {
+            x: Math.round(imageOverlayX),
+            y: Math.round(imageOverlayY),
+            width: Math.round(imageOverlayWidth),
+            height: Math.round(imageOverlayHeight)
+        };
     };
 
-    const cropImageToLeftWallFrame = async (imageUri) => {
+    // Function to crop image to back wall frame area
+    const cropImageToBackWallFrame = async (imageUri) => {
         try {
             const imageInfo = await ImageManipulator.manipulateAsync(imageUri, [], { format: ImageManipulator.SaveFormat.JPEG });
-            const cropArea = calculateCropArea(imageInfo.width, imageInfo.height);
-            if (cropArea.x < 0 || cropArea.y < 0 || cropArea.width <= 0 || cropArea.height <= 0) return imageUri;
-            if (cropArea.x + cropArea.width > imageInfo.width || cropArea.y + cropArea.height > imageInfo.height) return imageUri;
-            const croppedImage = await ImageManipulator.manipulateAsync(imageUri, [{ crop: { originX: cropArea.x, originY: cropArea.y, width: cropArea.width, height: cropArea.height } }], { compress: 0.6, format: ImageManipulator.SaveFormat.JPEG });
+            const imageWidth = imageInfo.width;
+            const imageHeight = imageInfo.height;
+            
+            const cropArea = calculateCropArea(imageWidth, imageHeight);
+            
+            if (cropArea.x < 0 || cropArea.y < 0 || cropArea.width <= 0 || cropArea.height <= 0) {
+                console.warn('⚠️ Invalid crop parameters, using original image');
+                return imageUri;
+            }
+            
+            if (cropArea.x + cropArea.width > imageWidth || cropArea.y + cropArea.height > imageHeight) {
+                console.warn('⚠️ Crop area exceeds bounds, using original image');
+                return imageUri;
+            }
+            
+            const croppedImage = await ImageManipulator.manipulateAsync(
+                imageUri,
+                [{ crop: { originX: cropArea.x, originY: cropArea.y, width: cropArea.width, height: cropArea.height } }],
+                { compress: 0.6, format: ImageManipulator.SaveFormat.JPEG }
+            );
+            
             return croppedImage.uri;
         } catch (error) {
+            console.error('❌ Crop error:', error);
             return imageUri;
         }
     };
@@ -150,32 +236,49 @@ const StepSevenLeftSidePhoto = ({ containerData, truckData, onBack, onNavigateTo
             });
 
             if (photo?.uri) {
+                // Get file size of original photo
                 try {
                     const fileInfo = await fetch(photo.uri);
                     const blob = await fileInfo.blob();
-                } catch (e) {}
+                    const fileSizeKB = (blob.size / 1024).toFixed(2);
+                    const fileSizeMB = (blob.size / 1024 / 1024).toFixed(2);
+                    console.log(`📊 Original Back Wall photo size: ${fileSizeKB} KB (${fileSizeMB} MB)`);
+                } catch (sizeError) {
+                    console.warn('Could not determine original file size:', sizeError);
+                }
 
-                const croppedImage = await cropImageToLeftWallFrame(photo.uri);
+                // Crop the image to the back wall frame area
+                const croppedImage = await cropImageToBackWallFrame(photo.uri);
 
+                // Get file size of cropped photo
                 try {
                     const fileInfo = await fetch(croppedImage);
                     const blob = await fileInfo.blob();
+                    const fileSizeKB = (blob.size / 1024).toFixed(2);
+                    const fileSizeMB = (blob.size / 1024 / 1024).toFixed(2);
                     const originalFileInfo = await fetch(photo.uri);
                     const originalBlob = await originalFileInfo.blob();
                     const reduction = (((originalBlob.size - blob.size) / originalBlob.size) * 100).toFixed(1);
-                } catch (e) {}
+                    console.log(`📊 Cropped Back Wall photo size: ${fileSizeKB} KB (${fileSizeMB} MB)`);
+                    console.log(`📉 Size reduction: ${reduction}% smaller after cropping`);
+                } catch (sizeError) {
+                    console.warn('Could not determine cropped file size:', sizeError);
+                }
 
                 setImage(croppedImage);
+                console.log('📸 Back Wall photo taken and cropped successfully');
             }
         } catch (error) {
+            console.error('❌ Error taking Back Wall photo:', error);
             Alert.alert('Error', 'Failed to take photo. Please try again.');
         } finally {
             setIsProcessing(false);
         }
     };
 
-    const uploadLeftSidePhotoToS3 = async (imageBase64, tripSegmentNumber) => {
+    const uploadFrontWallPhotoToS3 = async (imageBase64, tripSegmentNumber) => {
         try {
+            console.log('📸 Uploading Back Wall photo to S3...');
             
             const BACKEND_URL = API_CONFIG.getBackendUrl();
             
@@ -186,15 +289,17 @@ const StepSevenLeftSidePhoto = ({ containerData, truckData, onBack, onNavigateTo
             formData.append('photo', {
                 uri: image,
                 type: 'image/jpeg',
-                name: 'left_side_photo.jpg'
+                name: 'front_wall_photo.jpg'
             });
             
             // Add metadata
             formData.append('tripSegmentNumber', tripSegmentNumber);
-            formData.append('photoType', 'leftSide');
+            formData.append('photoType', 'frontWall');
             
+            console.log('📸 Uploading to:', `${BACKEND_URL}/api/upload/s3-front-wall-photo`);
+            console.log('📸 Trip segment:', tripSegmentNumber);
             
-            const uploadResponse = await fetch(`${BACKEND_URL}/api/upload/s3-left-side-photo`, {
+            const uploadResponse = await fetch(`${BACKEND_URL}/api/upload/s3-front-wall-photo`, {
                 method: 'POST',
                 body: formData,
                 headers: {
@@ -205,36 +310,100 @@ const StepSevenLeftSidePhoto = ({ containerData, truckData, onBack, onNavigateTo
             const result = await uploadResponse.json();
             
             if (result.success) {
-                return { success: true, leftSidePhoto: result.leftSidePhoto };
+                console.log('✅ Back Wall photo uploaded successfully to S3:', result.frontWallPhoto);
+                return { success: true, frontWallPhoto: result.frontWallPhoto };
             } else {
+                console.error('❌ Failed to upload Back Wall photo to S3:', result.error);
                 return { success: false, error: result.error };
             }
             
         } catch (error) {
+            console.error('❌ Error uploading Back Wall photo to S3:', error);
             return { success: false, error: error.message };
+        }
+    };
+
+    const handleDamageResponse = async (isDamaged) => {
+        setShowDamageModal(false);
+        
+        if (isDamaged) {
+            // Update hasDamages in database to "Yes"
+            try {
+                console.log('🔧 Updating damage status in database...');
+                
+                const BACKEND_URL = API_CONFIG.getBackendUrl();
+                
+                // Update damage status to "Yes"
+                const updateResponse = await fetch(`${BACKEND_URL}/api/update-damage-status`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        tripSegmentNumber: containerData?.tripSegmentNumber,
+                        hasDamages: 'Yes',
+                        damageLocation: 'Back Wall'
+                    }),
+                });
+                
+                const updateResult = await updateResponse.json();
+                
+                if (updateResult.success) {
+                    console.log('✅ Damage status updated successfully:', updateResult);
+                } else {
+                    console.error('❌ Failed to update damage status:', updateResult.error);
+                }
+                
+                // Use the already uploaded photo data
+                const finalPhotoData = {
+                    ...frontWallPhotoData,
+                    hasFrontWallDamage: 'Yes'
+                };
+                
+                // Navigate to damage photos screen instead of next step
+                if (onNavigateToDamagePhotos) {
+                    onNavigateToDamagePhotos(finalPhotoData);
+                }
+                
+            } catch (error) {
+                console.error('❌ Error updating damage status:', error);
+                Alert.alert('Error', 'Failed to update damage status. Please try again.');
+            }
+        } else {
+            // No damage - proceed normally using the already uploaded photo data
+            const finalPhotoData = {
+                ...frontWallPhotoData,
+                hasFrontWallDamage: 'No'
+            };
+
+            // Navigate to next step
+            if (onNavigateToStepSix) {
+                onNavigateToStepSix(finalPhotoData);
+            }
         }
     };
 
     const handleNext = async () => {
         if (!image) {
-            Alert.alert('Missing Information', 'Please take a photo of the container left side.');
+            Alert.alert('Missing Photo', 'Please take a Back Wall photo before proceeding.');
             return;
         }
 
         try {
             setIsProcessing(true);
+            console.log('📸 Storing Back Wall photo for batch upload');
             
             // Store the photo data for batch upload at final submit
             const photoData = {
                 ...containerData,
-                ...truckData,
-                leftSidePhoto: image  // Store for preview and batch upload
+                backWallPhoto: image  // Store for preview and batch upload
             };
             
-            setLeftSidePhotoData(photoData);
+            setFrontWallPhotoData(photoData);
             
+            console.log('✅ Back Wall photo stored successfully');
             
-            // Check if Left Wall damage already exists in database
+            // Check if Back Wall damage already exists in database
             const BACKEND_URL = API_CONFIG.getBackendUrl();
             const damageCheckResponse = await fetch(`${BACKEND_URL}/api/trip-segments/${containerData?.tripSegmentNumber}/damage-status`, {
                 method: 'GET',
@@ -247,9 +416,11 @@ const StepSevenLeftSidePhoto = ({ containerData, truckData, onBack, onNavigateTo
                 const damageResult = await damageCheckResponse.json();
                 const damageLocations = damageResult.damageLocations || [];
                 
+                console.log('📊 Existing damage locations:', damageLocations);
                 
-                // If Left Wall damage already exists, skip modal and go directly to damage photos
-                if (damageLocations.includes('Left Wall')) {
+                // If Back Wall damage already exists, skip modal and go directly to damage photos
+                if (damageLocations.includes('Back Wall')) {
+                    console.log('✅ Back Wall damage already exists - navigating to damage photos');
                     if (onNavigateToDamagePhotosDirect) {
                         onNavigateToDamagePhotosDirect(photoData);
                     } else if (onNavigateToDamagePhotos) {
@@ -263,103 +434,83 @@ const StepSevenLeftSidePhoto = ({ containerData, truckData, onBack, onNavigateTo
             setShowDamageModal(true);
             
         } catch (error) {
+            console.error('❌ Error storing Back Wall photo:', error);
             Alert.alert('Error', 'An error occurred. Please try again.');
         } finally {
             setIsProcessing(false);
         }
     };
 
-    const handleDamageResponse = async (isDamaged) => {
-        setShowDamageModal(false);
-        
-        if (isDamaged) {
-            // Update hasDamages in database to "Yes"
-            try {
-                
-                const BACKEND_URL = API_CONFIG.getBackendUrl();
-                
-                // Update damage status to "Yes"
-                const updateResponse = await fetch(`${BACKEND_URL}/api/update-damage-status`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        tripSegmentNumber: containerData?.tripSegmentNumber,
-                        hasDamages: 'Yes',
-                        damageLocation: 'Left Wall'
-                    }),
-                });
-                
-                const updateResult = await updateResponse.json();
-                
-                if (updateResult.success) {
-                } else {
-                }
-                
-                // Use the already uploaded photo data
-                const finalPhotoData = {
-                    ...leftSidePhotoData,
-                    hasLeftSideDamage: 'Yes'
-                };
-                
-                // Navigate to damage photos screen instead of next step
-                if (onNavigateToDamagePhotos) {
-                    onNavigateToDamagePhotos(finalPhotoData);
-                }
-                
-            } catch (error) {
-                Alert.alert('Error', 'Failed to update damage status. Please try again.');
-            }
-        } else {
-            // No damage - proceed normally using the already uploaded photo data
-            const finalPhotoData = {
-                ...leftSidePhotoData,
-                hasLeftSideDamage: 'No'
-            };
+    if (!permission) {
+        return (
+            <SafeAreaView style={cn(`flex-1 ${isDark ? 'bg-gray-900' : 'bg-gray-100'}`)}>
+                <StatusBar style={isDark ? "light" : "dark"} />
+                <View style={cn('flex-1 justify-center items-center')}>
+                    <Text style={cn('text-lg text-gray-600 mb-4')}>Requesting camera permission...</Text>
+                </View>
+            </SafeAreaView>
+        );
+    }
 
-            // Navigate to next step
-            if (onNavigateToStepEight) {
-                onNavigateToStepEight(finalPhotoData);
-            }
-        }
-    };
-
+    if (!permission.granted) {
+        return (
+            <SafeAreaView style={cn(`flex-1 ${isDark ? 'bg-gray-900' : 'bg-gray-100'}`)}>
+                <StatusBar style={isDark ? "light" : "dark"} />
+                <View style={cn('flex-1 justify-center items-center px-6')}>
+                    <Text style={cn(`text-lg text-center mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`)}>
+                        Camera permission is required to take photos
+                    </Text>
+                    <TouchableOpacity
+                        onPress={requestPermission}
+                        style={cn('bg-blue-500 px-6 py-3 rounded-lg')}
+                    >
+                        <Text style={cn('text-white font-semibold')}>Grant Permission</Text>
+                    </TouchableOpacity>
+                </View>
+            </SafeAreaView>
+        );
+    }
 
     return (
-        <SafeAreaView style={cn(`flex-1 ${isDark ? 'bg-gray-900' : 'bg-gray-50'}`)} edges={['top']}>
+        <SafeAreaView style={cn(`flex-1 ${isDark ? 'bg-gray-900' : 'bg-gray-100'}`)} edges={['top']}>
             <StatusBar style={isDark ? "light" : "dark"} />
             
             {/* Header */}
-            <View style={cn(`flex-row items-center justify-between px-4 py-3 ${isDark ? 'bg-gray-900' : 'bg-white/10'} border-b ${isDark ? 'border-gray-700' : 'border-gray-200'}`)}>
+            <View style={cn(`${isDark ? 'bg-gray-900' : 'bg-white/10'} px-6 py-4 border-b ${isDark ? 'border-gray-700' : 'border-gray-300'} flex-row items-center justify-between shadow-sm`)}>
+                {/* Title */}
                 <View style={cn('flex-row items-center flex-1')}>
                     <TouchableOpacity 
-                        onPress={() => {
-                            // Pass containerData and truckData back for data persistence
-                            if (onBack) {
-                                onBack({
-                                    ...containerData,
-                                    ...truckData
-                                });
-                            }
-                        }}
+                        onPress={handleBackNavigation}
                         style={cn('mr-3 p-1')}
                     >
                         <ArrowLeft size={24} color={isDark ? '#F3F4F6' : '#1F2937'} />
                     </TouchableOpacity>
-                    <Text style={cn(`text-lg font-bold ${isDark ? 'text-white' : 'text-black'}`)}>
-                        Left Wall
+                    <Text style={cn(`text-lg font-bold ${isDark ? 'text-gray-100' : 'text-gray-800'}`)}>
+                        Back Wall
                     </Text>
                 </View>
-                
+
+                {/* Timer Display and Navigation Buttons */}
                 <View style={cn('flex-row items-center')}>
                     {/* Timer Display */}
                     <TimerDisplay />
-                    
-                    
-                    <TouchableOpacity onPress={toggleTheme} style={cn('p-2')}>
-                        {isDark ? <Sun size={24} color="#F59E0B" /> : <Moon size={24} color="#1F2937" />}
-                    </TouchableOpacity>
+
+
+                    {/* Theme Switcher */}
+                    <Animated.View
+                        style={{
+                            transform: [
+                                { scale: themeButtonScale }
+                            ]
+                        }}
+                    >
+                        <TouchableOpacity 
+                            onPress={handleThemeToggle}
+                            style={cn('p-2')}
+                        >
+                            {isDark ? <Sun size={20} color="#9CA3AF" /> : <Moon size={20} color="#6B7280" />}
+                        </TouchableOpacity>
+                    </Animated.View>
                 </View>
             </View>
 
@@ -370,26 +521,87 @@ const StepSevenLeftSidePhoto = ({ containerData, truckData, onBack, onNavigateTo
                         ref={cameraRef}
                         style={cn('flex-1')}
                         facing={facing}
+                        ratio="1:1"
                     />
 
-                    {/* Custom Mask Overlay */}
+                    {/* Custom Mask Overlay - darkens everything except the back wall frame */}
                     <View style={cn('absolute inset-0')} pointerEvents="box-none">
-                        <View style={{ position: 'absolute', top: 0, left: 0, width: screenWidth, height: centerY + 1, backgroundColor: 'black' }} />
-                        <View style={{ position: 'absolute', top: centerY, left: 0, width: centerX, height: screenHeight - centerY, backgroundColor: 'black' }} />
-                        <View style={{ position: 'absolute', top: centerY, left: centerX + leftWallFrameWidth, width: screenWidth - (centerX + leftWallFrameWidth), height: screenHeight - centerY, backgroundColor: 'black' }} />
-                        <View style={{ position: 'absolute', top: centerY, left: centerX, width: leftWallFrameWidth, height: leftWallFrameHeight, borderWidth: 2, borderColor: '#10B981', backgroundColor: 'transparent' }} />
+                        {/* Top overlay */}
+                        <View 
+                            style={{
+                                position: 'absolute',
+                                top: 0,
+                                left: 0,
+                                width: screenWidth,
+                                height: centerY,
+                                backgroundColor: 'black'
+                            }}
+                        />
+                        
+                        {/* Left overlay */}
+                        <View 
+                            style={{
+                                position: 'absolute',
+                                top: centerY,
+                                left: 0,
+                                width: centerX,
+                                height: backWallFrameHeight,
+                                backgroundColor: 'black'
+                            }}
+                        />
+                        
+                        {/* Right overlay */}
+                        <View 
+                            style={{
+                                position: 'absolute',
+                                top: centerY,
+                                left: centerX + backWallFrameWidth,
+                                width: centerX,
+                                height: backWallFrameHeight,
+                                backgroundColor: 'black'
+                            }}
+                        />
+                        
+                        {/* Bottom overlay */}
+                        <View 
+                            style={{
+                                position: 'absolute',
+                                top: centerY + backWallFrameHeight,
+                                left: 0,
+                                width: screenWidth,
+                                height: screenHeight - (centerY + backWallFrameHeight),
+                                backgroundColor: 'black'
+                            }}
+                        />
+                        
+                        {/* Back Wall Frame Guide - drawn on top */}
+                        <View 
+                            style={{
+                                position: 'absolute',
+                                top: centerY,
+                                left: centerX,
+                                width: backWallFrameWidth,
+                                height: backWallFrameHeight,
+                                borderWidth: 2,
+                                borderColor: '#10B981',
+                                backgroundColor: 'transparent',
+                            }}
+                        />
                     </View>
                     
+                    {/* Instruction Text - Above the mask */}
                     <View style={cn('absolute top-4 left-4 right-4 items-center')} pointerEvents="none">
-                        <View style={cn('pt-2 rounded-lg')}>
+                        <View style={cn('bg-black/70 p-6 rounded-lg')}>
                             <Text style={cn('text-white text-center text-lg font-semibold')}>
-                                Capture the Left Wall of the container
+                                Capture the Back Wall of the container
                             </Text>
                         </View>
                     </View>
                     
-                    <View style={cn('absolute bottom-0 left-0 bg-black right-0 pb-12 pt-1')}>
+                    {/* Camera Controls Overlay */}
+                    <View style={cn('absolute bottom-0 left-0 bg-black/50 right-0 pb-20 pt-4')}>
                         <View style={cn('flex-row items-center justify-center px-8')}>
+                            {/* Capture Button */}
                             <TouchableOpacity
                                 onPress={takePicture}
                                 disabled={isProcessing}
@@ -437,21 +649,13 @@ const StepSevenLeftSidePhoto = ({ containerData, truckData, onBack, onNavigateTo
                                         {containerData?.trailerNumber || 'N/A'}
                                     </Text>
                                 </View>
-                                <View style={cn('flex-1 ml-4')}>
-                                    <Text style={cn(`text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-600'} mb-1`)}>
-                                        Truck Number
-                                    </Text>
-                                    <Text style={cn(`text-lg font-bold ${isDark ? 'text-white' : 'text-black'}`)}>
-                                        {containerData?.truckNumber || 'N/A'}
-                                    </Text>
-                                </View>
                             </View>
                         </View>
 
                         {/* Photo Preview Section */}
                         <View style={cn(`${isDark ? 'bg-gray-800' : 'bg-white'} rounded-lg shadow-lg p-4 mb-6`)}>
                             <Text style={cn(`text-lg font-bold mb-4 ${isDark ? 'text-white' : 'text-black'}`)}>
-                                Left Wall Photo
+                                Back Wall Photo
                             </Text>
                             
                             <TouchableOpacity
@@ -547,7 +751,7 @@ const StepSevenLeftSidePhoto = ({ containerData, truckData, onBack, onNavigateTo
                                 Damage Check
                             </Text>
                             <Text style={cn(`text-lg font-semibold text-center ${isDark ? 'text-gray-300' : 'text-gray-600'}`)}>
-                                Is the Left Side damaged?
+                                Is the Back Wall damaged?
                             </Text>
                         </View>
                         
@@ -592,4 +796,4 @@ const StepSevenLeftSidePhoto = ({ containerData, truckData, onBack, onNavigateTo
     );
 };
 
-export default StepSevenLeftSidePhoto;
+export default StepFiveBackWallPhoto;

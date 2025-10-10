@@ -45,7 +45,6 @@ const StepSixTruckPhoto = ({ onBack, onBackToBackWallDamage, containerData, onNa
                     }
                 }
             } catch (error) {
-                console.error('❌ Error fetching trailer number:', error);
             }
         };
         fetchTrailerNumber();
@@ -54,14 +53,12 @@ const StepSixTruckPhoto = ({ onBack, onBackToBackWallDamage, containerData, onNa
     // Restore truck photo and truck number when navigating back
     useEffect(() => {
         if (containerData?.truckPhoto) {
-            console.log('🔄 Restoring truck photo from navigation data');
             setImage(containerData.truckPhoto);
         }
     }, [containerData?.truckPhoto]);
     
     useEffect(() => {
         if (containerData?.truckNumber) {
-            console.log('🚛 Restoring truck number from previous data:', containerData.truckNumber);
             // Convert truck number string to array for the inputs
             const truckNumberArray = containerData.truckNumber.split('');
             // Pad with empty strings if needed
@@ -76,7 +73,6 @@ const StepSixTruckPhoto = ({ onBack, onBackToBackWallDamage, containerData, onNa
     // Conditional back navigation - check if Back Wall damage exists
     const handleBackNavigation = async () => {
         try {
-            console.log('🔙 Checking damage locations for conditional navigation...');
             const BACKEND_URL = API_CONFIG.getBackendUrl();
             
             // Fetch trip segment damage status to check damage locations
@@ -95,17 +91,14 @@ const StepSixTruckPhoto = ({ onBack, onBackToBackWallDamage, containerData, onNa
             
             if (result.success) {
                 const damageLocations = result.damageLocations || [];
-                console.log('📊 Damage locations:', damageLocations);
                 
                 // Check if "Back Wall" is in damage locations
                 if (damageLocations.includes('Back Wall')) {
-                    console.log('✅ Back Wall damage found - navigating to Back Wall damage photos');
                     // Navigate to Back Wall damage photos with containerData
                     if (onBackToBackWallDamage) {
                         onBackToBackWallDamage(containerData);
                     }
                 } else {
-                    console.log('❌ No Back Wall damage - navigating to step five (Back Wall photo)');
                     // Navigate to step five (Back Wall photo preview)
                     if (onBack) {
                         onBack();
@@ -113,13 +106,11 @@ const StepSixTruckPhoto = ({ onBack, onBackToBackWallDamage, containerData, onNa
                 }
             } else {
                 // If no data or error, default to step five
-                console.log('⚠️ No trip segment data found - defaulting to step five');
                 if (onBack) {
                     onBack();
                 }
             }
         } catch (error) {
-            console.error('❌ Error checking damage locations:', error);
             // On error, default to step five
             if (onBack) {
                 onBack();
@@ -203,7 +194,6 @@ const StepSixTruckPhoto = ({ onBack, onBackToBackWallDamage, containerData, onNa
             const croppedImage = await ImageManipulator.manipulateAsync(imageUri, [{ crop: { originX: cropArea.x, originY: cropArea.y, width: cropArea.width, height: cropArea.height } }], { compress: 0.6, format: ImageManipulator.SaveFormat.JPEG });
             return croppedImage.uri;
         } catch (error) {
-            console.error('❌ Crop error:', error);
             return imageUri;
         }
     };
@@ -238,16 +228,13 @@ const StepSixTruckPhoto = ({ onBack, onBackToBackWallDamage, containerData, onNa
                     const blob = await fileInfo.blob();
                     const fileSizeKB = (blob.size / 1024).toFixed(2);
                     const fileSizeMB = (blob.size / 1024 / 1024).toFixed(2);
-                    console.log(`📊 Original truck photo size: ${fileSizeKB} KB (${fileSizeMB} MB)`);
                 } catch (sizeError) {
-                    console.warn('Could not determine original file size:', sizeError);
                 }
 
                 // Crop the image to the truck frame area
                 const croppedImage = await cropImageToTruckFrame(photo.uri);
 
                 // Wait to ensure the cropped file is fully written to disk
-                console.log('⏳ Waiting for file system to flush...');
                 await new Promise(resolve => setTimeout(resolve, 1000));
 
                 // Get file size of cropped photo
@@ -259,20 +246,15 @@ const StepSixTruckPhoto = ({ onBack, onBackToBackWallDamage, containerData, onNa
                     const originalFileInfo = await fetch(photo.uri);
                     const originalBlob = await originalFileInfo.blob();
                     const reduction = (((originalBlob.size - blob.size) / originalBlob.size) * 100).toFixed(1);
-                    console.log(`📊 Cropped truck photo size: ${fileSizeKB} KB (${fileSizeMB} MB)`);
-                    console.log(`📉 Size reduction: ${reduction}% smaller after cropping`);
                 } catch (sizeError) {
-                    console.warn('Could not determine cropped file size:', sizeError);
                 }
 
                 setImage(croppedImage);
-                console.log('📸 Truck photo taken and cropped successfully');
 
                 // Call PlateRecognizer API to extract truck number
                 await recognizeTruckNumber(croppedImage);
             }
         } catch (error) {
-            console.error('❌ Error taking truck photo:', error);
             Alert.alert('Error', 'Failed to take photo. Please try again.');
         } finally {
             setIsProcessing(false);
@@ -282,17 +264,13 @@ const StepSixTruckPhoto = ({ onBack, onBackToBackWallDamage, containerData, onNa
     const recognizeTruckNumber = async (imageUri) => {
         try {
             setIsRecognizingPlate(true);
-            console.log('🚗 Calling PlateRecognizer API...');
 
             const BACKEND_URL = API_CONFIG.getBackendUrl();
-            console.log('🔗 Backend URL:', BACKEND_URL);
             
             // Verify the file exists before sending
             try {
                 const testFetch = await fetch(imageUri);
-                console.log('✅ File accessible, status:', testFetch.status);
             } catch (testError) {
-                console.error('❌ File not accessible:', testError.message);
                 throw new Error('Cropped image file is not accessible yet');
             }
             
@@ -320,12 +298,10 @@ const StepSixTruckPhoto = ({ onBack, onBackToBackWallDamage, containerData, onNa
                 clearTimeout(timeoutId);
 
                 const result = await response.json();
-                console.log('🚗 PlateRecognizer response:', result);
 
             if (result.success && result.data && result.data.licencePlate) {
                 const plateNumber = result.data.licencePlate.toUpperCase();
                 const confidence = result.data.confidence;
-                console.log(`✅ Detected truck number: ${plateNumber} (confidence: ${confidence})`);
                 
                 // Update extracted data
                 setExtractedData({
@@ -343,7 +319,6 @@ const StepSixTruckPhoto = ({ onBack, onBackToBackWallDamage, containerData, onNa
 
                 setTruckNumber(newTruckNumber);
             } else {
-                console.log('❌ No truck number detected or API error');
                 Alert.alert(
                     'No Truck Number Detected',
                     'No truck number was detected in the image. Please enter it manually.',
@@ -352,7 +327,6 @@ const StepSixTruckPhoto = ({ onBack, onBackToBackWallDamage, containerData, onNa
             }
             } catch (fetchError) {
                 if (fetchError.name === 'AbortError') {
-                    console.error('❌ Plate recognition request timed out');
                     Alert.alert(
                         'Request Timeout',
                         'The request took too long. Please enter the truck number manually.',
@@ -363,8 +337,6 @@ const StepSixTruckPhoto = ({ onBack, onBackToBackWallDamage, containerData, onNa
                 }
             }
         } catch (error) {
-            console.error('❌ Error recognizing truck number:', error);
-            console.error('❌ Error details:', error.message);
             
             // Check if it's a network error
             if (error.message.includes('Network request failed')) {
@@ -387,7 +359,6 @@ const StepSixTruckPhoto = ({ onBack, onBackToBackWallDamage, containerData, onNa
 
     const uploadTruckPhotoToS3 = async (imageBase64, tripSegmentNumber, truckNumber) => {
         try {
-            console.log('📸 Uploading truck photo to S3...');
             
             const BACKEND_URL = API_CONFIG.getBackendUrl();
             
@@ -406,9 +377,6 @@ const StepSixTruckPhoto = ({ onBack, onBackToBackWallDamage, containerData, onNa
             formData.append('photoType', 'truck');
             formData.append('truckNumber', truckNumber);
             
-            console.log('📸 Uploading to:', `${BACKEND_URL}/api/upload/s3-truck-photo`);
-            console.log('📸 Trip segment:', tripSegmentNumber);
-            console.log('📸 Truck number:', truckNumber);
             
             const uploadResponse = await fetch(`${BACKEND_URL}/api/upload/s3-truck-photo`, {
                 method: 'POST',
@@ -421,22 +389,18 @@ const StepSixTruckPhoto = ({ onBack, onBackToBackWallDamage, containerData, onNa
             const result = await uploadResponse.json();
             
             if (result.success) {
-                console.log('✅ Truck photo uploaded successfully to S3:', result.truckPhoto);
                 return { success: true, truckPhoto: result.truckPhoto };
             } else {
-                console.error('❌ Failed to upload truck photo to S3:', result.error);
                 return { success: false, error: result.error };
             }
             
         } catch (error) {
-            console.error('❌ Error uploading truck photo to S3:', error);
             return { success: false, error: error.message };
         }
     };
 
     const saveTruckDetailsToDatabase = async (tripSegmentNumber, truckNumber, truckPhotoUrl) => {
         try {
-            console.log('💾 Saving truck details to database...');
             
             const BACKEND_URL = API_CONFIG.getBackendUrl();
             
@@ -450,7 +414,6 @@ const StepSixTruckPhoto = ({ onBack, onBackToBackWallDamage, containerData, onNa
                 updateData.truckPhoto = truckPhotoUrl;
             }
 
-            console.log('📊 Update data:', updateData);
 
             const response = await fetch(`${BACKEND_URL}/api/trip-segments/update-truck-details`, {
                 method: 'PUT',
@@ -461,18 +424,14 @@ const StepSixTruckPhoto = ({ onBack, onBackToBackWallDamage, containerData, onNa
             });
 
             const result = await response.json();
-            console.log('📊 Database update response:', result);
 
             if (result.success) {
-                console.log('✅ Truck details saved to database successfully');
                 return { success: true };
             } else {
-                console.error('❌ Failed to save truck details to database:', result.error);
                 return { success: false, error: result.error };
             }
 
         } catch (error) {
-            console.error('❌ Error saving truck details to database:', error);
             return { success: false, error: error.message };
         }
     };
@@ -492,7 +451,6 @@ const StepSixTruckPhoto = ({ onBack, onBackToBackWallDamage, containerData, onNa
         setIsProcessing(true);
 
         try {
-            console.log('📸 Storing truck photo for batch upload');
             
             // Save truck details to database (truck number only, photo will be uploaded at final submit)
             const saveResult = await saveTruckDetailsToDatabase(
@@ -516,8 +474,6 @@ const StepSixTruckPhoto = ({ onBack, onBackToBackWallDamage, containerData, onNa
             // Save truck photo data to state for navigation
             setTruckPhotoData(truckData);
 
-            console.log('✅ Truck details saved to database successfully');
-            console.log('📸 Truck photo stored for batch upload');
 
             // Navigate to next step
             if (onNavigateToStepSeven) {
@@ -525,7 +481,6 @@ const StepSixTruckPhoto = ({ onBack, onBackToBackWallDamage, containerData, onNa
             }
         } catch (error) {
             Alert.alert('Error', 'An error occurred. Please try again.');
-            console.error('❌ Error in handleNext:', error);
         } finally {
             setIsProcessing(false);
         }

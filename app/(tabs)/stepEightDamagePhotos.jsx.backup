@@ -12,7 +12,7 @@ import { API_CONFIG } from '../../lib/config';
 import TimerDisplay from '../../components/common/TimerDisplay';
 import { Sun, Moon, Eye, X, Camera, ArrowLeft } from 'lucide-react-native';
 
-const StepFiveDamagePhotos = ({ onBack, containerData, onNavigateToStepSix, onNavigateToStepSixDirect }) => {
+const StepEightDamagePhotos = ({ onBack, containerData, onNavigateToStepNine, onNavigateToInspectionRemarks, onNavigateToStepNineDirect }) => {
     const { isDark, toggleTheme } = useTheme();
     const [permission, requestPermission] = useCameraPermissions();
     const [damagePhotos, setDamagePhotos] = useState([]);
@@ -24,6 +24,7 @@ const StepFiveDamagePhotos = ({ onBack, containerData, onNavigateToStepSix, onNa
     const cameraRef = useRef(null);
     const [damageData, setDamageData] = useState(null);
     const [trailerNumber, setTrailerNumber] = useState(null);
+    const [truckNumber, setTruckNumber] = useState(null);
 
     // Fetch trailer number from database
     useEffect(() => {
@@ -39,16 +40,39 @@ const StepFiveDamagePhotos = ({ onBack, containerData, onNavigateToStepSix, onNa
                     }
                 }
             } catch (error) {
+                console.error('❌ Error fetching trailer number:', error);
             }
         };
         fetchTrailerNumber();
     }, [containerData?.tripSegmentNumber]);
 
+    // Fetch truck number from database
+    useEffect(() => {
+        const fetchTruckNumber = async () => {
+            try {
+                if (!containerData?.tripSegmentNumber) return;
+                const BACKEND_URL = API_CONFIG.getBackendUrl();
+                const response = await fetch(`${BACKEND_URL}/api/trip-segments/${containerData.tripSegmentNumber}/truck-details`);
+                if (response.ok) {
+                    const result = await response.json();
+                    if (result.success && result.truckNumber) {
+                        setTruckNumber(result.truckNumber);
+                    }
+                }
+            } catch (error) {
+                console.error('❌ Error fetching truck number:', error);
+            }
+        };
+        fetchTruckNumber();
+    }, [containerData?.tripSegmentNumber]);
+
     // Restore damage photos when navigating back
     useEffect(() => {
-        if (containerData?.backWallDamagePhotos && containerData.backWallDamagePhotos.length > 0) {
+        if (containerData?.insideDamagePhotos && containerData.insideDamagePhotos.length > 0) {
+            console.log('📸 Restoring Inside damage photos from previous data');
+            console.log('📸 Number of photos to restore:', containerData.insideDamagePhotos.length);
             // Convert stored photos back to format expected by the component
-            const restoredPhotos = containerData.backWallDamagePhotos
+            const restoredPhotos = containerData.insideDamagePhotos
                 .filter(photo => photo.uri) // Only restore photos with valid URIs
                 .map((photo, index) => ({
                     id: photo.id || Date.now() + index, // Ensure each photo has a unique id
@@ -56,7 +80,9 @@ const StepFiveDamagePhotos = ({ onBack, containerData, onNavigateToStepSix, onNa
                     timestamp: photo.timestamp || new Date().toISOString()
                 }));
             setDamagePhotos(restoredPhotos);
+            console.log('✅ Damage photos restored successfully:', restoredPhotos.length);
         } else {
+            console.log('⚠️ No Inside damage photos to restore');
         }
     }, [containerData]);
 
@@ -64,14 +90,54 @@ const StepFiveDamagePhotos = ({ onBack, containerData, onNavigateToStepSix, onNa
     const themeIconRotation = useRef(new Animated.Value(0)).current;
     const themeButtonScale = useRef(new Animated.Value(1)).current;
 
-    // Camera overlay dimensions for damage photos
+    // Camera overlay dimensions (matching Front Wall horizontal frame)
     const screenWidth = Dimensions.get('window').width;
     const screenHeight = Dimensions.get('window').height;
-    const damageFrameWidth = screenWidth * 0.85;
-    const damageFrameHeight = damageFrameWidth * 0.94;
-    
+    const damageFrameWidth = screenWidth * 0.85; // Same as Front Wall
+    const damageFrameHeight = damageFrameWidth * 0.94; // Same as Front Wall
     const centerX = (screenWidth - damageFrameWidth) / 2;
-    const centerY = (screenHeight - damageFrameHeight) / 2 - 80;
+    const centerY = (screenHeight - damageFrameHeight) / 2 - 80; // Same as Front Wall
+
+    const calculateCropArea = (imageWidth, imageHeight) => {
+        const imageAspectRatio = imageWidth / imageHeight;
+        const screenAspectRatio = screenWidth / screenHeight;
+        let displayWidth, displayHeight, offsetX, offsetY;
+        if (imageAspectRatio > screenAspectRatio) {
+            displayHeight = screenHeight;
+            displayWidth = screenHeight * imageAspectRatio;
+            offsetX = (displayWidth - screenWidth) / 2;
+            offsetY = 0;
+        } else {
+            displayWidth = screenWidth;
+            displayHeight = screenWidth / imageAspectRatio;
+            offsetX = 0;
+            offsetY = (displayHeight - screenHeight) / 2;
+        }
+        const scale = imageWidth / displayWidth;
+        let imageOverlayX = (centerX + offsetX) * scale;
+        let imageOverlayY = (centerY + offsetY) * scale;
+        let imageOverlayWidth = damageFrameWidth * scale;
+        let imageOverlayHeight = damageFrameHeight * scale;
+        imageOverlayX = Math.max(0, imageOverlayX);
+        imageOverlayY = Math.max(0, imageOverlayY);
+        if (imageOverlayX + imageOverlayWidth > imageWidth) imageOverlayWidth = imageWidth - imageOverlayX;
+        if (imageOverlayY + imageOverlayHeight > imageHeight) imageOverlayHeight = imageHeight - imageOverlayY;
+        return { x: Math.round(imageOverlayX), y: Math.round(imageOverlayY), width: Math.round(imageOverlayWidth), height: Math.round(imageOverlayHeight) };
+    };
+
+    const cropImageToDamageFrame = async (imageUri) => {
+        try {
+            const imageInfo = await ImageManipulator.manipulateAsync(imageUri, [], { format: ImageManipulator.SaveFormat.JPEG });
+            const cropArea = calculateCropArea(imageInfo.width, imageInfo.height);
+            if (cropArea.x < 0 || cropArea.y < 0 || cropArea.width <= 0 || cropArea.height <= 0) return imageUri;
+            if (cropArea.x + cropArea.width > imageInfo.width || cropArea.y + cropArea.height > imageInfo.height) return imageUri;
+            const croppedImage = await ImageManipulator.manipulateAsync(imageUri, [{ crop: { originX: cropArea.x, originY: cropArea.y, width: cropArea.width, height: cropArea.height } }], { compress: 0.6, format: ImageManipulator.SaveFormat.JPEG });
+            return croppedImage.uri;
+        } catch (error) {
+            console.error('❌ Crop error:', error);
+            return imageUri;
+        }
+    };
 
     const handleThemeToggle = () => {
         // Scale down animation
@@ -99,53 +165,10 @@ const StepFiveDamagePhotos = ({ onBack, containerData, onNavigateToStepSix, onNa
         toggleTheme();
     };
 
-    // Function to calculate crop area
-    const calculateCropArea = (imageWidth, imageHeight) => {
-        const imageAspectRatio = imageWidth / imageHeight;
-        const screenAspectRatio = screenWidth / screenHeight;
-        let displayWidth, displayHeight, offsetX, offsetY;
-        if (imageAspectRatio > screenAspectRatio) {
-            displayHeight = screenHeight;
-            displayWidth = screenHeight * imageAspectRatio;
-            offsetX = (displayWidth - screenWidth) / 2;
-            offsetY = 0;
-        } else {
-            displayWidth = screenWidth;
-            displayHeight = screenWidth / imageAspectRatio;
-            offsetX = 0;
-            offsetY = (displayHeight - screenHeight) / 2;
-        }
-        const scale = imageWidth / displayWidth;
-        const actualCenterX = centerX + offsetX;
-        const actualCenterY = centerY + offsetY;
-        let imageOverlayX = actualCenterX * scale;
-        let imageOverlayY = actualCenterY * scale;
-        let imageOverlayWidth = damageFrameWidth * scale;
-        let imageOverlayHeight = damageFrameHeight * scale;
-        imageOverlayX = Math.max(0, imageOverlayX);
-        imageOverlayY = Math.max(0, imageOverlayY);
-        if (imageOverlayX + imageOverlayWidth > imageWidth) imageOverlayWidth = imageWidth - imageOverlayX;
-        if (imageOverlayY + imageOverlayHeight > imageHeight) imageOverlayHeight = imageHeight - imageOverlayY;
-        return { x: Math.round(imageOverlayX), y: Math.round(imageOverlayY), width: Math.round(imageOverlayWidth), height: Math.round(imageOverlayHeight) };
-    };
-
-    // Function to crop image
-    const cropImageToDamageFrame = async (imageUri) => {
-        try {
-            const imageInfo = await ImageManipulator.manipulateAsync(imageUri, [], { format: ImageManipulator.SaveFormat.JPEG });
-            const cropArea = calculateCropArea(imageInfo.width, imageInfo.height);
-            if (cropArea.x < 0 || cropArea.y < 0 || cropArea.width <= 0 || cropArea.height <= 0) return imageUri;
-            if (cropArea.x + cropArea.width > imageInfo.width || cropArea.y + cropArea.height > imageInfo.height) return imageUri;
-            const croppedImage = await ImageManipulator.manipulateAsync(imageUri, [{ crop: { originX: cropArea.x, originY: cropArea.y, width: cropArea.width, height: cropArea.height } }], { compress: 0.6, format: ImageManipulator.SaveFormat.JPEG });
-            return croppedImage.uri;
-        } catch (error) {
-            return imageUri;
-        }
-    };
-
 
     const uploadDamagePhotosToS3 = async (photos, tripSegmentNumber) => {
         try {
+            console.log('📸 Starting S3 upload for damage photos...');
             const BACKEND_URL = API_CONFIG.getBackendUrl();
 
             // Create FormData for file upload
@@ -164,8 +187,11 @@ const StepFiveDamagePhotos = ({ onBack, containerData, onNavigateToStepSix, onNa
             // Add metadata
             formData.append('tripSegmentNumber', tripSegmentNumber);
             formData.append('containerNumber', containerData?.containerNumber || '');
-            formData.append('damageLocation', 'Back Wall'); // Set damage location to Back Wall
+            formData.append('damageLocation', 'Inside'); // Set damage location to Inside
 
+            console.log('📸 Uploading to:', `${BACKEND_URL}/api/upload/s3-damage-photos`);
+            console.log('📸 Trip segment:', tripSegmentNumber);
+            console.log('📸 Photo count:', photos.length);
 
             const response = await fetch(`${BACKEND_URL}/api/upload/s3-damage-photos`, {
                 method: 'POST',
@@ -178,12 +204,15 @@ const StepFiveDamagePhotos = ({ onBack, containerData, onNavigateToStepSix, onNa
             const result = await response.json();
 
             if (result.success) {
+                console.log('✅ Damage photos uploaded successfully to S3:', result.damagePhotos);
                 return { success: true, damagePhotos: result.damagePhotos };
             } else {
+                console.error('❌ Failed to upload damage photos to S3:', result.error);
                 return { success: false, error: result.error };
             }
 
         } catch (error) {
+            console.error('❌ Error uploading damage photos to S3:', error);
             return { success: false, error: error.message };
         }
     };
@@ -205,29 +234,23 @@ const StepFiveDamagePhotos = ({ onBack, containerData, onNavigateToStepSix, onNa
             });
 
             if (photo?.uri) {
-                // Get file size of original photo
                 try {
                     const fileInfo = await fetch(photo.uri);
                     const blob = await fileInfo.blob();
-                    const fileSizeKB = (blob.size / 1024).toFixed(2);
-                    const fileSizeMB = (blob.size / 1024 / 1024).toFixed(2);
-                } catch (sizeError) {
-                }
+                    console.log(`📊 Original Inside damage photo size: ${(blob.size / 1024).toFixed(2)} KB`);
+                } catch (e) {}
 
-                // Crop the image to the damage frame area
                 const croppedImage = await cropImageToDamageFrame(photo.uri);
 
-                // Get file size of cropped photo
                 try {
                     const fileInfo = await fetch(croppedImage);
                     const blob = await fileInfo.blob();
-                    const fileSizeKB = (blob.size / 1024).toFixed(2);
-                    const fileSizeMB = (blob.size / 1024 / 1024).toFixed(2);
                     const originalFileInfo = await fetch(photo.uri);
                     const originalBlob = await originalFileInfo.blob();
                     const reduction = (((originalBlob.size - blob.size) / originalBlob.size) * 100).toFixed(1);
-                } catch (sizeError) {
-                }
+                    console.log(`📊 Cropped Inside damage photo size: ${(blob.size / 1024).toFixed(2)} KB`);
+                    console.log(`📉 Size reduction: ${reduction}%`);
+                } catch (e) {}
 
                 const newPhoto = {
                     id: Date.now(),
@@ -236,9 +259,10 @@ const StepFiveDamagePhotos = ({ onBack, containerData, onNavigateToStepSix, onNa
                 };
 
                 setDamagePhotos(prev => [...prev, newPhoto]);
-                setShowCamera(false);
+                console.log('📸 Inside damage photo taken and cropped successfully');
             }
         } catch (error) {
+            console.error('❌ Error capturing damage photo:', error);
             Alert.alert('Error', 'Failed to capture photo. Please try again.');
         } finally {
             setIsProcessing(false);
@@ -264,24 +288,27 @@ const StepFiveDamagePhotos = ({ onBack, containerData, onNavigateToStepSix, onNa
         setIsProcessing(true);
 
         try {
+            console.log('📸 Storing Inside damage photos for batch upload');
             
             // Prepare damage data for next step - photos will be uploaded at final submit
             const damageData = {
                 ...containerData,
-                backWallDamageCount: damagePhotos.length,
-                backWallDamagePhotos: damagePhotos // Store for data persistence and batch upload
+                insideDamageCount: damagePhotos.length,
+                insideDamagePhotos: damagePhotos // Store for data persistence and batch upload
             };
             
             // Save damage data to state for navigation
             setDamageData(damageData);
 
+            console.log('✅ Inside damage photos stored successfully');
 
-            // Navigate to Step Six screen
-            if (onNavigateToStepSix) {
-                onNavigateToStepSix(damageData);
+            // Navigate to Inspection Remarks screen (since there are damages)
+            if (onNavigateToInspectionRemarks) {
+                onNavigateToInspectionRemarks(damageData);
             }
         } catch (error) {
             Alert.alert('Error', 'An error occurred. Please try again.');
+            console.error('❌ Error in handleNext:', error);
         } finally {
             setIsProcessing(false);
         }
@@ -337,7 +364,7 @@ const StepFiveDamagePhotos = ({ onBack, containerData, onNavigateToStepSix, onNa
                         </TouchableOpacity>
                         {/* Title */}
                         <Text style={cn(`text-lg font-bold ${isDark ? 'text-gray-100' : 'text-gray-800'}`)}>
-                            Back Wall
+                            Inside
                         </Text>
                     </View>
 
@@ -354,7 +381,7 @@ const StepFiveDamagePhotos = ({ onBack, containerData, onNavigateToStepSix, onNa
                                 ]
                             }}
                         >
-                            <TouchableOpacity
+                            <TouchableOpacity 
                                 onPress={handleThemeToggle}
                                 style={cn('p-2')}
                             >
@@ -378,84 +405,25 @@ const StepFiveDamagePhotos = ({ onBack, containerData, onNavigateToStepSix, onNa
                         ratio="1:1"
                     />
 
-                    {/* Custom Mask Overlay - darkens everything except the damage frame */}
+                    {/* Custom Mask Overlay - matching Front Wall */}
                     <View style={cn('absolute inset-0')} pointerEvents="box-none">
-                        {/* Top overlay */}
-                        <View 
-                            style={{
-                                position: 'absolute',
-                                top: 0,
-                                left: 0,
-                                width: screenWidth,
-                                height: centerY,
-                                backgroundColor: 'black'
-                            }}
-                        />
-                        
-                        {/* Left overlay */}
-                        <View 
-                            style={{
-                                position: 'absolute',
-                                top: centerY,
-                                left: 0,
-                                width: centerX,
-                                height: damageFrameHeight,
-                                backgroundColor: 'black'
-                            }}
-                        />
-                        
-                        {/* Right overlay */}
-                        <View 
-                            style={{
-                                position: 'absolute',
-                                top: centerY,
-                                left: centerX + damageFrameWidth,
-                                width: centerX,
-                                height: damageFrameHeight,
-                                backgroundColor: 'black'
-                            }}
-                        />
-                        
-                        {/* Bottom overlay */}
-                        <View 
-                            style={{
-                                position: 'absolute',
-                                top: centerY + damageFrameHeight,
-                                left: 0,
-                                width: screenWidth,
-                                height: screenHeight - (centerY + damageFrameHeight),
-                                backgroundColor: 'black'
-                            }}
-                        />
-                        
-                        {/* Damage Frame Guide - drawn on top */}
-                        <View 
-                            style={{
-                                position: 'absolute',
-                                top: centerY,
-                                left: centerX,
-                                width: damageFrameWidth,
-                                height: damageFrameHeight,
-                                borderWidth: 2,
-                                borderColor: '#10B981',
-                                backgroundColor: 'transparent',
-                            }}
-                        />
+                        <View style={{ position: 'absolute', top: 0, left: 0, width: screenWidth, height: centerY, backgroundColor: 'black' }} />
+                        <View style={{ position: 'absolute', top: centerY, left: 0, width: centerX, height: damageFrameHeight, backgroundColor: 'black' }} />
+                        <View style={{ position: 'absolute', top: centerY, left: centerX + damageFrameWidth, width: centerX, height: damageFrameHeight, backgroundColor: 'black' }} />
+                        <View style={{ position: 'absolute', top: centerY + damageFrameHeight, left: 0, width: screenWidth, height: screenHeight - (centerY + damageFrameHeight), backgroundColor: 'black' }} />
+                        <View style={{ position: 'absolute', top: centerY, left: centerX, width: damageFrameWidth, height: damageFrameHeight, borderWidth: 2, borderColor: '#10B981', backgroundColor: 'transparent' }} />
                     </View>
                     
-                    {/* Instruction Text - Above the mask */}
                     <View style={cn('absolute top-4 left-4 right-4 items-center')} pointerEvents="none">
                         <View style={cn('bg-black/70 p-6 rounded-lg')}>
                             <Text style={cn('text-white text-center text-lg font-semibold')}>
-                                Take clear Photos of the Back Wall Damage
+                                Take clear photos of the damage
                             </Text>
                         </View>
                     </View>
                     
-                    {/* Camera Controls Overlay */}
                     <View style={cn('absolute bottom-0 left-0 bg-black/50 right-0 pb-20 pt-4')}>
                         <View style={cn('flex-row items-center justify-center px-8')}>
-                            {/* Capture Button */}
                             <TouchableOpacity
                                 onPress={capturePhoto}
                                 disabled={isProcessing}
@@ -489,7 +457,7 @@ const StepFiveDamagePhotos = ({ onBack, containerData, onNavigateToStepSix, onNa
                     </TouchableOpacity>
                     {/* Title */}
                     <Text style={cn(`text-lg font-bold ${isDark ? 'text-gray-100' : 'text-gray-800'}`)}>
-                        Back Wall
+                        Inside
                     </Text>
                 </View>
 
@@ -521,7 +489,9 @@ const StepFiveDamagePhotos = ({ onBack, containerData, onNavigateToStepSix, onNa
                 </View>
             </View>
 
-            <ScrollView style={cn('flex-1')} showsVerticalScrollIndicator={false}>
+            {!showCamera ? (
+
+                <ScrollView style={cn('flex-1')} showsVerticalScrollIndicator={false}>
                     <View style={cn('p-6')}>
                         {/* Container Number and Trip Segment Display */}
                         <View style={cn(`mb-6 p-4 rounded-lg ${isDark ? 'bg-gray-700 border-gray-600' : 'bg-gray-50 border-gray-200'} border`)}>
@@ -550,6 +520,14 @@ const StepFiveDamagePhotos = ({ onBack, containerData, onNavigateToStepSix, onNa
                                     </Text>
                                     <Text style={cn(`text-lg font-bold ${isDark ? 'text-white' : 'text-black'}`)}>
                                         {containerData?.trailerNumber || 'N/A'}
+                                    </Text>
+                                </View>
+                                <View style={cn('flex-1 ml-4')}>
+                                    <Text style={cn(`text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-600'} mb-1`)}>
+                                        Truck Number
+                                    </Text>
+                                    <Text style={cn(`text-lg font-bold ${isDark ? 'text-white' : 'text-black'}`)}>
+                                        {containerData?.truckNumber || 'N/A'}
                                     </Text>
                                 </View>
                             </View>
@@ -655,6 +633,50 @@ const StepFiveDamagePhotos = ({ onBack, containerData, onNavigateToStepSix, onNa
 
                     </View>
                 </ScrollView>
+            ) : (
+                // Full Screen Camera View
+                <View style={cn('flex-1')}>
+                    <CameraView
+                        ref={cameraRef}
+                        style={cn('flex-1')}
+                        facing={facing}
+                        ratio="1:1"
+                    />
+
+                    {/* Custom Mask Overlay - matching Front Wall */}
+                    <View style={cn('absolute inset-0')} pointerEvents="box-none">
+                        <View style={{ position: 'absolute', top: 0, left: 0, width: screenWidth, height: centerY, backgroundColor: 'black' }} />
+                        <View style={{ position: 'absolute', top: centerY, left: 0, width: centerX, height: damageFrameHeight, backgroundColor: 'black' }} />
+                        <View style={{ position: 'absolute', top: centerY, left: centerX + damageFrameWidth, width: centerX, height: damageFrameHeight, backgroundColor: 'black' }} />
+                        <View style={{ position: 'absolute', top: centerY + damageFrameHeight, left: 0, width: screenWidth, height: screenHeight - (centerY + damageFrameHeight), backgroundColor: 'black' }} />
+                        <View style={{ position: 'absolute', top: centerY, left: centerX, width: damageFrameWidth, height: damageFrameHeight, borderWidth: 2, borderColor: '#10B981', backgroundColor: 'transparent' }} />
+                    </View>
+                    
+                    <View style={cn('absolute top-4 left-4 right-4 items-center')} pointerEvents="none">
+                        <View style={cn('bg-black/70 p-6 rounded-lg')}>
+                            <Text style={cn('text-white text-center text-lg font-semibold')}>
+                                Take clear photos of the damage
+                            </Text>
+                        </View>
+                    </View>
+                    
+                    <View style={cn('absolute bottom-0 left-0 bg-black/50 right-0 pb-20 pt-4')}>
+                        <View style={cn('flex-row items-center justify-center px-8')}>
+                            <TouchableOpacity
+                                onPress={capturePhoto}
+                                disabled={isProcessing}
+                                style={cn('w-20 h-20 rounded-full bg-white border-4 border-white/30 items-center justify-center')}
+                            >
+                                {isProcessing ? (
+                                    <ActivityIndicator size="small" color="#6B7280" />
+                                ) : (
+                                    <View style={cn('w-16 h-16 rounded-full bg-white')} />
+                                )}
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                </View>
+            )}
 
             {/* Zoom Modal */}
             <Modal
@@ -681,4 +703,4 @@ const StepFiveDamagePhotos = ({ onBack, containerData, onNavigateToStepSix, onNa
     );
 };
 
-export default StepFiveDamagePhotos;
+export default StepEightDamagePhotos;

@@ -41,7 +41,6 @@ const StepFourDamagePhotos = ({ onBack, containerData, onNavigateToStepFive, onN
                     }
                 }
             } catch (error) {
-                console.error('❌ Error fetching trailer number:', error);
             }
         };
         
@@ -51,11 +50,8 @@ const StepFourDamagePhotos = ({ onBack, containerData, onNavigateToStepFive, onN
     // Restore damage photos when navigating back
     useEffect(() => {
         if (containerData?.rightWallDamagePhotos && containerData.rightWallDamagePhotos.length > 0) {
-            console.log('📸 Restoring Right Wall damage photos from previous data');
-            console.log('📸 Number of photos to restore:', containerData.rightWallDamagePhotos.length);
             // Convert stored photos back to format expected by the component
             const restoredPhotos = containerData.rightWallDamagePhotos.map((photo, index) => {
-                console.log(`📸 Photo ${index} - has uri:`, !!photo.uri, 'has base64:', !!photo.base64);
                 return {
                     id: photo.id || Date.now() + index, // Ensure each photo has a unique id
                     uri: photo.uri, // Use the uri directly
@@ -64,9 +60,7 @@ const StepFourDamagePhotos = ({ onBack, containerData, onNavigateToStepFive, onN
                 };
             });
             setDamagePhotos(restoredPhotos);
-            console.log('✅ Damage photos restored successfully');
         } else {
-            console.log('⚠️ No Right Wall damage photos to restore');
         }
     }, [containerData]);
 
@@ -113,7 +107,6 @@ const StepFourDamagePhotos = ({ onBack, containerData, onNavigateToStepFive, onN
 
     const uploadDamagePhotosToS3 = async (photos, tripSegmentNumber) => {
         try {
-            console.log('📸 Starting S3 upload for damage photos...');
             const BACKEND_URL = API_CONFIG.getBackendUrl();
 
             // Create FormData for file upload
@@ -134,9 +127,6 @@ const StepFourDamagePhotos = ({ onBack, containerData, onNavigateToStepFive, onN
             formData.append('containerNumber', containerData?.containerNumber || '');
             formData.append('damageLocation', 'Right Wall'); // Set damage location to Right Wall
 
-            console.log('📸 Uploading to:', `${BACKEND_URL}/api/upload/s3-damage-photos`);
-            console.log('📸 Trip segment:', tripSegmentNumber);
-            console.log('📸 Photo count:', photos.length);
 
             const response = await fetch(`${BACKEND_URL}/api/upload/s3-damage-photos`, {
                 method: 'POST',
@@ -149,15 +139,12 @@ const StepFourDamagePhotos = ({ onBack, containerData, onNavigateToStepFive, onN
             const result = await response.json();
 
             if (result.success) {
-                console.log('✅ Damage photos uploaded successfully to S3:', result.damagePhotos);
                 return { success: true, damagePhotos: result.damagePhotos };
             } else {
-                console.error('❌ Failed to upload damage photos to S3:', result.error);
                 return { success: false, error: result.error };
             }
 
         } catch (error) {
-            console.error('❌ Error uploading damage photos to S3:', error);
             return { success: false, error: error.message };
         }
     };
@@ -222,12 +209,10 @@ const StepFourDamagePhotos = ({ onBack, containerData, onNavigateToStepFive, onN
             const cropArea = calculateCropArea(imageWidth, imageHeight);
             
             if (cropArea.x < 0 || cropArea.y < 0 || cropArea.width <= 0 || cropArea.height <= 0) {
-                console.warn('⚠️ Invalid crop parameters, using original image');
                 return imageUri;
             }
             
             if (cropArea.x + cropArea.width > imageWidth || cropArea.y + cropArea.height > imageHeight) {
-                console.warn('⚠️ Crop area exceeds bounds, using original image');
                 return imageUri;
             }
             
@@ -239,7 +224,6 @@ const StepFourDamagePhotos = ({ onBack, containerData, onNavigateToStepFive, onN
             
             return croppedImage.uri;
         } catch (error) {
-            console.error('❌ Crop error:', error);
             return imageUri;
         }
     };
@@ -263,9 +247,7 @@ const StepFourDamagePhotos = ({ onBack, containerData, onNavigateToStepFive, onN
                     const blob = await fileInfo.blob();
                     const fileSizeKB = (blob.size / 1024).toFixed(2);
                     const fileSizeMB = (blob.size / 1024 / 1024).toFixed(2);
-                    console.log(`📊 Original Right Wall damage photo size: ${fileSizeKB} KB (${fileSizeMB} MB)`);
                 } catch (sizeError) {
-                    console.warn('Could not determine original file size:', sizeError);
                 }
 
                 // Crop the image to the damage frame area
@@ -280,10 +262,7 @@ const StepFourDamagePhotos = ({ onBack, containerData, onNavigateToStepFive, onN
                     const originalFileInfo = await fetch(photo.uri);
                     const originalBlob = await originalFileInfo.blob();
                     const reduction = (((originalBlob.size - blob.size) / originalBlob.size) * 100).toFixed(1);
-                    console.log(`📊 Cropped Right Wall damage photo size: ${fileSizeKB} KB (${fileSizeMB} MB)`);
-                    console.log(`📉 Size reduction: ${reduction}% smaller after cropping`);
                 } catch (sizeError) {
-                    console.warn('Could not determine cropped file size:', sizeError);
                 }
 
                 const newPhoto = {
@@ -294,11 +273,9 @@ const StepFourDamagePhotos = ({ onBack, containerData, onNavigateToStepFive, onN
                 };
 
                 setDamagePhotos(prev => [...prev, newPhoto]);
-                console.log('📸 Right wall damage photo taken and cropped successfully');
                 setShowCamera(false);
             }
         } catch (error) {
-            console.error('❌ Error taking damage photo:', error);
             Alert.alert('Error', 'Failed to take photo. Please try again.');
         } finally {
             setIsProcessing(false);
@@ -318,7 +295,6 @@ const StepFourDamagePhotos = ({ onBack, containerData, onNavigateToStepFive, onN
         setIsProcessing(true);
 
         try {
-            console.log('📸 Storing Right Wall damage photos for batch upload');
             
             // Prepare damage data for next step - photos will be uploaded at final submit
             const damageData = {
@@ -330,7 +306,6 @@ const StepFourDamagePhotos = ({ onBack, containerData, onNavigateToStepFive, onN
             // Save damage data to state for navigation
             setDamageData(damageData);
 
-            console.log('✅ Right Wall damage photos stored successfully');
 
             // Navigate to Front Wall Photo screen
             if (onNavigateToStepFive) {
@@ -338,7 +313,6 @@ const StepFourDamagePhotos = ({ onBack, containerData, onNavigateToStepFive, onN
             }
         } catch (error) {
             Alert.alert('Error', 'An error occurred. Please try again.');
-            console.error('❌ Error in handleNext:', error);
         } finally {
             setIsProcessing(false);
         }

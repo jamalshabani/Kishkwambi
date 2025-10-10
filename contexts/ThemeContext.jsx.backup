@@ -16,6 +16,7 @@ export function ThemeProvider({ children }) {
                     setTheme(savedTheme);
                 }
             } catch (error) {
+                console.error('Error loading theme:', error);
             } finally {
                 setMounted(true);
             }
@@ -31,6 +32,7 @@ export function ThemeProvider({ children }) {
                 try {
                     await AsyncStorage.setItem('theme', theme);
                 } catch (error) {
+                    console.error('Error saving theme:', error);
                 }
             };
             

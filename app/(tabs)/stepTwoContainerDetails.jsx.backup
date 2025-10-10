@@ -135,6 +135,7 @@ const StepTwoContainerDetails = ({ onBack, containerData, onNavigateToStepThree,
 
         // Restore previously selected container color when navigating back
         if (containerData?.containerColor) {
+            console.log('🎨 Restoring previously selected color:', containerData.containerColor);
             setContainerColor(containerData.containerColor);
         }
     }, [containerData]);
@@ -167,9 +168,11 @@ const StepTwoContainerDetails = ({ onBack, containerData, onNavigateToStepThree,
                 const damageResult = await damageCheckResponse.json();
                 const damageLocations = damageResult.damageLocations || [];
                 
+                console.log('📊 Existing damage locations:', damageLocations);
                 
                 // If Front Wall damage already exists, skip modal and go directly to damage photos
                 if (damageLocations.includes('Front Wall')) {
+                    console.log('✅ Front Wall damage already exists - navigating to damage photos directly');
                     
                     // Prepare container details data
                     const selectedColorOption = colorOptions.find(option => option.value === containerColor);
@@ -192,6 +195,7 @@ const StepTwoContainerDetails = ({ onBack, containerData, onNavigateToStepThree,
                 }
             }
         } catch (error) {
+            console.error('❌ Error checking damage locations:', error);
             // Continue to show modal on error
         }
 
@@ -207,6 +211,7 @@ const StepTwoContainerDetails = ({ onBack, containerData, onNavigateToStepThree,
 
         // Save container details (color, type, size) to database
         try {
+            console.log('💾 Saving container details to database...');
 
             // Get the hex code for the selected color
             const selectedColorOption = colorOptions.find(option => option.value === containerColor);
@@ -221,6 +226,7 @@ const StepTwoContainerDetails = ({ onBack, containerData, onNavigateToStepThree,
                 containerSize: containerSize
             };
 
+            console.log('📝 Container details to save:', updateData);
 
             const updateResponse = await fetch(`${BACKEND_URL}/api/update-container-info`, {
                 method: 'POST',
@@ -233,14 +239,18 @@ const StepTwoContainerDetails = ({ onBack, containerData, onNavigateToStepThree,
             const updateResult = await updateResponse.json();
 
             if (updateResult.success) {
+                console.log('✅ Container details saved successfully');
             } else {
+                console.error('❌ Failed to save container details:', updateResult.error);
             }
         } catch (error) {
+            console.error('❌ Error saving container details:', error);
         }
 
         // If damaged, update database with damage status
         if (isDamaged) {
             try {
+                console.log('🔧 Updating damage status in database...');
 
                 const response = await fetch(`${BACKEND_URL}/api/update-damage-status`, {
                     method: 'POST',
@@ -257,10 +267,13 @@ const StepTwoContainerDetails = ({ onBack, containerData, onNavigateToStepThree,
                 const result = await response.json();
 
                 if (result.success) {
+                    console.log('✅ Damage status updated successfully:', result);
                 } else {
+                    console.error('❌ Failed to update damage status:', result.error);
                     // Continue with navigation even if database update fails
                 }
             } catch (error) {
+                console.error('❌ Error updating damage status:', error);
                 // Continue with navigation even if database update fails
             }
         }

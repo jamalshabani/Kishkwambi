@@ -35,6 +35,7 @@ export const InspectionTimerProvider = ({ children }) => {
                 setTimeElapsed(prev => prev + 1);
             }, 1000);
             
+            console.log('⏱️ Inspection timer started');
         }
     };
 
@@ -48,6 +49,7 @@ export const InspectionTimerProvider = ({ children }) => {
             }
             
             const finalTime = formatTime(timeElapsed);
+            console.log('⏱️ Inspection timer stopped. Total time:', finalTime);
             return finalTime;
         }
         return formatTime(timeElapsed);
@@ -62,6 +64,7 @@ export const InspectionTimerProvider = ({ children }) => {
             clearInterval(intervalRef.current);
             intervalRef.current = null;
         }
+        console.log('⏱️ Inspection timer reset');
     };
 
     // Clean up on unmount

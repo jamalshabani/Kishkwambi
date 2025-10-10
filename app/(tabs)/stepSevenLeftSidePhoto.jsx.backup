@@ -48,6 +48,7 @@ const StepSevenLeftSidePhoto = ({ containerData, truckData, onBack, onNavigateTo
                     }
                 }
             } catch (error) {
+                console.error('❌ Error fetching trailer number:', error);
             }
         };
         fetchTrailerNumber();
@@ -67,6 +68,7 @@ const StepSevenLeftSidePhoto = ({ containerData, truckData, onBack, onNavigateTo
                     }
                 }
             } catch (error) {
+                console.error('❌ Error fetching truck number:', error);
             }
         };
         fetchTruckNumber();
@@ -75,6 +77,7 @@ const StepSevenLeftSidePhoto = ({ containerData, truckData, onBack, onNavigateTo
     // Restore left side photo when navigating back
     useEffect(() => {
         if (containerData?.leftSidePhoto) {
+            console.log('🔄 Restoring left side photo from navigation data');
             setImage(containerData.leftSidePhoto);
         }
     }, [containerData?.leftSidePhoto]);
@@ -133,6 +136,7 @@ const StepSevenLeftSidePhoto = ({ containerData, truckData, onBack, onNavigateTo
             const croppedImage = await ImageManipulator.manipulateAsync(imageUri, [{ crop: { originX: cropArea.x, originY: cropArea.y, width: cropArea.width, height: cropArea.height } }], { compress: 0.6, format: ImageManipulator.SaveFormat.JPEG });
             return croppedImage.uri;
         } catch (error) {
+            console.error('❌ Crop error:', error);
             return imageUri;
         }
     };
@@ -153,6 +157,7 @@ const StepSevenLeftSidePhoto = ({ containerData, truckData, onBack, onNavigateTo
                 try {
                     const fileInfo = await fetch(photo.uri);
                     const blob = await fileInfo.blob();
+                    console.log(`📊 Original Left Wall photo size: ${(blob.size / 1024).toFixed(2)} KB (${(blob.size / 1024 / 1024).toFixed(2)} MB)`);
                 } catch (e) {}
 
                 const croppedImage = await cropImageToLeftWallFrame(photo.uri);
@@ -163,11 +168,15 @@ const StepSevenLeftSidePhoto = ({ containerData, truckData, onBack, onNavigateTo
                     const originalFileInfo = await fetch(photo.uri);
                     const originalBlob = await originalFileInfo.blob();
                     const reduction = (((originalBlob.size - blob.size) / originalBlob.size) * 100).toFixed(1);
+                    console.log(`📊 Cropped Left Wall photo size: ${(blob.size / 1024).toFixed(2)} KB (${(blob.size / 1024 / 1024).toFixed(2)} MB)`);
+                    console.log(`📉 Size reduction: ${reduction}% smaller after cropping`);
                 } catch (e) {}
 
                 setImage(croppedImage);
+                console.log('📸 Left Wall photo taken and cropped successfully');
             }
         } catch (error) {
+            console.error('❌ Error taking Left Wall photo:', error);
             Alert.alert('Error', 'Failed to take photo. Please try again.');
         } finally {
             setIsProcessing(false);
@@ -176,6 +185,7 @@ const StepSevenLeftSidePhoto = ({ containerData, truckData, onBack, onNavigateTo
 
     const uploadLeftSidePhotoToS3 = async (imageBase64, tripSegmentNumber) => {
         try {
+            console.log('📸 Uploading left Wall Photo to S3...');
             
             const BACKEND_URL = API_CONFIG.getBackendUrl();
             
@@ -193,6 +203,8 @@ const StepSevenLeftSidePhoto = ({ containerData, truckData, onBack, onNavigateTo
             formData.append('tripSegmentNumber', tripSegmentNumber);
             formData.append('photoType', 'leftSide');
             
+            console.log('📸 Uploading to:', `${BACKEND_URL}/api/upload/s3-left-side-photo`);
+            console.log('📸 Trip segment:', tripSegmentNumber);
             
             const uploadResponse = await fetch(`${BACKEND_URL}/api/upload/s3-left-side-photo`, {
                 method: 'POST',
@@ -205,12 +217,15 @@ const StepSevenLeftSidePhoto = ({ containerData, truckData, onBack, onNavigateTo
             const result = await uploadResponse.json();
             
             if (result.success) {
+                console.log('✅ Left Wall Photo uploaded successfully to S3:', result.leftSidePhoto);
                 return { success: true, leftSidePhoto: result.leftSidePhoto };
             } else {
+                console.error('❌ Failed to upload left Wall Photo to S3:', result.error);
                 return { success: false, error: result.error };
             }
             
         } catch (error) {
+            console.error('❌ Error uploading left Wall Photo to S3:', error);
             return { success: false, error: error.message };
         }
     };
@@ -223,6 +238,7 @@ const StepSevenLeftSidePhoto = ({ containerData, truckData, onBack, onNavigateTo
 
         try {
             setIsProcessing(true);
+            console.log('📸 Storing Left Wall photo for batch upload');
             
             // Store the photo data for batch upload at final submit
             const photoData = {
@@ -233,6 +249,7 @@ const StepSevenLeftSidePhoto = ({ containerData, truckData, onBack, onNavigateTo
             
             setLeftSidePhotoData(photoData);
             
+            console.log('✅ Left Wall photo stored successfully');
             
             // Check if Left Wall damage already exists in database
             const BACKEND_URL = API_CONFIG.getBackendUrl();
@@ -247,9 +264,11 @@ const StepSevenLeftSidePhoto = ({ containerData, truckData, onBack, onNavigateTo
                 const damageResult = await damageCheckResponse.json();
                 const damageLocations = damageResult.damageLocations || [];
                 
+                console.log('📊 Existing damage locations:', damageLocations);
                 
                 // If Left Wall damage already exists, skip modal and go directly to damage photos
                 if (damageLocations.includes('Left Wall')) {
+                    console.log('✅ Left Wall damage already exists - navigating to damage photos');
                     if (onNavigateToDamagePhotosDirect) {
                         onNavigateToDamagePhotosDirect(photoData);
                     } else if (onNavigateToDamagePhotos) {
@@ -263,6 +282,7 @@ const StepSevenLeftSidePhoto = ({ containerData, truckData, onBack, onNavigateTo
             setShowDamageModal(true);
             
         } catch (error) {
+            console.error('❌ Error storing Left Wall photo:', error);
             Alert.alert('Error', 'An error occurred. Please try again.');
         } finally {
             setIsProcessing(false);
@@ -275,6 +295,7 @@ const StepSevenLeftSidePhoto = ({ containerData, truckData, onBack, onNavigateTo
         if (isDamaged) {
             // Update hasDamages in database to "Yes"
             try {
+                console.log('🔧 Updating damage status in database...');
                 
                 const BACKEND_URL = API_CONFIG.getBackendUrl();
                 
@@ -294,7 +315,9 @@ const StepSevenLeftSidePhoto = ({ containerData, truckData, onBack, onNavigateTo
                 const updateResult = await updateResponse.json();
                 
                 if (updateResult.success) {
+                    console.log('✅ Damage status updated successfully:', updateResult);
                 } else {
+                    console.error('❌ Failed to update damage status:', updateResult.error);
                 }
                 
                 // Use the already uploaded photo data
@@ -309,6 +332,7 @@ const StepSevenLeftSidePhoto = ({ containerData, truckData, onBack, onNavigateTo
                 }
                 
             } catch (error) {
+                console.error('❌ Error updating damage status:', error);
                 Alert.alert('Error', 'Failed to update damage status. Please try again.');
             }
         } else {

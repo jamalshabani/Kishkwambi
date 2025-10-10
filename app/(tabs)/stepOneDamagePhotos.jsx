@@ -26,11 +26,8 @@ const StepOneDamagePhotos = ({ onBack, containerData, onNavigateToStepThree, onN
     // Restore damage photos when navigating back
     useEffect(() => {
         if (containerData?.frontWallDamagePhotos && containerData.frontWallDamagePhotos.length > 0) {
-            console.log('📸 Restoring Front Wall damage photos from previous data');
-            console.log('📸 Number of photos to restore:', containerData.frontWallDamagePhotos.length);
             // Convert stored photos back to format expected by the component
             const restoredPhotos = containerData.frontWallDamagePhotos.map((photo, index) => {
-                console.log(`📸 Photo ${index} - has uri:`, !!photo.uri, 'has base64:', !!photo.base64);
                 return {
                     id: photo.id || Date.now() + index, // Ensure each photo has a unique id
                     uri: photo.uri, // Use the uri directly
@@ -39,9 +36,7 @@ const StepOneDamagePhotos = ({ onBack, containerData, onNavigateToStepThree, onN
                 };
             });
             setDamagePhotos(restoredPhotos);
-            console.log('✅ Damage photos restored successfully');
         } else {
-            console.log('⚠️ No Front Wall damage photos to restore');
         }
     }, [containerData]);
 
@@ -89,7 +84,6 @@ const StepOneDamagePhotos = ({ onBack, containerData, onNavigateToStepThree, onN
     // Function to upload damage photos to S3
     const uploadDamagePhotosToS3 = async (photos, tripSegmentNumber) => {
         try {
-            console.log('📸 Uploading damage photos to S3...');
 
             const BACKEND_URL = API_CONFIG.getBackendUrl();
 
@@ -110,9 +104,6 @@ const StepOneDamagePhotos = ({ onBack, containerData, onNavigateToStepThree, onN
             formData.append('containerNumber', containerData?.containerNumber || '');
             formData.append('damageLocation', 'Front Wall'); // Set damage location to Front Wall
 
-            console.log('📸 Uploading to:', `${BACKEND_URL}/api/upload/s3-damage-photos`);
-            console.log('📸 Trip segment:', tripSegmentNumber);
-            console.log('📸 Photo count:', photos.length);
 
             const response = await fetch(`${BACKEND_URL}/api/upload/s3-damage-photos`, {
                 method: 'POST',
@@ -125,15 +116,12 @@ const StepOneDamagePhotos = ({ onBack, containerData, onNavigateToStepThree, onN
             const result = await response.json();
 
             if (result.success) {
-                console.log('✅ Damage photos uploaded successfully to S3:', result.damagePhotos);
                 return { success: true, damagePhotos: result.damagePhotos };
             } else {
-                console.error('❌ Failed to upload damage photos to S3:', result.error);
                 return { success: false, error: result.error };
             }
 
         } catch (error) {
-            console.error('❌ Error uploading damage photos to S3:', error);
             return { success: false, error: error.message };
         }
     };
@@ -198,12 +186,10 @@ const StepOneDamagePhotos = ({ onBack, containerData, onNavigateToStepThree, onN
             const cropArea = calculateCropArea(imageWidth, imageHeight);
             
             if (cropArea.x < 0 || cropArea.y < 0 || cropArea.width <= 0 || cropArea.height <= 0) {
-                console.warn('⚠️ Invalid crop parameters, using original image');
                 return imageUri;
             }
             
             if (cropArea.x + cropArea.width > imageWidth || cropArea.y + cropArea.height > imageHeight) {
-                console.warn('⚠️ Crop area exceeds bounds, using original image');
                 return imageUri;
             }
             
@@ -215,7 +201,6 @@ const StepOneDamagePhotos = ({ onBack, containerData, onNavigateToStepThree, onN
             
             return croppedImage.uri;
         } catch (error) {
-            console.error('❌ Crop error:', error);
             return imageUri;
         }
     };
@@ -239,9 +224,7 @@ const StepOneDamagePhotos = ({ onBack, containerData, onNavigateToStepThree, onN
                     const blob = await fileInfo.blob();
                     const fileSizeKB = (blob.size / 1024).toFixed(2);
                     const fileSizeMB = (blob.size / 1024 / 1024).toFixed(2);
-                    console.log(`📊 Original Front Wall damage photo size: ${fileSizeKB} KB (${fileSizeMB} MB)`);
                 } catch (sizeError) {
-                    console.warn('Could not determine original file size:', sizeError);
                 }
 
                 // Crop the image to the damage frame area
@@ -256,10 +239,7 @@ const StepOneDamagePhotos = ({ onBack, containerData, onNavigateToStepThree, onN
                     const originalFileInfo = await fetch(photo.uri);
                     const originalBlob = await originalFileInfo.blob();
                     const reduction = (((originalBlob.size - blob.size) / originalBlob.size) * 100).toFixed(1);
-                    console.log(`📊 Cropped Front Wall damage photo size: ${fileSizeKB} KB (${fileSizeMB} MB)`);
-                    console.log(`📉 Size reduction: ${reduction}% smaller after cropping`);
                 } catch (sizeError) {
-                    console.warn('Could not determine cropped file size:', sizeError);
                 }
 
                 const newPhoto = {
@@ -270,11 +250,9 @@ const StepOneDamagePhotos = ({ onBack, containerData, onNavigateToStepThree, onN
                 };
 
                 setDamagePhotos(prev => [...prev, newPhoto]);
-                console.log('📸 Damage photo taken and cropped successfully');
                 setShowCamera(false);
             }
         } catch (error) {
-            console.error('❌ Error taking damage photo:', error);
             Alert.alert('Error', 'Failed to take photo. Please try again.');
         } finally {
             setIsProcessing(false);
@@ -295,7 +273,6 @@ const StepOneDamagePhotos = ({ onBack, containerData, onNavigateToStepThree, onN
         setIsProcessing(true);
 
         try {
-            console.log('📸 Storing Front Wall damage photos for batch upload');
             
             // Prepare damage data for next step - photos will be uploaded at final submit
             const damageData = {
@@ -307,7 +284,6 @@ const StepOneDamagePhotos = ({ onBack, containerData, onNavigateToStepThree, onN
             // Save damage data to state for navigation
             setDamageData(damageData);
 
-            console.log('✅ Front Wall damage photos stored successfully');
 
             // Navigate to Trailer Photo screen
             if (onNavigateToStepThree) {
@@ -315,7 +291,6 @@ const StepOneDamagePhotos = ({ onBack, containerData, onNavigateToStepThree, onN
             }
         } catch (error) {
             Alert.alert('Error', 'An error occurred. Please try again.');
-            console.error('❌ Error in handleNext:', error);
         } finally {
             setIsProcessing(false);
         }

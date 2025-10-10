@@ -108,12 +108,14 @@ export default function TabLayout() {
     const navigateBackToDashboardFromStepOne = () => {
         // Reset the inspection timer when returning to dashboard
         resetTimer();
+        console.log('⏱️ Timer reset - navigating back to dashboard');
         setActiveTab('dashboard');
         setContainerData(null);
     };
 
     const navigateBackToStepOne = async (data) => {
         try {
+            console.log('🔙 Checking for container damage photos...');
             const BACKEND_URL = API_CONFIG.getBackendUrl();
             
             // Fetch trip segment damage status to check damage locations
@@ -129,13 +131,16 @@ export default function TabLayout() {
                 
                 if (result.success) {
                     const damageLocations = result.damageLocations || [];
+                    console.log('📊 Container damage locations:', damageLocations);
                     
                     // Check if "Container" is in damage locations
                     if (damageLocations.includes('Container')) {
+                        console.log('✅ Container damage found - navigating to container damage photos');
                         // Navigate to container damage photos
                         setDamagePhotosData(data);
                         setActiveTab('stepOneDamagePhotos');
                     } else {
+                        console.log('❌ No container damage - navigating to container photo preview');
                         // Navigate to container photo preview
                         setContainerData(data);
                         setActiveTab('stepOneContainerPhoto');
@@ -151,6 +156,7 @@ export default function TabLayout() {
                 setActiveTab('stepOneContainerPhoto');
             }
         } catch (error) {
+            console.error('❌ Error checking container damage status:', error);
             // Default to container photo preview
             setContainerData(data);
             setActiveTab('stepOneContainerPhoto');
@@ -368,6 +374,7 @@ export default function TabLayout() {
         // Handle completion - could show summary or redirect to dashboard
         // Reset the inspection timer
         resetTimer();
+        console.log('⏱️ Timer reset - inspection completed');
         setActiveTab('dashboard');
         // Reset all data
         setContainerData(null);
@@ -404,6 +411,7 @@ export default function TabLayout() {
     const navigateBackToDashboard = () => {
         // Reset the inspection timer when returning from success screen
         resetTimer();
+        console.log('⏱️ Timer reset - returning to dashboard from success screen');
         setShowSuccessScreen(false);
         setInspectionData(null);
         setActiveTab('dashboard');
