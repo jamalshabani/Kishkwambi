@@ -38,9 +38,7 @@ const ARRIVED_CONTAINERS_DIR = path.join(__dirname, 'arrivedContainers');
 async function ensureBackendDirectories() {
     try {
         await fs.mkdir(ARRIVED_CONTAINERS_DIR, { recursive: true });
-        console.log('✅ Backend arrivedContainers directory created/verified:', ARRIVED_CONTAINERS_DIR);
     } catch (error) {
-        console.error('❌ Error creating backend directories:', error);
     }
 }
 
@@ -64,10 +62,8 @@ async function uploadToS3(file, key, contentType = 'image/jpeg') {
         const result = await s3Client.send(command);
         const publicUrl = `https://${S3_BUCKET_NAME}.s3.${process.env.B2_REGION || 'eu-central-003'}.backblazeb2.com/${key}`;
         
-        console.log(`✅ File uploaded to B2: ${key}`);
         return { success: true, url: publicUrl, key: key };
     } catch (error) {
-        console.error('❌ B2 upload error:', error);
         return { success: false, error: error.message };
     }
 }
@@ -80,10 +76,8 @@ async function deleteFromS3(key) {
         });
 
         await s3Client.send(command);
-        console.log(`✅ File deleted from B2: ${key}`);
         return { success: true };
     } catch (error) {
-        console.error('❌ B2 delete error:', error);
         return { success: false, error: error.message };
     }
 }
@@ -150,18 +144,17 @@ app.use(cors());
 app.use(express.json({ limit: '50mb' })); // Increase limit for base64 images
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
+// Serve static files from arrivedContainers directory
+app.use('/arrivedContainers', express.static(path.join(__dirname, 'arrivedContainers')));
+
 // Connect to MongoDB
 async function connectToDatabase() {
     try {
-        console.log('🔌 Connecting to MongoDB...');
         const client = new MongoClient(MONGODB_URI);
 
         await client.connect();
         db = client.db(DB_NAME);
-        console.log('✅ MongoDB connected successfully');
-        console.log(`📦 Database: ${DB_NAME}`);
     } catch (error) {
-        console.error('❌ MongoDB connection failed:', error.message);
         process.exit(1);
     }
 }
@@ -202,10 +195,8 @@ app.get('/api/users', async (req, res) => {
 app.post('/api/auth/login', async (req, res) => {
     try {
         const { email, password } = req.body;
-        console.log(`🔐 Login attempt for: ${email}`);
 
         if (!email || !password) {
-            console.log('❌ Missing credentials');
             return res.status(400).json({
                 success: false,
                 error: 'Email and password are required'
@@ -213,13 +204,11 @@ app.post('/api/auth/login', async (req, res) => {
         }
 
         if (!db) {
-            console.error('❌ Database not connected');
             throw new Error('Database not connected');
         }
 
         const collection = db.collection(COLLECTION_NAME);
         const user = await collection.findOne({ email });
-        console.log(`👤 User found: ${user ? 'Yes' : 'No'}`);
 
         if (!user) {
             return res.status(401).json({
@@ -343,7 +332,6 @@ app.post('/api/auth/change-password', async (req, res) => {
             });
         }
     } catch (error) {
-        console.error('Change password error:', error);
         res.status(500).json({
             success: false,
             error: error.message
@@ -419,10 +407,6 @@ app.post('/api/vision/process-image', uploadS3.single('image'), async (req, res)
         
         // Check for API errors
         if (!response.ok) {
-            console.log('=== PARKPOW API ERROR ===');
-            console.log('Status:', response.status);
-            console.log('Response:', data);
-            console.log('========================');
             
             return res.status(500).json({
                 success: false,
@@ -434,16 +418,11 @@ app.post('/api/vision/process-image', uploadS3.single('image'), async (req, res)
         // Use utility function to format ParkRow response
         const formattedResponse = formatParkRowResponse(data);
         
-        console.log('=== EXTRACTED INFO ===');
-        console.log('Container Number:', formattedResponse.data.containerNumber || 'NOT FOUND');
-        console.log('ISO Code:', formattedResponse.data.isoCode || 'NOT FOUND');
-        console.log('=====================');
 
         // Return formatted response with only required fields
         res.json(formattedResponse);
 
     } catch (error) {
-        console.error('ParkPow API error:', error);
         res.status(500).json({
             success: false,
             error: error.message || 'Failed to process image with ParkPow API'
@@ -573,7 +552,6 @@ app.post('/api/vision/google-vision-color', uploadS3.single('image'), async (req
                         if (digitToLetter[thirdChar]) {
                             digits[2] = digitToLetter[thirdChar];
                             isoCode = digits.join('');
-                            console.log(`OCR Correction: ${candidate} -> ${isoCode} (replaced ${thirdChar} with ${digitToLetter[thirdChar]})`);
                             break;
                         }
                     }
@@ -650,7 +628,6 @@ app.post('/api/vision/google-vision-color', uploadS3.single('image'), async (req
 
                 // If no color within tolerance found, return the absolute closest allowed color
                 if (!closestColor) {
-                    console.log(`⚠️ No color within tolerance for RGB(${r}, ${g}, ${b}), using closest match: ${absoluteClosestColor}`);
                     return absoluteClosestColor;
                 }
 
@@ -664,7 +641,6 @@ app.post('/api/vision/google-vision-color', uploadS3.single('image'), async (req
 
             if (data.responses[0].imagePropertiesAnnotation) {
                 const imageProps = data.responses[0].imagePropertiesAnnotation;
-                console.log('=== IMAGE PROPERTIES ===');
                 
                 if (imageProps.dominantColors && imageProps.dominantColors.colors && imageProps.dominantColors.colors.length > 0) {
                     // Get the most dominant color
@@ -673,11 +649,7 @@ app.post('/api/vision/google-vision-color', uploadS3.single('image'), async (req
                     dominantColorHex = rgbToHex(rgb.red || 0, rgb.green || 0, rgb.blue || 0);
                     dominantColorName = getColorName(rgb.red || 0, rgb.green || 0, rgb.blue || 0);
                     
-                    console.log('Dominant Color RGB:', rgb);
-                    console.log('Dominant Color Hex:', dominantColorHex);
-                    console.log('Dominant Color Name:', dominantColorName);
                 }
-                console.log('========================');
             }
 
             // Use image-detected color, fallback to text-detected color
@@ -693,18 +665,9 @@ app.post('/api/vision/google-vision-color', uploadS3.single('image'), async (req
             
             // If color is not in allowed list, default to Silver
             if (finalColorName && !allowedColors.includes(finalColorName)) {
-                console.warn(`⚠️ Invalid color "${finalColorName}" detected, defaulting to Silver`);
                 finalColorName = 'Silver';
             }
 
-        console.log('=== EXTRACTED INFO ===');
-        console.log('Container Number:', containerNumber || 'NOT FOUND');
-        console.log('ISO Code:', isoCode || 'NOT FOUND');
-            console.log('Color (from text):', containerColorFromText || 'NOT FOUND');
-            console.log('Color (from image):', dominantColorName || 'NOT FOUND');
-            console.log('✅ FINAL COLOR (validated):', finalColorName || 'NOT FOUND');
-            console.log('Color Hex:', dominantColorHex || 'NOT FOUND');
-        console.log('=====================');
 
         res.json({
             success: true,
@@ -724,9 +687,6 @@ app.post('/api/vision/google-vision-color', uploadS3.single('image'), async (req
                 }
             });
         } else {
-            console.log('=== NO TEXT DETECTED ===');
-            console.log('Vision API returned no text annotations');
-            console.log('========================');
             
             res.json({
                 success: false,
@@ -734,7 +694,6 @@ app.post('/api/vision/google-vision-color', uploadS3.single('image'), async (req
             });
         }
     } catch (error) {
-        console.error('Vision API error:', error);
         res.status(500).json({
             success: false,
             error: error.message || 'Failed to process image'
@@ -747,10 +706,6 @@ app.post('/api/validate-container', async (req, res) => {
     try {
         const { containerNumber, containerStatus } = req.body;
         
-        console.log('🔍 Received container validation request:', {
-            containerNumber,
-            containerStatus
-        });
 
         if (!containerNumber) {
             return res.status(400).json({
@@ -787,7 +742,6 @@ app.post('/api/validate-container', async (req, res) => {
         }
 
         if (existingContainer) {
-            console.log(`✅ Container number ${containerNumber}${containerStatus ? ` with status "${containerStatus}"` : ''} found in database`);
             res.json({
                 success: true,
                 exists: true,
@@ -800,7 +754,6 @@ app.post('/api/validate-container', async (req, res) => {
                 }
             });
         } else {
-            console.log(`❌ Container number ${containerNumber}${containerStatus ? ` with status "${containerStatus}"` : ''} not found in database`);
             res.json({
                 success: true,
                 exists: false,
@@ -809,7 +762,6 @@ app.post('/api/validate-container', async (req, res) => {
         }
 
     } catch (error) {
-        console.error('Container validation error:', error);
         res.status(500).json({
             success: false,
             error: error.message || 'Failed to validate container number'
@@ -831,16 +783,6 @@ app.post('/api/update-container-info', async (req, res) => {
             inspectionDate 
         } = req.body;
         
-        console.log('📝 Received container update request:', {
-            containerNumber,
-            isoCode,
-            containerType,
-            containerColor,
-            containerColorCode,
-            containerSize,
-            inspectorName,
-            inspectionDate
-        });
 
         if (!containerNumber) {
             return res.status(400).json({
@@ -896,7 +838,6 @@ app.post('/api/update-container-info', async (req, res) => {
         }
 
         if (updateResult.matchedCount === 0) {
-            console.log(`❌ Container number ${containerNumber} not found for update`);
             return res.status(404).json({
                 success: false,
                 error: `Container number ${containerNumber} not found in database`
@@ -904,14 +845,12 @@ app.post('/api/update-container-info', async (req, res) => {
         }
 
         if (updateResult.modifiedCount > 0) {
-            console.log(`✅ Container number ${containerNumber} updated successfully`);
             res.json({
                 success: true,
                 message: `Container number ${containerNumber} updated successfully`,
                 modifiedCount: updateResult.modifiedCount
             });
         } else {
-            console.log(`ℹ️ Container number ${containerNumber} found but no changes made`);
             res.json({
                 success: true,
                 message: `Container number ${containerNumber} found but no changes were made`,
@@ -920,7 +859,6 @@ app.post('/api/update-container-info', async (req, res) => {
         }
 
     } catch (error) {
-        console.error('Container update error:', error);
         res.status(500).json({
             success: false,
             error: error.message || 'Failed to update container information'
@@ -1044,7 +982,6 @@ app.post('/api/vision/google-vision', uploadS3.single('image'), async (req, res)
                         if (digitToLetter[thirdChar]) {
                             digits[2] = digitToLetter[thirdChar];
                             isoCode = digits.join('');
-                            console.log(`OCR Correction: ${candidate} -> ${isoCode} (replaced ${thirdChar} with ${digitToLetter[thirdChar]})`);
                             break;
                         }
                     }
@@ -1066,7 +1003,6 @@ app.post('/api/vision/google-vision', uploadS3.single('image'), async (req, res)
             });
         }
     } catch (error) {
-        console.error('Vision API error:', error);
         res.status(500).json({
             success: false,
             error: error.message || 'Failed to process image'
@@ -1082,11 +1018,6 @@ app.post('/api/upload/s3-damage-photos', uploadS3.array('photos', 10), async (re
     try {
         const { tripSegmentNumber, containerNumber } = req.body;
         
-        console.log('📸 Received B2 damage photo upload:', {
-            tripSegmentNumber,
-            containerNumber,
-            fileCount: req.files?.length || 0
-        });
 
         if (!tripSegmentNumber) {
             return res.status(400).json({
@@ -1121,7 +1052,6 @@ app.post('/api/upload/s3-damage-photos', uploadS3.array('photos', 10), async (re
             );
             
             if (photosToDelete.length > 0) {
-                console.log(`🗑️ Found ${photosToDelete.length} existing damage photo(s) to delete from B2`);
                 
                 // Delete each photo from B2
                 for (const photo of photosToDelete) {
@@ -1129,14 +1059,11 @@ app.post('/api/upload/s3-damage-photos', uploadS3.array('photos', 10), async (re
                         const urlParts = photo.damagePhotoPath.split('/');
                         const s3Key = urlParts.slice(4).join('/');
                         
-                        console.log(`🗑️ Deleting damage photo from B2: ${s3Key}`);
                         const deleteResult = await deleteFromS3(s3Key);
                         
                         if (!deleteResult.success) {
-                            console.warn(`⚠️ Failed to delete damage photo from B2: ${s3Key}`);
                         }
                     } catch (error) {
-                        console.warn(`⚠️ Error deleting damage photo from B2:`, error);
                     }
                 }
                 
@@ -1150,14 +1077,12 @@ app.post('/api/upload/s3-damage-photos', uploadS3.array('photos', 10), async (re
                     }
                 );
                 
-                console.log(`✅ Removed existing damage photo references from database with location: ${damageLocation}`);
             }
         }
         
         // Get updated damage photos count after deletion
         const updatedTripSegment = await tripsegmentsCollection.findOne({ tripSegmentNumber: tripSegmentNumber });
         const existingDamagePhotosCount = updatedTripSegment?.damagePhotos?.length || 0;
-        console.log(`📊 Damage photos count after cleanup for ${tripSegmentNumber}: ${existingDamagePhotosCount}`);
         
         // Upload files to B2 and create damage photo objects
         const uploadedFiles = [];
@@ -1171,17 +1096,9 @@ app.post('/api/upload/s3-damage-photos', uploadS3.array('photos', 10), async (re
             const filename = generateFilename(tripSegmentNumber, 'DamagePhoto', sequenceNumber, timestamp);
             const s3Key = `${tripSegmentNumber}/${filename}`;
             
-            console.log('📸 File details:', {
-                originalname: file.originalname,
-                mimetype: file.mimetype,
-                size: file.buffer ? file.buffer.length : 'no buffer',
-                filename: filename,
-                s3Key: s3Key
-            });
             
             // Validate file buffer
             if (!file.buffer || file.buffer.length === 0) {
-                console.error('❌ Empty file buffer for:', file.originalname);
                 return res.status(400).json({
                     success: false,
                     error: `File ${file.originalname} has no data`
@@ -1206,9 +1123,7 @@ app.post('/api/upload/s3-damage-photos', uploadS3.array('photos', 10), async (re
                 };
                 
                 damagePhotoObjects.push(damagePhotoObject);
-                console.log(`✅ Damage photo uploaded to B2: ${s3Key}`);
             } else {
-                console.error(`❌ Failed to upload ${file.filename}:`, uploadResult.error);
             }
         }
 
@@ -1231,14 +1146,12 @@ app.post('/api/upload/s3-damage-photos', uploadS3.array('photos', 10), async (re
         );
 
         if (updateResult.matchedCount === 0) {
-            console.log(`❌ Trip segment ${tripSegmentNumber} not found`);
             return res.status(404).json({
                 success: false,
                 error: `Trip segment ${tripSegmentNumber} not found`
             });
         }
 
-        console.log(`✅ Updated trip segment ${tripSegmentNumber} with ${damagePhotoObjects.length} damage photos`);
 
         res.json({
             success: true,
@@ -1249,7 +1162,6 @@ app.post('/api/upload/s3-damage-photos', uploadS3.array('photos', 10), async (re
         });
 
     } catch (error) {
-        console.error('❌ B2 damage photo upload error:', error);
         res.status(500).json({
             success: false,
             error: error.message || 'Failed to upload damage photos to B2'
@@ -1264,12 +1176,6 @@ app.post('/api/upload/s3-container-photos', uploadS3.array('photos', 10), async 
     try {
         const { tripSegmentNumber, containerNumber, photoType } = req.body;
         
-        console.log('📸 Received B2 container photo upload:', {
-            tripSegmentNumber,
-            containerNumber,
-            photoType,
-            fileCount: req.files?.length || 0
-        });
 
         if (!tripSegmentNumber) {
             return res.status(400).json({
@@ -1294,7 +1200,6 @@ app.post('/api/upload/s3-container-photos', uploadS3.array('photos', 10), async 
         // Get existing container photos count to determine next sequence number
         const existingTripSegment = await tripsegmentsCollection.findOne({ tripSegmentNumber: tripSegmentNumber });
         const existingContainerPhotosCount = existingTripSegment?.containerPhotos?.length || 0;
-        console.log(`📊 Existing container photos count for ${tripSegmentNumber}: ${existingContainerPhotosCount}`);
 
         // Upload files to B2 and create container photo objects
         const uploadedFiles = [];
@@ -1308,17 +1213,9 @@ app.post('/api/upload/s3-container-photos', uploadS3.array('photos', 10), async 
             const filename = generateFilename(tripSegmentNumber, 'ContainerPhoto', sequenceNumber, timestamp);
             const s3Key = `${tripSegmentNumber}/${filename}`;
             
-            console.log('📸 File details:', {
-                originalname: file.originalname,
-                mimetype: file.mimetype,
-                size: file.buffer ? file.buffer.length : 'no buffer',
-                filename: filename,
-                s3Key: s3Key
-            });
             
             // Validate file buffer
             if (!file.buffer || file.buffer.length === 0) {
-                console.error('❌ Empty file buffer for:', file.originalname);
                 return res.status(400).json({
                     success: false,
                     error: `File ${file.originalname} has no data`
@@ -1343,9 +1240,7 @@ app.post('/api/upload/s3-container-photos', uploadS3.array('photos', 10), async 
                 };
                 
                 containerPhotoObjects.push(containerPhotoObject);
-                console.log(`✅ Container photo uploaded to B2: ${s3Key}`);
             } else {
-                console.error(`❌ Failed to upload ${file.filename}:`, uploadResult.error);
             }
         }
 
@@ -1360,7 +1255,6 @@ app.post('/api/upload/s3-container-photos', uploadS3.array('photos', 10), async 
         const containerPhotoLocation = req.body.containerPhotoLocation || 'Container Back Wall';
         
         // First, find and delete any existing photos with the same containerPhotoLocation
-        console.log(`🗑️ Checking for existing photos with location: ${containerPhotoLocation}`);
         
         // Get existing photos to delete from B2
         const existingSegment = await tripsegmentsCollection.findOne({ tripSegmentNumber: tripSegmentNumber });
@@ -1370,7 +1264,6 @@ app.post('/api/upload/s3-container-photos', uploadS3.array('photos', 10), async 
             );
             
             if (photosToDelete.length > 0) {
-                console.log(`🗑️ Found ${photosToDelete.length} existing photo(s) to delete from B2`);
                 
                 // Delete each photo from B2
                 for (const photo of photosToDelete) {
@@ -1379,11 +1272,9 @@ app.post('/api/upload/s3-container-photos', uploadS3.array('photos', 10), async 
                     const urlParts = photo.containerPhotoPath.split('/');
                     const s3Key = urlParts.slice(4).join('/'); // Get everything after bucket name
                     
-                    console.log(`🗑️ Deleting from B2: ${s3Key}`);
                     const deleteResult = await deleteFromS3(s3Key);
                     
                     if (!deleteResult.success) {
-                        console.warn(`⚠️ Failed to delete file from B2: ${s3Key}`);
                     }
                 }
             }
@@ -1400,9 +1291,7 @@ app.post('/api/upload/s3-container-photos', uploadS3.array('photos', 10), async 
         );
         
         if (removeResult.modifiedCount > 0) {
-            console.log(`✅ Removed existing photo references from database with location: ${containerPhotoLocation}`);
         } else {
-            console.log(`ℹ️ No existing photos found with location: ${containerPhotoLocation}`);
         }
 
         // Now add the new container photo objects
@@ -1417,14 +1306,12 @@ app.post('/api/upload/s3-container-photos', uploadS3.array('photos', 10), async 
         );
 
         if (updateResult.matchedCount === 0) {
-            console.log(`❌ Trip segment ${tripSegmentNumber} not found`);
             return res.status(404).json({
                 success: false,
                 error: `Trip segment ${tripSegmentNumber} not found`
             });
         }
 
-        console.log(`✅ Updated trip segment ${tripSegmentNumber} with ${containerPhotoObjects.length} container photos`);
 
         res.json({
             success: true,
@@ -1435,7 +1322,6 @@ app.post('/api/upload/s3-container-photos', uploadS3.array('photos', 10), async 
         });
 
     } catch (error) {
-        console.error('❌ B2 container photo upload error:', error);
         res.status(500).json({
             success: false,
             error: error.message || 'Failed to upload container photos to B2'
@@ -1448,7 +1334,6 @@ app.post('/api/cleanup/duplicate-container-photos', async (req, res) => {
     try {
         const { tripSegmentNumber } = req.body;
         
-        console.log('🧹 Starting cleanup of duplicate container photos...');
         
         if (!db) {
             throw new Error('Database not connected');
@@ -1460,7 +1345,6 @@ app.post('/api/cleanup/duplicate-container-photos', async (req, res) => {
         const query = tripSegmentNumber ? { tripSegmentNumber } : {};
         const tripSegments = await tripsegmentsCollection.find(query).toArray();
         
-        console.log(`📊 Found ${tripSegments.length} trip segments to process`);
         
         let totalCleaned = 0;
         let totalRemoved = 0;
@@ -1484,7 +1368,6 @@ app.post('/api/cleanup/duplicate-container-photos', async (req, res) => {
             const locationsWithDuplicates = Object.entries(photosByLocation).filter(([location, photos]) => photos.length > 1);
             
             if (locationsWithDuplicates.length > 0) {
-                console.log(`🔍 Trip segment ${tripSegment.tripSegmentNumber}: Found duplicates in ${locationsWithDuplicates.length} locations`);
                 
                 // Keep only the most recent photo for each location (last one in array)
                 const photosToKeep = [];
@@ -1492,7 +1375,6 @@ app.post('/api/cleanup/duplicate-container-photos', async (req, res) => {
                 
                 Object.entries(photosByLocation).forEach(([location, photos]) => {
                     if (photos.length > 1) {
-                        console.log(`  📸 ${location}: ${photos.length} photos found, keeping most recent`);
                         totalRemoved += photos.length - 1;
                         
                         // Add old photos to deletion list (all except the last one)
@@ -1509,7 +1391,6 @@ app.post('/api/cleanup/duplicate-container-photos', async (req, res) => {
                 
                 // Delete old photos from B2
                 if (photosToDeleteFromB2.length > 0) {
-                    console.log(`🗑️ Deleting ${photosToDeleteFromB2.length} old photos from B2...`);
                     
                     for (const photo of photosToDeleteFromB2) {
                         try {
@@ -1517,14 +1398,11 @@ app.post('/api/cleanup/duplicate-container-photos', async (req, res) => {
                             const urlParts = photo.containerPhotoPath.split('/');
                             const s3Key = urlParts.slice(4).join('/');
                             
-                            console.log(`🗑️ Deleting from B2: ${s3Key}`);
                             const deleteResult = await deleteFromS3(s3Key);
                             
                             if (!deleteResult.success) {
-                                console.warn(`⚠️ Failed to delete file from B2: ${s3Key}`);
                             }
                         } catch (error) {
-                            console.warn(`⚠️ Error deleting photo from B2:`, error);
                         }
                     }
                 }
@@ -1544,11 +1422,9 @@ app.post('/api/cleanup/duplicate-container-photos', async (req, res) => {
                 );
                 
                 totalCleaned++;
-                console.log(`✅ Cleaned ${tripSegment.tripSegmentNumber}: ${tripSegment.containerPhotos.length} → ${cleanedPhotos.length} photos`);
             }
         }
         
-        console.log(`✅ Cleanup complete: ${totalCleaned} trip segments cleaned, ${totalRemoved} duplicate photos removed`);
         
         res.json({
             success: true,
@@ -1558,7 +1434,6 @@ app.post('/api/cleanup/duplicate-container-photos', async (req, res) => {
         });
         
     } catch (error) {
-        console.error('❌ Cleanup error:', error);
         res.status(500).json({
             success: false,
             error: error.message || 'Failed to cleanup duplicate photos'
@@ -1571,7 +1446,6 @@ app.get('/api/trip-segments/:tripSegmentNumber/trailer-details', async (req, res
     try {
         const { tripSegmentNumber } = req.params;
         
-        console.log('🚗 Fetching trailer details for:', tripSegmentNumber);
 
         if (!tripSegmentNumber) {
             return res.status(400).json({
@@ -1589,14 +1463,12 @@ app.get('/api/trip-segments/:tripSegmentNumber/trailer-details', async (req, res
         const tripSegment = await collection.findOne({ tripSegmentNumber: tripSegmentNumber });
 
         if (!tripSegment) {
-            console.log(`❌ Trip segment ${tripSegmentNumber} not found`);
             return res.status(404).json({
                 success: false,
                 error: `Trip segment ${tripSegmentNumber} not found`
             });
         }
 
-        console.log(`✅ Found trip segment ${tripSegmentNumber}, trailerNumber: ${tripSegment.trailerNumber || 'Not set'}`);
 
         res.json({
             success: true,
@@ -1606,7 +1478,6 @@ app.get('/api/trip-segments/:tripSegmentNumber/trailer-details', async (req, res
         });
 
     } catch (error) {
-        console.error('❌ Error fetching trailer details:', error);
         res.status(500).json({
             success: false,
             error: error.message || 'Failed to fetch trailer details'
@@ -1619,7 +1490,6 @@ app.get('/api/trip-segments/:tripSegmentNumber/truck-details', async (req, res) 
     try {
         const { tripSegmentNumber } = req.params;
         
-        console.log('🚛 Fetching truck details for:', tripSegmentNumber);
 
         if (!tripSegmentNumber) {
             return res.status(400).json({
@@ -1637,14 +1507,12 @@ app.get('/api/trip-segments/:tripSegmentNumber/truck-details', async (req, res) 
         const tripSegment = await collection.findOne({ tripSegmentNumber: tripSegmentNumber });
 
         if (!tripSegment) {
-            console.log(`❌ Trip segment ${tripSegmentNumber} not found`);
             return res.status(404).json({
                 success: false,
                 error: `Trip segment ${tripSegmentNumber} not found`
             });
         }
 
-        console.log(`✅ Found trip segment ${tripSegmentNumber}, truckNumber: ${tripSegment.truckNumber || 'Not set'}`);
 
         res.json({
             success: true,
@@ -1654,7 +1522,6 @@ app.get('/api/trip-segments/:tripSegmentNumber/truck-details', async (req, res) 
         });
 
     } catch (error) {
-        console.error('❌ Error fetching truck details:', error);
         res.status(500).json({
             success: false,
             error: error.message || 'Failed to fetch truck details'
@@ -1667,7 +1534,6 @@ app.get('/api/trip-segments/:tripSegmentNumber/damage-status', async (req, res) 
     try {
         const { tripSegmentNumber } = req.params;
         
-        console.log('🔍 Checking damage status for:', tripSegmentNumber);
 
         if (!tripSegmentNumber) {
             return res.status(400).json({
@@ -1685,14 +1551,12 @@ app.get('/api/trip-segments/:tripSegmentNumber/damage-status', async (req, res) 
         const tripSegment = await collection.findOne({ tripSegmentNumber: tripSegmentNumber });
 
         if (!tripSegment) {
-            console.log(`❌ Trip segment ${tripSegmentNumber} not found`);
             return res.status(404).json({
                 success: false,
                 error: `Trip segment ${tripSegmentNumber} not found`
             });
         }
 
-        console.log(`✅ Found trip segment ${tripSegmentNumber}, hasDamages: ${tripSegment.hasDamages}`);
 
         res.json({
             success: true,
@@ -1702,7 +1566,6 @@ app.get('/api/trip-segments/:tripSegmentNumber/damage-status', async (req, res) 
         });
 
     } catch (error) {
-        console.error('❌ Error checking damage status:', error);
         res.status(500).json({
             success: false,
             error: error.message || 'Failed to check damage status'
@@ -1715,11 +1578,6 @@ app.post('/api/update-damage-status', async (req, res) => {
     try {
         const { tripSegmentNumber, hasDamages, damageLocation } = req.body;
         
-        console.log('🔧 Received damage status update:', {
-            tripSegmentNumber,
-            hasDamages,
-            damageLocation
-        });
 
         if (!tripSegmentNumber) {
             return res.status(400).json({
@@ -1756,14 +1614,12 @@ app.post('/api/update-damage-status', async (req, res) => {
         );
 
         if (updateResult.matchedCount === 0) {
-            console.log(`❌ Trip segment ${tripSegmentNumber} not found`);
             return res.status(404).json({
                 success: false,
                 error: `Trip segment ${tripSegmentNumber} not found`
             });
         }
 
-        console.log(`✅ Updated trip segment ${tripSegmentNumber} damage status`);
 
         res.json({
             success: true,
@@ -1774,7 +1630,6 @@ app.post('/api/update-damage-status', async (req, res) => {
         });
 
     } catch (error) {
-        console.error('❌ Damage status update error:', error);
         res.status(500).json({
             success: false,
             error: error.message || 'Failed to update damage status'
@@ -1787,10 +1642,6 @@ app.post('/api/update-damage-remarks', async (req, res) => {
     try {
         const { tripSegmentNumber, damageRemarks } = req.body;
         
-        console.log('📝 Received damage remarks update:', {
-            tripSegmentNumber,
-            damageRemarks: damageRemarks ? 'Present' : 'Not provided'
-        });
 
         if (!tripSegmentNumber) {
             return res.status(400).json({
@@ -1817,14 +1668,12 @@ app.post('/api/update-damage-remarks', async (req, res) => {
         );
 
         if (updateResult.matchedCount === 0) {
-            console.log(`❌ Trip segment ${tripSegmentNumber} not found`);
             return res.status(404).json({
                 success: false,
                 error: `Trip segment ${tripSegmentNumber} not found`
             });
         }
 
-        console.log(`✅ Updated trip segment ${tripSegmentNumber} with damage remarks`);
 
         res.json({
             success: true,
@@ -1834,7 +1683,6 @@ app.post('/api/update-damage-remarks', async (req, res) => {
         });
 
     } catch (error) {
-        console.error('❌ Damage remarks update error:', error);
         res.status(500).json({
             success: false,
             error: error.message || 'Failed to update damage remarks'
@@ -1847,10 +1695,6 @@ app.post('/api/update-container-load-status', async (req, res) => {
     try {
         const { tripSegmentNumber, containerLoadStatus } = req.body;
         
-        console.log('🔧 Received container load status update:', {
-            tripSegmentNumber,
-            containerLoadStatus
-        });
 
         if (!tripSegmentNumber) {
             return res.status(400).json({
@@ -1884,14 +1728,12 @@ app.post('/api/update-container-load-status', async (req, res) => {
         );
 
         if (updateResult.matchedCount === 0) {
-            console.log(`❌ Trip segment ${tripSegmentNumber} not found`);
             return res.status(404).json({
                 success: false,
                 error: `Trip segment ${tripSegmentNumber} not found`
             });
         }
 
-        console.log(`✅ Updated trip segment ${tripSegmentNumber} container load status to ${containerLoadStatus}`);
 
         res.json({
             success: true,
@@ -1901,7 +1743,6 @@ app.post('/api/update-container-load-status', async (req, res) => {
         });
 
     } catch (error) {
-        console.error('❌ Container load status update error:', error);
         res.status(500).json({
             success: false,
             error: error.message || 'Failed to update container load status'
@@ -1914,11 +1755,6 @@ app.post('/api/upload/s3-trailer-photo', uploadS3.single('photo'), async (req, r
     try {
         const { tripSegmentNumber, photoType } = req.body;
         
-        console.log('📸 Received B2 trailer photo upload:', {
-            tripSegmentNumber,
-            photoType,
-            hasFile: !!req.file
-        });
 
         if (!tripSegmentNumber) {
             return res.status(400).json({
@@ -1943,17 +1779,9 @@ app.post('/api/upload/s3-trailer-photo', uploadS3.single('photo'), async (req, r
         const filename = generateFilename(tripSegmentNumber, 'TrailerPhoto', 1, timestamp);
         const s3Key = `${tripSegmentNumber}/${filename}`;
         
-        console.log('📸 File details:', {
-            originalname: req.file.originalname,
-            mimetype: req.file.mimetype,
-            size: req.file.buffer ? req.file.buffer.length : 'no buffer',
-            filename: filename,
-            s3Key: s3Key
-        });
         
         // Validate file buffer
         if (!req.file.buffer || req.file.buffer.length === 0) {
-            console.error('❌ Empty file buffer for:', req.file.originalname);
             return res.status(400).json({
                 success: false,
                 error: `File ${req.file.originalname} has no data`
@@ -1964,14 +1792,12 @@ app.post('/api/upload/s3-trailer-photo', uploadS3.single('photo'), async (req, r
         const uploadResult = await uploadToS3(req.file, s3Key, req.file.mimetype);
         
         if (!uploadResult.success) {
-            console.error(`❌ Failed to upload trailer photo:`, uploadResult.error);
             return res.status(500).json({
                 success: false,
                 error: 'Failed to upload trailer photo to B2'
             });
         }
 
-        console.log(`✅ Trailer photo uploaded to B2: ${s3Key}`);
 
         // Update TripSegment document with trailer photo
         const tripsegmentsCollection = db.collection('tripsegments');
@@ -1988,14 +1814,12 @@ app.post('/api/upload/s3-trailer-photo', uploadS3.single('photo'), async (req, r
         );
 
         if (updateResult.matchedCount === 0) {
-            console.log(`❌ Trip segment ${tripSegmentNumber} not found`);
             return res.status(404).json({
                 success: false,
                 error: `Trip segment ${tripSegmentNumber} not found`
             });
         }
 
-        console.log(`✅ Updated trip segment ${tripSegmentNumber} with trailer photo`);
 
         res.json({
             success: true,
@@ -2006,7 +1830,6 @@ app.post('/api/upload/s3-trailer-photo', uploadS3.single('photo'), async (req, r
         });
 
     } catch (error) {
-        console.error('❌ B2 trailer photo upload error:', error);
         res.status(500).json({
             success: false,
             error: error.message || 'Failed to upload trailer photo to B2'
@@ -2019,11 +1842,6 @@ app.post('/api/upload/s3-front-wall-photo', uploadS3.single('photo'), async (req
     try {
         const { tripSegmentNumber, photoType } = req.body;
         
-        console.log('📸 Received B2 front wall photo upload:', {
-            tripSegmentNumber,
-            photoType,
-            hasFile: !!req.file
-        });
 
         if (!tripSegmentNumber) {
             return res.status(400).json({
@@ -2046,7 +1864,6 @@ app.post('/api/upload/s3-front-wall-photo', uploadS3.single('photo'), async (req
         // Get existing container photos count to determine next sequence number
         const existingTripSegment = await tripsegmentsCollection.findOne({ tripSegmentNumber: tripSegmentNumber });
         const existingContainerPhotosCount = existingTripSegment?.containerPhotos?.length || 0;
-        console.log(`📊 Existing container photos count for ${tripSegmentNumber}: ${existingContainerPhotosCount}`);
 
         // Upload file to B2
         const timestamp = Date.now();
@@ -2054,26 +1871,17 @@ app.post('/api/upload/s3-front-wall-photo', uploadS3.single('photo'), async (req
         const filename = generateFilename(tripSegmentNumber, 'ContainerPhoto', sequenceNumber, timestamp);
         const s3Key = `${tripSegmentNumber}/${filename}`;
         
-        console.log('📸 File details:', {
-            originalname: req.file.originalname,
-            mimetype: req.file.mimetype,
-            size: req.file.buffer ? req.file.buffer.length : 'no buffer',
-            filename: filename,
-            s3Key: s3Key
-        });
         
         // Upload to B2
         const uploadResult = await uploadToS3(req.file, s3Key, req.file.mimetype);
         
         if (!uploadResult.success) {
-            console.error(`❌ Failed to upload front wall photo:`, uploadResult.error);
             return res.status(500).json({
                 success: false,
                 error: 'Failed to upload front wall photo to B2'
             });
         }
 
-        console.log(`✅ Front wall photo uploaded to B2: ${s3Key}`);
 
         // Update TripSegment document with container photo
         const tripsegmentsCollection = db.collection('tripsegments');
@@ -2101,14 +1909,12 @@ app.post('/api/upload/s3-front-wall-photo', uploadS3.single('photo'), async (req
         );
 
         if (updateResult.matchedCount === 0) {
-            console.log(`❌ Trip segment ${tripSegmentNumber} not found`);
             return res.status(404).json({
                 success: false,
                 error: `Trip segment ${tripSegmentNumber} not found`
             });
         }
 
-        console.log(`✅ Updated trip segment ${tripSegmentNumber} with container photo`);
 
         res.json({
             success: true,
@@ -2119,7 +1925,6 @@ app.post('/api/upload/s3-front-wall-photo', uploadS3.single('photo'), async (req
         });
 
     } catch (error) {
-        console.error('❌ B2 front wall photo upload error:', error);
         res.status(500).json({
             success: false,
             error: error.message || 'Failed to upload front wall photo to B2'
@@ -2132,11 +1937,6 @@ app.post('/api/upload/s3-truck-photo', uploadS3.single('photo'), async (req, res
     try {
         const { tripSegmentNumber, photoType } = req.body;
         
-        console.log('📸 Received B2 truck photo upload:', {
-            tripSegmentNumber,
-            photoType,
-            hasFile: !!req.file
-        });
 
         if (!tripSegmentNumber) {
             return res.status(400).json({
@@ -2161,26 +1961,17 @@ app.post('/api/upload/s3-truck-photo', uploadS3.single('photo'), async (req, res
         const filename = generateFilename(tripSegmentNumber, 'TruckPhoto', 1, timestamp);
         const s3Key = `${tripSegmentNumber}/${filename}`;
         
-        console.log('📸 File details:', {
-            originalname: req.file.originalname,
-            mimetype: req.file.mimetype,
-            size: req.file.buffer ? req.file.buffer.length : 'no buffer',
-            filename: filename,
-            s3Key: s3Key
-        });
         
         // Upload to B2
         const uploadResult = await uploadToS3(req.file, s3Key, req.file.mimetype);
         
         if (!uploadResult.success) {
-            console.error(`❌ Failed to upload truck photo:`, uploadResult.error);
             return res.status(500).json({
                 success: false,
                 error: 'Failed to upload truck photo to B2'
             });
         }
 
-        console.log(`✅ Truck photo uploaded to B2: ${s3Key}`);
 
         // Update TripSegment document with truck photo
         const tripsegmentsCollection = db.collection('tripsegments');
@@ -2197,14 +1988,12 @@ app.post('/api/upload/s3-truck-photo', uploadS3.single('photo'), async (req, res
         );
 
         if (updateResult.matchedCount === 0) {
-            console.log(`❌ Trip segment ${tripSegmentNumber} not found`);
             return res.status(404).json({
                 success: false,
                 error: `Trip segment ${tripSegmentNumber} not found`
             });
         }
 
-        console.log(`✅ Updated trip segment ${tripSegmentNumber} with truck photo`);
 
         res.json({
             success: true,
@@ -2215,7 +2004,6 @@ app.post('/api/upload/s3-truck-photo', uploadS3.single('photo'), async (req, res
         });
 
     } catch (error) {
-        console.error('❌ B2 truck photo upload error:', error);
         res.status(500).json({
             success: false,
             error: error.message || 'Failed to upload truck photo to B2'
@@ -2228,11 +2016,6 @@ app.post('/api/upload/s3-left-side-photo', uploadS3.single('photo'), async (req,
     try {
         const { tripSegmentNumber, photoType } = req.body;
         
-        console.log('📸 Received B2 left side photo upload:', {
-            tripSegmentNumber,
-            photoType,
-            hasFile: !!req.file
-        });
 
         if (!tripSegmentNumber) {
             return res.status(400).json({
@@ -2258,26 +2041,17 @@ app.post('/api/upload/s3-left-side-photo', uploadS3.single('photo'), async (req,
         const filename = `left_side_${timestamp}${fileExtension}`;
         const s3Key = `left-side-photos/${tripSegmentNumber}/${filename}`;
         
-        console.log('📸 File details:', {
-            originalname: req.file.originalname,
-            mimetype: req.file.mimetype,
-            size: req.file.buffer ? req.file.buffer.length : 'no buffer',
-            filename: filename,
-            s3Key: s3Key
-        });
         
         // Upload to B2
         const uploadResult = await uploadToS3(req.file, s3Key, req.file.mimetype);
         
         if (!uploadResult.success) {
-            console.error(`❌ Failed to upload left side photo:`, uploadResult.error);
             return res.status(500).json({
                 success: false,
                 error: 'Failed to upload left side photo to B2'
             });
         }
 
-        console.log(`✅ Left side photo uploaded to B2: ${s3Key}`);
 
         // Update TripSegment document with left side photo
         const tripsegmentsCollection = db.collection('tripsegments');
@@ -2294,14 +2068,12 @@ app.post('/api/upload/s3-left-side-photo', uploadS3.single('photo'), async (req,
         );
 
         if (updateResult.matchedCount === 0) {
-            console.log(`❌ Trip segment ${tripSegmentNumber} not found`);
             return res.status(404).json({
                 success: false,
                 error: `Trip segment ${tripSegmentNumber} not found`
             });
         }
 
-        console.log(`✅ Updated trip segment ${tripSegmentNumber} with left side photo`);
 
         res.json({
             success: true,
@@ -2311,7 +2083,6 @@ app.post('/api/upload/s3-left-side-photo', uploadS3.single('photo'), async (req,
         });
 
     } catch (error) {
-        console.error('❌ B2 left side photo upload error:', error);
         res.status(500).json({
             success: false,
             error: error.message || 'Failed to upload left side photo to B2'
@@ -2324,11 +2095,6 @@ app.post('/api/upload/s3-inside-photo', uploadS3.single('photo'), async (req, re
     try {
         const { tripSegmentNumber, photoType } = req.body;
         
-        console.log('📸 Received B2 inside photo upload:', {
-            tripSegmentNumber,
-            photoType,
-            hasFile: !!req.file
-        });
 
         if (!tripSegmentNumber) {
             return res.status(400).json({
@@ -2353,7 +2119,6 @@ app.post('/api/upload/s3-inside-photo', uploadS3.single('photo'), async (req, re
         // Get existing container photos count to determine next sequence number
         const existingTripSegment = await tripsegmentsCollection.findOne({ tripSegmentNumber: tripSegmentNumber });
         const existingContainerPhotosCount = existingTripSegment?.containerPhotos?.length || 0;
-        console.log(`📊 Existing container photos count for ${tripSegmentNumber}: ${existingContainerPhotosCount}`);
 
         // Upload file to B2
         const timestamp = Date.now();
@@ -2361,26 +2126,17 @@ app.post('/api/upload/s3-inside-photo', uploadS3.single('photo'), async (req, re
         const filename = generateFilename(tripSegmentNumber, 'ContainerPhoto', sequenceNumber, timestamp);
         const s3Key = `${tripSegmentNumber}/${filename}`;
         
-        console.log('📸 File details:', {
-            originalname: req.file.originalname,
-            mimetype: req.file.mimetype,
-            size: req.file.buffer ? req.file.buffer.length : 'no buffer',
-            filename: filename,
-            s3Key: s3Key
-        });
         
         // Upload to B2
         const uploadResult = await uploadToS3(req.file, s3Key, req.file.mimetype);
         
         if (!uploadResult.success) {
-            console.error(`❌ Failed to upload inside photo:`, uploadResult.error);
             return res.status(500).json({
                 success: false,
                 error: 'Failed to upload inside photo to B2'
             });
         }
 
-        console.log(`✅ Inside photo uploaded to B2: ${s3Key}`);
 
         // Update TripSegment document with container photo
         const containerPhotoObject = {
@@ -2406,14 +2162,12 @@ app.post('/api/upload/s3-inside-photo', uploadS3.single('photo'), async (req, re
         );
 
         if (updateResult.matchedCount === 0) {
-            console.log(`❌ Trip segment ${tripSegmentNumber} not found`);
             return res.status(404).json({
                 success: false,
                 error: `Trip segment ${tripSegmentNumber} not found`
             });
         }
 
-        console.log(`✅ Updated trip segment ${tripSegmentNumber} with container photo`);
 
         res.json({
             success: true,
@@ -2424,7 +2178,6 @@ app.post('/api/upload/s3-inside-photo', uploadS3.single('photo'), async (req, re
         });
 
     } catch (error) {
-        console.error('❌ B2 inside photo upload error:', error);
         res.status(500).json({
             success: false,
             error: error.message || 'Failed to upload inside photo to B2'
@@ -2437,11 +2190,6 @@ app.post('/api/upload/s3-right-side-photo', uploadS3.single('photo'), async (req
     try {
         const { tripSegmentNumber, photoType } = req.body;
         
-        console.log('📸 Received B2 right side photo upload:', {
-            tripSegmentNumber,
-            photoType,
-            hasFile: !!req.file
-        });
 
         if (!tripSegmentNumber) {
             return res.status(400).json({
@@ -2464,7 +2212,6 @@ app.post('/api/upload/s3-right-side-photo', uploadS3.single('photo'), async (req
         // Get existing container photos count to determine next sequence number
         const existingTripSegment = await tripsegmentsCollection.findOne({ tripSegmentNumber: tripSegmentNumber });
         const existingContainerPhotosCount = existingTripSegment?.containerPhotos?.length || 0;
-        console.log(`📊 Existing container photos count for ${tripSegmentNumber}: ${existingContainerPhotosCount}`);
 
         // Upload file to B2
         const timestamp = Date.now();
@@ -2472,26 +2219,17 @@ app.post('/api/upload/s3-right-side-photo', uploadS3.single('photo'), async (req
         const filename = generateFilename(tripSegmentNumber, 'ContainerPhoto', sequenceNumber, timestamp);
         const s3Key = `${tripSegmentNumber}/${filename}`;
         
-        console.log('📸 File details:', {
-            originalname: req.file.originalname,
-            mimetype: req.file.mimetype,
-            size: req.file.buffer ? req.file.buffer.length : 'no buffer',
-            filename: filename,
-            s3Key: s3Key
-        });
         
         // Upload to B2
         const uploadResult = await uploadToS3(req.file, s3Key, req.file.mimetype);
         
         if (!uploadResult.success) {
-            console.error(`❌ Failed to upload right side photo:`, uploadResult.error);
             return res.status(500).json({
                 success: false,
                 error: 'Failed to upload right side photo to B2'
             });
         }
 
-        console.log(`✅ Right side photo uploaded to B2: ${s3Key}`);
 
         // Update TripSegment document with container photo
         const tripsegmentsCollection = db.collection('tripsegments');
@@ -2519,14 +2257,12 @@ app.post('/api/upload/s3-right-side-photo', uploadS3.single('photo'), async (req
         );
 
         if (updateResult.matchedCount === 0) {
-            console.log(`❌ Trip segment ${tripSegmentNumber} not found`);
             return res.status(404).json({
                 success: false,
                 error: `Trip segment ${tripSegmentNumber} not found`
             });
         }
 
-        console.log(`✅ Updated trip segment ${tripSegmentNumber} with container photo`);
 
         res.json({
             success: true,
@@ -2537,7 +2273,6 @@ app.post('/api/upload/s3-right-side-photo', uploadS3.single('photo'), async (req
         });
 
     } catch (error) {
-        console.error('❌ B2 right side photo upload error:', error);
         res.status(500).json({
             success: false,
             error: 'Internal server error during right side photo upload'
@@ -2550,11 +2285,6 @@ app.post('/api/upload/s3-left-side-photo', uploadS3.single('photo'), async (req,
     try {
         const { tripSegmentNumber, photoType } = req.body;
         
-        console.log('📸 Received B2 left side photo upload:', {
-            tripSegmentNumber,
-            photoType,
-            hasFile: !!req.file
-        });
 
         if (!tripSegmentNumber) {
             return res.status(400).json({
@@ -2577,7 +2307,6 @@ app.post('/api/upload/s3-left-side-photo', uploadS3.single('photo'), async (req,
         // Get existing container photos count to determine next sequence number
         const existingTripSegment = await tripsegmentsCollection.findOne({ tripSegmentNumber: tripSegmentNumber });
         const existingContainerPhotosCount = existingTripSegment?.containerPhotos?.length || 0;
-        console.log(`📊 Existing container photos count for ${tripSegmentNumber}: ${existingContainerPhotosCount}`);
 
         // Upload file to B2
         const timestamp = Date.now();
@@ -2585,26 +2314,17 @@ app.post('/api/upload/s3-left-side-photo', uploadS3.single('photo'), async (req,
         const filename = generateFilename(tripSegmentNumber, 'ContainerPhoto', sequenceNumber, timestamp);
         const s3Key = `${tripSegmentNumber}/${filename}`;
         
-        console.log('📸 File details:', {
-            originalname: req.file.originalname,
-            mimetype: req.file.mimetype,
-            size: req.file.buffer ? req.file.buffer.length : 'no buffer',
-            filename: filename,
-            s3Key: s3Key
-        });
         
         // Upload to B2
         const uploadResult = await uploadToS3(req.file, s3Key, req.file.mimetype);
         
         if (!uploadResult.success) {
-            console.error(`❌ Failed to upload left side photo:`, uploadResult.error);
             return res.status(500).json({
                 success: false,
                 error: 'Failed to upload left side photo to B2'
             });
         }
 
-        console.log(`✅ Left side photo uploaded to B2: ${s3Key}`);
 
         // Update TripSegment document with container photo
         const tripsegmentsCollection = db.collection('tripsegments');
@@ -2632,14 +2352,12 @@ app.post('/api/upload/s3-left-side-photo', uploadS3.single('photo'), async (req,
         );
 
         if (updateResult.matchedCount === 0) {
-            console.log(`❌ Trip segment ${tripSegmentNumber} not found`);
             return res.status(404).json({
                 success: false,
                 error: `Trip segment ${tripSegmentNumber} not found`
             });
         }
 
-        console.log(`✅ Updated trip segment ${tripSegmentNumber} with container photo`);
 
         res.json({
             success: true,
@@ -2650,7 +2368,6 @@ app.post('/api/upload/s3-left-side-photo', uploadS3.single('photo'), async (req,
         });
 
     } catch (error) {
-        console.error('❌ B2 left side photo upload error:', error);
         res.status(500).json({
             success: false,
             error: 'Internal server error during left side photo upload'
@@ -2663,11 +2380,6 @@ app.post('/api/upload/s3-driver-photo', uploadS3.single('photo'), async (req, re
     try {
         const { tripSegmentNumber, photoType } = req.body;
         
-        console.log('📸 Received B2 driver photo upload:', {
-            tripSegmentNumber,
-            photoType,
-            hasFile: !!req.file
-        });
 
         if (!tripSegmentNumber) {
             return res.status(400).json({
@@ -2692,26 +2404,17 @@ app.post('/api/upload/s3-driver-photo', uploadS3.single('photo'), async (req, re
         const filename = generateFilename(tripSegmentNumber, 'DriverPhoto', 1, timestamp);
         const s3Key = `${tripSegmentNumber}/${filename}`;
         
-        console.log('📸 File details:', {
-            originalname: req.file.originalname,
-            mimetype: req.file.mimetype,
-            size: req.file.buffer ? req.file.buffer.length : 'no buffer',
-            filename: filename,
-            s3Key: s3Key
-        });
         
         // Upload to B2
         const uploadResult = await uploadToS3(req.file, s3Key, req.file.mimetype);
         
         if (!uploadResult.success) {
-            console.error(`❌ Failed to upload driver photo:`, uploadResult.error);
             return res.status(500).json({
                 success: false,
                 error: 'Failed to upload driver photo to B2'
             });
         }
 
-        console.log(`✅ Driver photo uploaded to B2: ${s3Key}`);
 
         // Update TripSegment document with driver photo
         const tripsegmentsCollection = db.collection('tripsegments');
@@ -2728,14 +2431,12 @@ app.post('/api/upload/s3-driver-photo', uploadS3.single('photo'), async (req, re
         );
 
         if (updateResult.matchedCount === 0) {
-            console.log(`❌ Trip segment ${tripSegmentNumber} not found`);
             return res.status(404).json({
                 success: false,
                 error: `Trip segment ${tripSegmentNumber} not found`
             });
         }
 
-        console.log(`✅ Updated trip segment ${tripSegmentNumber} with driver photo`);
 
         res.json({
             success: true,
@@ -2746,7 +2447,6 @@ app.post('/api/upload/s3-driver-photo', uploadS3.single('photo'), async (req, re
         });
 
     } catch (error) {
-        console.error('❌ B2 driver photo upload error:', error);
         res.status(500).json({
             success: false,
             error: error.message || 'Failed to upload driver photo to B2'
@@ -2759,8 +2459,6 @@ app.post('/api/vision/extract-driver-details', async (req, res) => {
     try {
         const { base64Image } = req.body;
         
-        console.log('🔍 Received driver details extraction request');
-        console.log('📸 Base64 image length:', base64Image ? base64Image.length : 'undefined');
 
         if (!base64Image) {
             return res.status(400).json({
@@ -2775,13 +2473,10 @@ app.post('/api/vision/extract-driver-details', async (req, res) => {
             cleanBase64 = base64Image.split(',')[1];
         }
 
-        console.log('📸 Clean base64 length:', cleanBase64.length);
-        console.log('📸 Clean base64 preview:', cleanBase64.substring(0, 50) + '...');
 
         // Validate base64 format
         const base64Regex = /^[A-Za-z0-9+/]*={0,2}$/;
         if (!base64Regex.test(cleanBase64)) {
-            console.log('❌ Invalid base64 format detected');
             return res.status(400).json({
                 success: false,
                 error: 'Invalid base64 image format'
@@ -2789,7 +2484,6 @@ app.post('/api/vision/extract-driver-details', async (req, res) => {
         }
 
         // Call Google Vision AI for text extraction using REST API
-        console.log('🔍 Calling Google Vision AI REST API...');
 
         const requestBody = {
             requests: [
@@ -2836,7 +2530,6 @@ app.post('/api/vision/extract-driver-details', async (req, res) => {
 
         // Extract text from the first detection (full text)
         const fullText = detections[0].description;
-        console.log('📄 Extracted text:', fullText);
 
         // Parse driver details from text with improved logic
         const driverDetails = parseDriverDetails(fullText);
@@ -2848,7 +2541,6 @@ app.post('/api/vision/extract-driver-details', async (req, res) => {
         });
 
     } catch (error) {
-        console.error('❌ Driver details extraction error:', error);
         res.status(500).json({
             success: false,
             error: error.message || 'Failed to extract driver details'
@@ -2884,10 +2576,8 @@ function extractField(text, keywords) {
 
 // Improved function to parse driver details from license text
 function parseDriverDetails(text) {
-    console.log('🔍 Parsing driver details from text...');
     
     const lines = text.split('\n').map(line => line.trim()).filter(line => line.length > 0);
-    console.log('📝 Text lines:', lines);
     
     const driverDetails = {
         firstName: '',
@@ -2902,7 +2592,6 @@ function parseDriverDetails(text) {
     const licenseNumberMatch = text.match(/\b\d{10}\b/);
     if (licenseNumberMatch) {
         driverDetails.licenseNumber = licenseNumberMatch[0];
-        console.log('✅ Found license number:', driverDetails.licenseNumber);
     }
     
     // Extract family name and given names
@@ -2916,7 +2605,6 @@ function parseDriverDetails(text) {
                 const nameLine = lines[j].trim();
                 if (nameLine && !nameLine.includes('given names') && !nameLine.includes('date of birth')) {
                     driverDetails.lastName = nameLine;
-                    console.log('✅ Found family name:', driverDetails.lastName);
                     break;
                 }
             }
@@ -2929,7 +2617,6 @@ function parseDriverDetails(text) {
                 const nameLine = lines[j].trim();
                 if (nameLine && !nameLine.includes('date of birth') && !nameLine.includes('family name')) {
                     driverDetails.firstName = nameLine;
-                    console.log('✅ Found given names:', driverDetails.firstName);
                     break;
                 }
             }
@@ -2940,7 +2627,6 @@ function parseDriverDetails(text) {
             const phoneMatch = line.match(/(\+?\d{1,4}[\s-]?)?\(?\d{3,4}\)?[\s-]?\d{3,4}[\s-]?\d{3,4}/);
             if (phoneMatch) {
                 driverDetails.phoneNumber = phoneMatch[0].replace(/[\s-]/g, '');
-                console.log('✅ Found phone number:', driverDetails.phoneNumber);
             }
         }
         
@@ -2950,7 +2636,6 @@ function parseDriverDetails(text) {
                 const companyLine = lines[j].trim();
                 if (companyLine && companyLine.length > 2) {
                     driverDetails.transporterName = companyLine;
-                    console.log('✅ Found transporter name:', driverDetails.transporterName);
                     break;
                 }
             }
@@ -2966,7 +2651,6 @@ function parseDriverDetails(text) {
         driverDetails.fullName = driverDetails.lastName;
     }
     
-    console.log('📋 Parsed driver details:', driverDetails);
     return driverDetails;
 }
 
@@ -2975,12 +2659,6 @@ app.post('/api/upload/mobile-photos', upload.array('photos', 10), async (req, re
     try {
         const { tripSegmentNumber, containerNumber, photoType } = req.body;
         
-        console.log('📸 Received mobile photo upload:', {
-            tripSegmentNumber,
-            containerNumber,
-            photoType,
-            fileCount: req.files?.length || 0
-        });
 
         if (!tripSegmentNumber) {
             return res.status(400).json({
@@ -3006,7 +2684,6 @@ app.post('/api/upload/mobile-photos', upload.array('photos', 10), async (req, re
             const relativePath = `/arrivedContainers/${tripSegmentNumber}/${file.filename}`;
             uploadedFiles.push(relativePath);
             
-            console.log(`✅ File uploaded: ${file.filename} -> ${relativePath}`);
         }
 
         // Update TripSegment document with image paths
@@ -3041,14 +2718,12 @@ app.post('/api/upload/mobile-photos', upload.array('photos', 10), async (req, re
         );
 
         if (updateResult.matchedCount === 0) {
-            console.log(`❌ Trip segment ${tripSegmentNumber} not found`);
             return res.status(404).json({
                 success: false,
                 error: `Trip segment ${tripSegmentNumber} not found`
             });
         }
 
-        console.log(`✅ Updated trip segment ${tripSegmentNumber} with ${uploadedFiles.length} photos`);
 
         res.json({
             success: true,
@@ -3059,7 +2734,6 @@ app.post('/api/upload/mobile-photos', upload.array('photos', 10), async (req, re
         });
 
     } catch (error) {
-        console.error('❌ Mobile photo upload error:', error);
         res.status(500).json({
             success: false,
             error: error.message || 'Failed to upload photos'
@@ -3075,18 +2749,9 @@ app.post('/api/upload/batch-photos-arrived-containers', uploadS3.fields([
     { name: 'damagePhotos', maxCount: 50 }
 ]), async (req, res) => {
         try {
-            console.log('📸 DEBUG - Request body:', req.body);
-            console.log('📸 DEBUG - Request files:', req.files);
             
             const { tripSegmentNumber, photoTypes, damageLocations } = req.body;
             
-            console.log('📸 Received batch photo upload for backend/arrivedContainers folder:', {
-                tripSegmentNumber,
-                photoTypes: Array.isArray(photoTypes) ? photoTypes.length : 1,
-                damageLocations: Array.isArray(damageLocations) ? damageLocations.length : 1,
-                inspectionPhotoCount: req.files?.photos?.length || 0,
-                damagePhotoCount: req.files?.damagePhotos?.length || 0
-            });
 
             if (!tripSegmentNumber) {
                 return res.status(400).json({
@@ -3104,7 +2769,6 @@ app.post('/api/upload/batch-photos-arrived-containers', uploadS3.fields([
             // Create folder for this trip segment in backend/arrivedContainers
             const containerFolderPath = path.join(ARRIVED_CONTAINERS_DIR, tripSegmentNumber);
             await fs.mkdir(containerFolderPath, { recursive: true });
-            console.log(`📁 Created/verified folder: ${containerFolderPath}`);
 
             const containerPhotosArray = [];
             const damagePhotosArray = [];
@@ -3128,9 +2792,8 @@ app.post('/api/upload/batch-photos-arrived-containers', uploadS3.fields([
                     
                     // Save to backend/arrivedContainers folder
                     await fs.writeFile(filePath, file.buffer);
-                    console.log(`✅ Saved ${photoType} to backend/arrivedContainers: ${filename}`);
                     
-                    const photoUrl = `backend/arrivedContainers/${tripSegmentNumber}/${filename}`;
+                    const photoUrl = `arrivedContainers/${tripSegmentNumber}/${filename}`;
                     
                     // Categorize photos based on type
                     if (photoType === 'TrailerPhoto') {
@@ -3187,7 +2850,6 @@ app.post('/api/upload/batch-photos-arrived-containers', uploadS3.fields([
                     
                     // Save to backend/arrivedContainers folder
                     await fs.writeFile(filePath, file.buffer);
-                    console.log(`✅ Saved damage photo (${location}) to backend/arrivedContainers: ${filename}`);
                     
                     // Map location names to standard format
                     let standardLocation = '';
@@ -3213,7 +2875,7 @@ app.post('/api/upload/batch-photos-arrived-containers', uploadS3.fields([
                     
                     damagePhotosArray.push({
                         damageLocation: standardLocation,
-                        damagePhotoUrl: `backend/arrivedContainers/${tripSegmentNumber}/${filename}`,
+                        damagePhotoUrl: `arrivedContainers/${tripSegmentNumber}/${filename}`,
                         uploadedAt: new Date(timestamp).toISOString()
                     });
                 }
@@ -3251,15 +2913,8 @@ app.post('/api/upload/batch-photos-arrived-containers', uploadS3.fields([
             );
 
             if (updateResult.modifiedCount === 0) {
-                console.warn('⚠️ No document was updated for trip segment:', tripSegmentNumber);
             }
 
-            console.log('✅ All photos saved to backend/arrivedContainers folder and database updated');
-            console.log(`📊 Saved ${containerPhotosArray.length} container photos to containerPhotos field`);
-            console.log(`📊 Saved ${damagePhotosArray.length} damage photos to damagePhotos field`);
-            console.log(`📊 Trailer photo: ${trailerPhotoUrl ? 'Saved' : 'None'}`);
-            console.log(`📊 Truck photo: ${truckPhotoUrl ? 'Saved' : 'None'}`);
-            console.log(`📊 Driver license photo: ${driverLicensePhotoUrl ? 'Saved' : 'None'}`);
 
             res.json({
                 success: true,
@@ -3269,11 +2924,10 @@ app.post('/api/upload/batch-photos-arrived-containers', uploadS3.fields([
                     damagePhotos: damagePhotosArray
                 },
                 totalPhotos: containerPhotosArray.length + damagePhotosArray.length,
-                localPath: `backend/arrivedContainers/${tripSegmentNumber}/`
+                localPath: `arrivedContainers/${tripSegmentNumber}/`
             });
 
         } catch (error) {
-            console.error('❌ Error in batch photo upload:', error);
             res.status(500).json({
                 success: false,
                 error: error.message || 'Failed to upload batch photos'
@@ -3289,7 +2943,6 @@ async function startServer() {
     // PlateRecognizer API endpoint for trailer licence plate recognition  
     app.post('/api/plate-recognizer/recognize', uploadS3.single('image'), async (req, res) => {
         try {
-            console.log('🚗 Received trailer photo for plate recognition');
 
             // Extract image file from multer
             if (!req.file) {
@@ -3302,9 +2955,6 @@ async function startServer() {
             // PlateRecognizer Snapshot Cloud API
             const PLATERECOGNIZER_API_KEY = process.env.PLATERECOGNIZER_API_KEY;
             if (!PLATERECOGNIZER_API_KEY) {
-                console.log('❌ PlateRecognizer API key not found in environment variables');
-                console.log('📝 Please add PLATERECOGNIZER_API_KEY to your .env file');
-                console.log('📖 See PLATERECOGNIZER_SETUP.md for setup instructions');
                 return res.status(500).json({
                     success: false,
                     error: 'PlateRecognizer API key not configured. Please add PLATERECOGNIZER_API_KEY to your .env file. See PLATERECOGNIZER_SETUP.md for setup instructions.'
@@ -3348,7 +2998,6 @@ async function startServer() {
                 const plateNumber = plateResult.plate.toUpperCase(); // Convert to uppercase
                 const confidence = plateResult.score; // Use 'score' instead of 'confidence'
                 
-                console.log(`✅ Detected plate: ${plateNumber} (confidence: ${confidence})`);
                 
                 res.json({
                     success: true,
@@ -3359,7 +3008,6 @@ async function startServer() {
                     }
                 });
             } else {
-                console.log('❌ No licence plate detected');
                 res.json({
                     success: true,
                     data: {
@@ -3371,7 +3019,6 @@ async function startServer() {
             }
 
         } catch (error) {
-            console.error('PlateRecognizer API error:', error);
             res.status(500).json({
                 success: false,
                 error: error.message || 'Failed to recognize licence plate'
@@ -3382,7 +3029,6 @@ async function startServer() {
     // API endpoint to update trip segment with driver details
     app.put('/api/trip-segments/update-driver-details', async (req, res) => {
         try {
-            console.log('🔍 Received driver details update request');
             const { 
                 tripSegmentNumber, 
                 transporterName, 
@@ -3399,21 +3045,6 @@ async function startServer() {
                 inwardLOLOBalance
             } = req.body;
 
-            console.log('📊 Update data:', {
-                tripSegmentNumber,
-                transporterName,
-                driverFirstName,
-                driverLastName,
-                driverLicenceNumber,
-                driverPhoneNumber,
-                containerStatus,
-                driverPhoto: driverPhoto ? 'Present' : 'Not provided',
-                inspectionDate,
-                inspectionTime,
-                finalApproval,
-                gateInTimeStamp,
-                inwardLOLOBalance
-            });
 
             // Validate required fields
             if (!tripSegmentNumber) {
@@ -3463,7 +3094,6 @@ async function startServer() {
             );
 
             if (updateResult.matchedCount === 0) {
-                console.log(`❌ Trip segment ${tripSegmentNumber} not found`);
                 return res.status(404).json({
                     success: false,
                     error: 'Trip segment not found'
@@ -3471,14 +3101,12 @@ async function startServer() {
             }
 
             if (updateResult.modifiedCount === 0) {
-                console.log(`⚠️ Trip segment ${tripSegmentNumber} found but no changes made`);
                 return res.status(200).json({
                     success: true,
                     message: 'Trip segment found but no changes were needed'
                 });
             }
 
-            console.log(`✅ Trip segment ${tripSegmentNumber} updated successfully with driver details`);
             
             res.json({
                 success: true,
@@ -3488,7 +3116,6 @@ async function startServer() {
             });
 
         } catch (error) {
-            console.error('❌ Error updating trip segment with driver details:', error);
             res.status(500).json({
                 success: false,
                 error: error.message || 'Failed to update trip segment'
@@ -3499,18 +3126,12 @@ async function startServer() {
     // API endpoint to update trip segment with trailer details
     app.put('/api/trip-segments/update-trailer-details', async (req, res) => {
         try {
-            console.log('🚗 Received trailer details update request');
             const { 
                 tripSegmentNumber, 
                 trailerNumber, 
                 trailerPhoto 
             } = req.body;
 
-            console.log('📊 Update data:', {
-                tripSegmentNumber,
-                trailerNumber,
-                trailerPhoto: trailerPhoto ? 'Present' : 'Not provided'
-            });
 
             // Validate required fields
             if (!tripSegmentNumber) {
@@ -3541,7 +3162,6 @@ async function startServer() {
             );
 
             if (updateResult.matchedCount === 0) {
-                console.log(`❌ Trip segment ${tripSegmentNumber} not found`);
                 return res.status(404).json({
                     success: false,
                     error: 'Trip segment not found'
@@ -3549,14 +3169,12 @@ async function startServer() {
             }
 
             if (updateResult.modifiedCount === 0) {
-                console.log(`⚠️ Trip segment ${tripSegmentNumber} found but no changes made`);
                 return res.status(200).json({
                     success: true,
                     message: 'Trip segment found but no changes were needed'
                 });
             }
 
-            console.log(`✅ Trip segment ${tripSegmentNumber} updated successfully with trailer details`);
             
             res.json({
                 success: true,
@@ -3566,7 +3184,6 @@ async function startServer() {
             });
 
         } catch (error) {
-            console.error('❌ Error updating trip segment with trailer details:', error);
             res.status(500).json({
                 success: false,
                 error: error.message || 'Failed to update trip segment'
@@ -3577,18 +3194,12 @@ async function startServer() {
     // API endpoint to update trip segment with truck details
     app.put('/api/trip-segments/update-truck-details', async (req, res) => {
         try {
-            console.log('🚛 Received truck details update request');
             const { 
                 tripSegmentNumber, 
                 truckNumber, 
                 truckPhoto 
             } = req.body;
 
-            console.log('📊 Update data:', {
-                tripSegmentNumber,
-                truckNumber,
-                truckPhoto: truckPhoto ? 'Present' : 'Not provided'
-            });
 
             // Validate required fields
             if (!tripSegmentNumber) {
@@ -3619,7 +3230,6 @@ async function startServer() {
             );
 
             if (updateResult.matchedCount === 0) {
-                console.log(`❌ Trip segment ${tripSegmentNumber} not found`);
                 return res.status(404).json({
                     success: false,
                     error: 'Trip segment not found'
@@ -3627,14 +3237,12 @@ async function startServer() {
             }
 
             if (updateResult.modifiedCount === 0) {
-                console.log(`⚠️ Trip segment ${tripSegmentNumber} found but no changes made`);
                 return res.status(200).json({
                     success: true,
                     message: 'Trip segment found but no changes were needed'
                 });
             }
 
-            console.log(`✅ Trip segment ${tripSegmentNumber} updated successfully with truck details`);
             
             res.json({
                 success: true,
@@ -3644,7 +3252,6 @@ async function startServer() {
             });
 
         } catch (error) {
-            console.error('❌ Error updating trip segment with truck details:', error);
             res.status(500).json({
                 success: false,
                 error: error.message || 'Failed to update trip segment'
@@ -3660,8 +3267,6 @@ async function startServer() {
     });
 
     app.listen(PORT, '0.0.0.0', () => {
-        console.log(`🚀 Server running on port ${PORT}`);
-        console.log(`📡 API endpoints available at http://localhost:${PORT}/api/`);
     });
 }
 

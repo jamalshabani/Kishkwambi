@@ -28,6 +28,8 @@ const StepSixTruckPhoto = ({ onBack, onBackToBackWallDamage, containerData, onNa
     const cameraRef = useRef(null);
     const truckNumberRefs = useRef([]);
     const [trailerNumber, setTrailerNumber] = useState(null);
+    const [showErrorModal, setShowErrorModal] = useState(false);
+    const [errorModalData, setErrorModalData] = useState({ title: '', message: '' });
 
     // Fetch trailer number from database
     useEffect(() => {
@@ -245,7 +247,8 @@ const StepSixTruckPhoto = ({ onBack, onBackToBackWallDamage, containerData, onNa
                 const croppedImage = await cropImageToTruckFrame(photo.uri);
 
                 // Wait to ensure the cropped file is fully written to disk
-                await new Promise(resolve => setTimeout(resolve, 500));
+                console.log('⏳ Waiting for file system to flush...');
+                await new Promise(resolve => setTimeout(resolve, 1000));
 
                 // Get file size of cropped photo
                 try {
@@ -283,6 +286,15 @@ const StepSixTruckPhoto = ({ onBack, onBackToBackWallDamage, containerData, onNa
 
             const BACKEND_URL = API_CONFIG.getBackendUrl();
             console.log('🔗 Backend URL:', BACKEND_URL);
+            
+            // Verify the file exists before sending
+            try {
+                const testFetch = await fetch(imageUri);
+                console.log('✅ File accessible, status:', testFetch.status);
+            } catch (testError) {
+                console.error('❌ File not accessible:', testError.message);
+                throw new Error('Cropped image file is not accessible yet');
+            }
             
             const formData = new FormData();
             formData.append('image', {
@@ -356,11 +368,11 @@ const StepSixTruckPhoto = ({ onBack, onBackToBackWallDamage, containerData, onNa
             
             // Check if it's a network error
             if (error.message.includes('Network request failed')) {
-                Alert.alert(
-                    'Network Error',
-                    'Cannot connect to the server. Please check your network connection and try entering the truck number manually.',
-                    [{ text: 'OK' }]
-                );
+                setErrorModalData({
+                    title: 'Network Error',
+                    message: 'Try taking the photo again or enter the truck number manually.'
+                });
+                setShowErrorModal(true);
             } else {
                 Alert.alert(
                     'Recognition Error',
@@ -818,6 +830,39 @@ const StepSixTruckPhoto = ({ onBack, onBackToBackWallDamage, containerData, onNa
                         style={cn('w-full h-full')} 
                         resizeMode="contain"
                     />
+                </View>
+            </Modal>
+
+            {/* Custom Error Modal */}
+            <Modal
+                visible={showErrorModal}
+                transparent={true}
+                animationType="fade"
+                onRequestClose={() => setShowErrorModal(false)}
+            >
+                <View style={cn('flex-1 justify-center items-center bg-black/50')}>
+                    <View style={cn('bg-white rounded-3xl mx-8 p-6')}>
+                        
+                        {/* Message Text */}
+                        <View style={cn('mt-4 mb-6')}>
+                            <Text style={cn('text-red-500 text-center text-lg font-semibold leading-6')}>
+                                {errorModalData.title}
+                            </Text>
+                            <Text style={cn('text-gray-600 font-bold text-center text-sm mt-2')}>
+                                {errorModalData.message}
+                            </Text>
+                        </View>
+                        
+                        {/* OK Button */}
+                        <TouchableOpacity
+                            onPress={() => setShowErrorModal(false)}
+                            style={cn('bg-red-500 rounded-xl py-4')}
+                        >
+                            <Text style={cn('text-white text-center font-semibold text-base')}>
+                                OK
+                            </Text>
+                        </TouchableOpacity>
+                    </View>
                 </View>
             </Modal>
         </SafeAreaView>

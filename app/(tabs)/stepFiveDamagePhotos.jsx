@@ -470,7 +470,7 @@ const StepFiveDamagePhotos = ({ onBack, containerData, onNavigateToStepSix, onNa
                     <View style={cn('absolute top-4 left-4 right-4 items-center')} pointerEvents="none">
                         <View style={cn('bg-black/70 p-6 rounded-lg')}>
                             <Text style={cn('text-white text-center text-lg font-semibold')}>
-                                Take clear photos of the damage
+                                Take clear Photos of the Back Wall Damage
                             </Text>
                         </View>
                     </View>

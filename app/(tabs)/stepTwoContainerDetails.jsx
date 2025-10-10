@@ -219,6 +219,7 @@ const StepTwoContainerDetails = ({ onBack, containerData, onNavigateToStepThree,
 
             const updateData = {
                 containerNumber: containerData?.containerNumber,
+                isoCode: containerData?.isoCode,
                 containerColor: containerColor,
                 containerColorCode: containerColorCode,
                 containerType: containerType,

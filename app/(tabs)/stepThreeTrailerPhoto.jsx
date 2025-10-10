@@ -27,6 +27,8 @@ const StepThreeTrailerPhoto = ({ onBack, onBackToDamagePhotos, containerData, on
     const [trailerData, setTrailerData] = useState(null);
     const cameraRef = useRef(null);
     const licencePlateRefs = useRef([]);
+    const [showErrorModal, setShowErrorModal] = useState(false);
+    const [errorModalData, setErrorModalData] = useState({ title: '', message: '' });
 
     // Restore trailer data when navigating back
     useEffect(() => {
@@ -358,11 +360,22 @@ const StepThreeTrailerPhoto = ({ onBack, onBackToDamagePhotos, containerData, on
             }
         } catch (error) {
             console.error('❌ Error calling PlateRecognizer API:', error);
-            Alert.alert(
-                'Recognition Error',
-                'Failed to recognize licence plate. Please enter manually.',
-                [{ text: 'OK' }]
-            );
+            console.error('❌ Error details:', error.message);
+            
+            // Check if it's a network error
+            if (error.message.includes('Network request failed')) {
+                setErrorModalData({
+                    title: 'Network Error',
+                    message: 'Try taking the photo again or enter the trailer number manually.'
+                });
+                setShowErrorModal(true);
+            } else {
+                Alert.alert(
+                    'Recognition Error',
+                    'Failed to recognize licence plate. Please enter manually.',
+                    [{ text: 'OK' }]
+                );
+            }
         } finally {
             setIsRecognizingPlate(false);
         }
@@ -904,6 +917,39 @@ const StepThreeTrailerPhoto = ({ onBack, onBackToDamagePhotos, containerData, on
                         style={cn('w-full h-full')}
                         resizeMode="contain"
                     />
+                </View>
+            </Modal>
+
+            {/* Custom Error Modal */}
+            <Modal
+                visible={showErrorModal}
+                transparent={true}
+                animationType="fade"
+                onRequestClose={() => setShowErrorModal(false)}
+            >
+                <View style={cn('flex-1 justify-center items-center bg-black/50')}>
+                    <View style={cn('bg-white rounded-3xl mx-8 p-6')}>
+                        
+                        {/* Message Text */}
+                        <View style={cn('mt-4 mb-6')}>
+                            <Text style={cn('text-red-500 text-center text-lg font-semibold leading-6')}>
+                                {errorModalData.title}
+                            </Text>
+                            <Text style={cn('text-gray-600 font-bold text-center text-sm mt-2')}>
+                                {errorModalData.message}
+                            </Text>
+                        </View>
+                        
+                        {/* OK Button */}
+                        <TouchableOpacity
+                            onPress={() => setShowErrorModal(false)}
+                            style={cn('bg-red-500 rounded-xl py-4')}
+                        >
+                            <Text style={cn('text-white text-center font-semibold text-base')}>
+                                OK
+                            </Text>
+                        </TouchableOpacity>
+                    </View>
                 </View>
             </Modal>
         </SafeAreaView>

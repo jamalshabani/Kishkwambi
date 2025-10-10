@@ -261,24 +261,6 @@ const LoginForm = () => {
                                     )}
                                 </Button>
                             </View>
-
-                            {/* Direct Dashboard Button */}
-                            <View style={cn('items-center mb-4')}>
-                                <TouchableOpacity 
-                                    onPress={async () => {
-                                        // Auto-login with admin credentials
-                                        const result = await signIn('admin@a.com', 'test1234');
-                                        if (result.success) {
-                                            router.replace('/(tabs)/dashboard');
-                                        }
-                                    }}
-                                    style={cn('px-6 py-3 bg-gray-100 rounded-lg border border-gray-300')}
-                                >
-                                    <Text style={cn('text-sm font-medium text-gray-700')}>
-                                        Go to Dashboard
-                                    </Text>
-                                </TouchableOpacity>
-                            </View>
                         </View>
                     </View>
                 </View>

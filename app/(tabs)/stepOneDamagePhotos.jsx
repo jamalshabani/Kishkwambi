@@ -4,7 +4,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { LinearGradient } from 'expo-linear-gradient';
-import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
 import { cn } from '../../lib/tw';
 import { useTheme } from '../../contexts/ThemeContext';
@@ -609,7 +608,7 @@ const StepOneDamagePhotos = ({ onBack, containerData, onNavigateToStepThree, onN
                     <View style={cn('absolute top-4 left-4 right-4 items-center')} pointerEvents="none">
                         <View style={cn('bg-black/70 p-6 rounded-lg')}>
                             <Text style={cn('text-white text-center text-lg font-semibold')}>
-                                Take clear photos of the damage
+                                Take clear Photos of the Front Wall Damage
                             </Text>
                         </View>
                     </View>
