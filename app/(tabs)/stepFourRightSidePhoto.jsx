@@ -54,11 +54,11 @@ export default function StepFourRightSidePhoto({ containerData, trailerData, onB
 
     // Restore right side photo when navigating back
     useEffect(() => {
-        if (containerData?.rightSidePhoto) {
+        if (containerData?.rightWallPhoto) {
             console.log('🔄 Restoring right side photo from navigation data');
-            setImage(containerData.rightSidePhoto);
+            setImage(containerData.rightWallPhoto);
         }
-    }, [containerData?.rightSidePhoto]);
+    }, [containerData?.rightWallPhoto]);
 
     const [permission, requestPermission] = useCameraPermissions();
 
@@ -120,15 +120,44 @@ export default function StepFourRightSidePhoto({ containerData, trailerData, onB
             console.log('📸 Storing right wall photo for batch upload');
             
             // Store the photo data for batch upload at final submit
-            setRightWallPhotoData({
+            const photoData = {
                 ...containerData,
                 ...trailerData,
                 rightWallPhoto: image  // Store for preview and batch upload
-            });
+            };
+            
+            setRightWallPhotoData(photoData);
             
             console.log('✅ Right wall photo stored successfully');
             
-            // Show damage check modal
+            // Check if Right Wall damage already exists in database
+            const BACKEND_URL = API_CONFIG.getBackendUrl();
+            const damageCheckResponse = await fetch(`${BACKEND_URL}/api/trip-segments/${containerData?.tripSegmentNumber}/damage-status`, {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+            });
+            
+            if (damageCheckResponse.ok) {
+                const damageResult = await damageCheckResponse.json();
+                const damageLocations = damageResult.damageLocations || [];
+                
+                console.log('📊 Existing damage locations:', damageLocations);
+                
+                // If Right Wall damage already exists, skip modal and go directly to damage photos
+                if (damageLocations.includes('Right Wall')) {
+                    console.log('✅ Right Wall damage already exists - navigating to damage photos');
+                    if (onNavigateToDamagePhotosDirect) {
+                        onNavigateToDamagePhotosDirect(photoData);
+                    } else if (onNavigateToDamagePhotos) {
+                        onNavigateToDamagePhotos(photoData);
+                    }
+                    return;
+                }
+            }
+            
+            // Show damage check modal if no existing damage
             setShowDamageModal(true);
             
         } catch (error) {

@@ -7,6 +7,7 @@ import { cn } from '../../lib/tw';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { useInspectionTimer } from '../../contexts/InspectionTimerContext';
+import { API_CONFIG } from '../../lib/config';
 import { ArrowBigRight, User } from 'lucide-react-native';
 import Dashboard from './dashboard';
 import Profile from './profile';
@@ -351,6 +352,14 @@ export default function TabLayout() {
         setActiveTab('stepEightInsidePhoto');
     };
 
+    const navigateBackToInsideDamagePhotos = (data) => {
+        // Navigate back to inside damage photos from inspection remarks
+        if (data) {
+            setInsideDamagePhotosData(data);
+        }
+        setActiveTab('stepEightDamagePhotos');
+    };
+
     const navigateBackToInspectionRemarks = (data) => {
         // Update inspection remarks data if provided for persistence
         if (data) {
@@ -551,7 +560,7 @@ export default function TabLayout() {
                     ...inspectionRemarksData,
                     ...(driverData || {})
                 };
-                return <StepEightHalfInspectionRemarks onBack={navigateBackToStepEight} containerData={remarksData} onNavigateToStepNine={navigateToStepNine} />;
+                return <StepEightHalfInspectionRemarks onBack={navigateBackToStepEight} onBackToInsideDamagePhotos={navigateBackToInsideDamagePhotos} containerData={remarksData} onNavigateToStepNine={navigateToStepNine} />;
             case 'stepNineDriverDetails':
                 // Merge data for persistence
                 const driverDetailsData = {

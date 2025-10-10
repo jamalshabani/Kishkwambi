@@ -9,7 +9,7 @@ import { API_CONFIG } from '../../lib/config';
 import TimerDisplay from '../../components/common/TimerDisplay';
 import { Sun, Moon, Check, ArrowLeft } from 'lucide-react-native';
 
-const StepEightHalfInspectionRemarks = ({ onBack, containerData, onNavigateToStepNine }) => {
+const StepEightHalfInspectionRemarks = ({ onBack, onBackToInsideDamagePhotos, containerData, onNavigateToStepNine }) => {
     const { isDark, toggleTheme } = useTheme();
     const [inspectionRemarks, setInspectionRemarks] = useState('');
     const [trailerNumber, setTrailerNumber] = useState(null);
@@ -126,6 +126,60 @@ const StepEightHalfInspectionRemarks = ({ onBack, containerData, onNavigateToSte
         toggleTheme();
     };
 
+    // Conditional back navigation - check if Inside damage exists
+    const handleBackNavigation = async () => {
+        try {
+            console.log('🔙 Checking damage locations for conditional navigation...');
+            const BACKEND_URL = API_CONFIG.getBackendUrl();
+            
+            // Fetch trip segment damage status to check damage locations
+            const response = await fetch(`${BACKEND_URL}/api/trip-segments/${containerData?.tripSegmentNumber}/damage-status`, {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+            });
+            
+            if (!response.ok) {
+                throw new Error('Failed to fetch trip segment damage status');
+            }
+            
+            const result = await response.json();
+            
+            if (result.success) {
+                const damageLocations = result.damageLocations || [];
+                console.log('📊 Damage locations:', damageLocations);
+                
+                // Check if "Inside" is in damage locations
+                if (damageLocations.includes('Inside')) {
+                    console.log('✅ Inside damage found - navigating to Inside damage photos');
+                    // Navigate to Inside damage photos with containerData
+                    if (onBackToInsideDamagePhotos) {
+                        onBackToInsideDamagePhotos(containerData);
+                    }
+                } else {
+                    console.log('❌ No Inside damage - navigating to Inside photo preview');
+                    // Navigate to Inside photo preview with data for persistence
+                    if (onBack) {
+                        onBack(containerData);
+                    }
+                }
+            } else {
+                // If no data or error, default to Inside photo preview with data for persistence
+                console.log('⚠️ No trip segment data found - defaulting to Inside photo preview');
+                if (onBack) {
+                    onBack(containerData);
+                }
+            }
+        } catch (error) {
+            console.error('❌ Error checking damage locations:', error);
+            // On error, default to Inside photo preview with data for persistence
+            if (onBack) {
+                onBack(containerData);
+            }
+        }
+    };
+
     const handleRemarkSuggestion = (suggestion) => {
         const isCurrentlySelected = selectedSuggestions.has(suggestion);
         
@@ -225,7 +279,7 @@ const StepEightHalfInspectionRemarks = ({ onBack, containerData, onNavigateToSte
                 {/* Title */}
                 <View style={cn('flex-row items-center flex-1')}>
                     <TouchableOpacity 
-                        onPress={() => onBack(containerData)}
+                        onPress={handleBackNavigation}
                         style={cn('mr-3 p-1')}
                     >
                         <ArrowLeft size={24} color={isDark ? '#F3F4F6' : '#1F2937'} />

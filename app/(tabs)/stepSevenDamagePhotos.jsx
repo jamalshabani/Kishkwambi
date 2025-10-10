@@ -8,6 +8,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { cn } from '../../lib/tw';
 import { useTheme } from '../../contexts/ThemeContext';
 import { API_CONFIG } from '../../lib/config';
+import TimerDisplay from '../../components/common/TimerDisplay';
 import { Sun, Moon, Eye, X, Camera, ArrowLeft } from 'lucide-react-native';
 
 const StepSevenDamagePhotos = ({ onBack, containerData, onNavigateToStepEight, onNavigateToStepEightDirect }) => {
@@ -303,25 +304,31 @@ const StepSevenDamagePhotos = ({ onBack, containerData, onNavigateToStepEight, o
                     </Text>
                 </View>
 
-                {/* Theme Switcher */}
-                <Animated.View
-                    style={{
-                        transform: [
-                            { scale: themeButtonScale }
-                        ]
-                    }}
-                >
-                    <TouchableOpacity
-                        onPress={handleThemeToggle}
-                        style={cn('p-2')}
+                {/* Timer Display and Theme Switcher */}
+                <View style={cn('flex-row items-center')}>
+                    {/* Timer Display */}
+                    <TimerDisplay />
+
+                    {/* Theme Switcher */}
+                    <Animated.View
+                        style={{
+                            transform: [
+                                { scale: themeButtonScale }
+                            ]
+                        }}
                     >
-                        {isDark ? (
-                            <Sun size={24} color="#6B7280" />
-                        ) : (
-                            <Moon size={24} color="#6B7280" />
-                        )}
-                    </TouchableOpacity>
-                </Animated.View>
+                        <TouchableOpacity
+                            onPress={handleThemeToggle}
+                            style={cn('p-2')}
+                        >
+                            {isDark ? (
+                                <Sun size={24} color="#6B7280" />
+                            ) : (
+                                <Moon size={24} color="#6B7280" />
+                            )}
+                        </TouchableOpacity>
+                    </Animated.View>
+                </View>
             </View>
 
             {!showCamera ? (

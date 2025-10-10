@@ -140,7 +140,7 @@ const StepTwoContainerDetails = ({ onBack, containerData, onNavigateToStepThree,
         }
     }, [containerData]);
 
-    const handleNext = () => {
+    const handleNext = async () => {
         // Validate required fields
         if (!containerColor) {
             setMissingInfoMessage('Please select a container color before proceeding.');
@@ -154,7 +154,52 @@ const StepTwoContainerDetails = ({ onBack, containerData, onNavigateToStepThree,
             return;
         }
 
-        // Show back wall damage modal
+        try {
+            // Check if Front Wall damage already exists in database
+            const BACKEND_URL = API_CONFIG.getBackendUrl();
+            const damageCheckResponse = await fetch(`${BACKEND_URL}/api/trip-segments/${containerData?.tripSegmentNumber}/damage-status`, {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+            });
+            
+            if (damageCheckResponse.ok) {
+                const damageResult = await damageCheckResponse.json();
+                const damageLocations = damageResult.damageLocations || [];
+                
+                console.log('📊 Existing damage locations:', damageLocations);
+                
+                // If Front Wall damage already exists, skip modal and go directly to damage photos
+                if (damageLocations.includes('Front Wall')) {
+                    console.log('✅ Front Wall damage already exists - navigating to damage photos directly');
+                    
+                    // Prepare container details data
+                    const selectedColorOption = colorOptions.find(option => option.value === containerColor);
+                    const containerColorCode = selectedColorOption?.hexColor || '#666666';
+                    
+                    const containerDetailsData = {
+                        ...containerData,
+                        containerColor: containerColor,
+                        containerColorCode: containerColorCode,
+                        containerType: containerType,
+                        containerSize: containerSize,
+                        backWallDamaged: true // Damage exists
+                    };
+                    
+                    // Navigate directly to damage photos
+                    if (onNavigateToDamagePhotos) {
+                        onNavigateToDamagePhotos(containerDetailsData);
+                    }
+                    return;
+                }
+            }
+        } catch (error) {
+            console.error('❌ Error checking damage locations:', error);
+            // Continue to show modal on error
+        }
+
+        // Show front wall damage modal if no existing damage
         setShowFrontWallModal(true);
     };
 

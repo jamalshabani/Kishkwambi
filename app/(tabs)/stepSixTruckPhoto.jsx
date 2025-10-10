@@ -50,11 +50,13 @@ const StepSixTruckPhoto = ({ onBack, onBackToBackWallDamage, containerData, onNa
 
     // Restore truck photo and truck number when navigating back
     useEffect(() => {
-        if (containerData?.truckPhotoBase64) {
-            console.log('📸 Restoring truck photo from previous data');
-            setImage(containerData.truckPhotoBase64);
+        if (containerData?.truckPhoto) {
+            console.log('🔄 Restoring truck photo from navigation data');
+            setImage(containerData.truckPhoto);
         }
-        
+    }, [containerData?.truckPhoto]);
+    
+    useEffect(() => {
         if (containerData?.truckNumber) {
             console.log('🚛 Restoring truck number from previous data:', containerData.truckNumber);
             // Convert truck number string to array for the inputs
@@ -66,7 +68,7 @@ const StepSixTruckPhoto = ({ onBack, onBackToBackWallDamage, containerData, onNa
             setTruckNumber(truckNumberArray);
             setExtractedData({ truckNumber: containerData.truckNumber });
         }
-    }, [containerData]);
+    }, [containerData?.truckNumber]);
 
     // Conditional back navigation - check if Back Wall damage exists
     const handleBackNavigation = async () => {

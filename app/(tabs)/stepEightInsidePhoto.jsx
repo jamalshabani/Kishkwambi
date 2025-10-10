@@ -239,10 +239,12 @@ const StepEightInsidePhoto = ({ onBack, onBackToLeftWallDamage, containerData, o
             const BACKEND_URL = API_CONFIG.getBackendUrl();
             
             // Store the photo data for batch upload at final submit
-            setInsidePhotoData({
+            const photoData = {
                 ...containerData,
                 insidePhoto: image  // Store for preview and batch upload
-            });
+            };
+            
+            setInsidePhotoData(photoData);
             
             console.log('✅ Inside photo stored successfully');
             
@@ -272,7 +274,33 @@ const StepEightInsidePhoto = ({ onBack, onBackToLeftWallDamage, containerData, o
                 console.error('❌ Error setting container load status:', error);
             }
             
-            // Show damage check modal
+            // Check if Inside damage already exists in database
+            const damageCheckResponse = await fetch(`${BACKEND_URL}/api/trip-segments/${containerData?.tripSegmentNumber}/damage-status`, {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+            });
+            
+            if (damageCheckResponse.ok) {
+                const damageResult = await damageCheckResponse.json();
+                const damageLocations = damageResult.damageLocations || [];
+                
+                console.log('📊 Existing damage locations:', damageLocations);
+                
+                // If Inside damage already exists, skip modal and go directly to damage photos
+                if (damageLocations.includes('Inside')) {
+                    console.log('✅ Inside damage already exists - navigating to damage photos');
+                    if (onNavigateToDamagePhotosDirect) {
+                        onNavigateToDamagePhotosDirect(photoData);
+                    } else if (onNavigateToDamagePhotos) {
+                        onNavigateToDamagePhotos(photoData);
+                    }
+                    return;
+                }
+            }
+            
+            // Show damage check modal if no existing damage
             setShowDamageModal(true);
             
         } catch (error) {

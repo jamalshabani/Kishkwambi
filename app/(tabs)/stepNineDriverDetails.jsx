@@ -601,67 +601,9 @@ const StepNineDriverDetails = ({ onBack, containerData, onComplete, onShowSucces
                                 style={[
                                     cn('border-2 border-green-500 bg-green-500/10'),
                                     {
-                                        width: 323, // 85.60mm * 3.78px/mm
-                                        height: 204, // 54.00mm * 3.78px/mm
+                                        width: Dimensions.get('window').width * 0.8, // 80% of screen width
+                                        height: (Dimensions.get('window').width * 0.8) / 1.583, // Maintain driver's license aspect ratio (85.60mm x 54.00mm)
                                         borderRadius: 8,
-                                    }
-                                ]}
-                            />
-                            
-                            {/* Corner Indicators */}
-                            {/* Top Left */}
-                            <View
-                                style={[
-                                    cn('absolute -top-2 -left-2'),
-                                    {
-                                        width: 20,
-                                        height: 20,
-                                        borderTopWidth: 3,
-                                        borderLeftWidth: 3,
-                                        borderTopColor: '#10b981',
-                                        borderLeftColor: '#10b981',
-                                    }
-                                ]}
-                            />
-                            {/* Top Right */}
-                            <View
-                                style={[
-                                    cn('absolute -top-2 -right-2'),
-                                    {
-                                        width: 20,
-                                        height: 20,
-                                        borderTopWidth: 3,
-                                        borderRightWidth: 3,
-                                        borderTopColor: '#10b981',
-                                        borderRightColor: '#10b981',
-                                    }
-                                ]}
-                            />
-                            {/* Bottom Left */}
-                            <View
-                                style={[
-                                    cn('absolute -bottom-2 -left-2'),
-                                    {
-                                        width: 20,
-                                        height: 20,
-                                        borderBottomWidth: 3,
-                                        borderLeftWidth: 3,
-                                        borderBottomColor: '#10b981',
-                                        borderLeftColor: '#10b981',
-                                    }
-                                ]}
-                            />
-                            {/* Bottom Right */}
-                            <View
-                                style={[
-                                    cn('absolute -bottom-2 -right-2'),
-                                    {
-                                        width: 20,
-                                        height: 20,
-                                        borderBottomWidth: 3,
-                                        borderRightWidth: 3,
-                                        borderBottomColor: '#10b981',
-                                        borderRightColor: '#10b981',
                                     }
                                 ]}
                             />

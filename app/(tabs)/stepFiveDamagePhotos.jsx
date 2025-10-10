@@ -8,6 +8,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { cn } from '../../lib/tw';
 import { useTheme } from '../../contexts/ThemeContext';
 import { API_CONFIG } from '../../lib/config';
+import TimerDisplay from '../../components/common/TimerDisplay';
 import { Sun, Moon, Eye, X, Camera, ArrowLeft } from 'lucide-react-native';
 
 const StepFiveDamagePhotos = ({ onBack, containerData, onNavigateToStepSix, onNavigateToStepSixDirect }) => {
@@ -49,14 +50,15 @@ const StepFiveDamagePhotos = ({ onBack, containerData, onNavigateToStepSix, onNa
             console.log('📸 Restoring Back Wall damage photos from previous data');
             console.log('📸 Number of photos to restore:', containerData.backWallDamagePhotos.length);
             // Convert stored photos back to format expected by the component
-            const restoredPhotos = containerData.backWallDamagePhotos.map((photo, index) => ({
-                id: photo.id || Date.now() + index, // Ensure each photo has a unique id
-                uri: photo.uri || `data:image/jpeg;base64,${photo.base64}`,
-                base64: photo.base64,
-                timestamp: photo.timestamp || new Date().toISOString()
-            }));
+            const restoredPhotos = containerData.backWallDamagePhotos
+                .filter(photo => photo.uri) // Only restore photos with valid URIs
+                .map((photo, index) => ({
+                    id: photo.id || Date.now() + index, // Ensure each photo has a unique id
+                    uri: photo.uri,
+                    timestamp: photo.timestamp || new Date().toISOString()
+                }));
             setDamagePhotos(restoredPhotos);
-            console.log('✅ Damage photos restored successfully');
+            console.log('✅ Damage photos restored successfully:', restoredPhotos.length);
         } else {
             console.log('⚠️ No Back Wall damage photos to restore');
         }
@@ -164,12 +166,12 @@ const StepFiveDamagePhotos = ({ onBack, containerData, onNavigateToStepSix, onNa
                 const newPhoto = {
                     id: Date.now(),
                     uri: photo.uri,
-                    base64: photo.base64,
                     timestamp: new Date().toLocaleTimeString()
                 };
 
                 setDamagePhotos(prev => [...prev, newPhoto]);
-                console.log('📸 Front wall damage photo captured successfully');
+                console.log('📸 Back wall damage photo captured successfully');
+                console.log('📸 Photo URI:', photo.uri);
             }
         } catch (error) {
             console.error('❌ Error capturing damage photo:', error);
@@ -182,6 +184,11 @@ const StepFiveDamagePhotos = ({ onBack, containerData, onNavigateToStepSix, onNa
 
     const removePhoto = (photoId) => {
         setDamagePhotos(prev => prev.filter(photo => photo.id !== photoId));
+    };
+
+    const openZoomModal = (index) => {
+        setSelectedImageIndex(index);
+        setShowZoomModal(true);
     };
 
     const handleNext = async () => {
@@ -273,26 +280,32 @@ const StepFiveDamagePhotos = ({ onBack, containerData, onNavigateToStepSix, onNa
                         </Text>
                     </View>
 
-                    {/* Theme Switcher */}
-                    <Animated.View
-                        style={{
-                            transform: [
-                                { scale: themeButtonScale }
-                            ]
-                        }}
-                    >
-                        <TouchableOpacity
-                            onPress={handleThemeToggle}
-                            style={cn('p-2')}
+                    {/* Timer Display and Theme Switcher */}
+                    <View style={cn('flex-row items-center')}>
+                        {/* Timer Display */}
+                        <TimerDisplay />
+
+                        {/* Theme Switcher */}
+                        <Animated.View
+                            style={{
+                                transform: [
+                                    { scale: themeButtonScale }
+                                ]
+                            }}
                         >
-                            <Animated.View style={{ transform: [{ rotate: themeIconRotation.interpolate({
-                                inputRange: [0, 360],
-                                outputRange: ['0deg', '360deg']
-                            }) }] }}>
-                                {isDark ? <Sun size={20} color="#F59E0B" /> : <Moon size={20} color="#000" />}
-                            </Animated.View>
-                        </TouchableOpacity>
-                    </Animated.View>
+                            <TouchableOpacity
+                                onPress={handleThemeToggle}
+                                style={cn('p-2')}
+                            >
+                                <Animated.View style={{ transform: [{ rotate: themeIconRotation.interpolate({
+                                    inputRange: [0, 360],
+                                    outputRange: ['0deg', '360deg']
+                                }) }] }}>
+                                    {isDark ? <Sun size={20} color="#F59E0B" /> : <Moon size={20} color="#000" />}
+                                </Animated.View>
+                            </TouchableOpacity>
+                        </Animated.View>
+                    </View>
                 </View>
 
                 {/* Camera View */}
@@ -422,31 +435,35 @@ const StepFiveDamagePhotos = ({ onBack, containerData, onNavigateToStepSix, onNa
                     </Text>
                 </View>
 
-                {/* Theme Switcher */}
-                <Animated.View
-                    style={{
-                        transform: [
-                            { scale: themeButtonScale }
-                        ]
-                    }}
-                >
-                    <TouchableOpacity
-                        onPress={handleThemeToggle}
-                        style={cn('p-2')}
+                {/* Timer Display and Theme Switcher */}
+                <View style={cn('flex-row items-center')}>
+                    {/* Timer Display */}
+                    <TimerDisplay />
+
+                    {/* Theme Switcher */}
+                    <Animated.View
+                        style={{
+                            transform: [
+                                { scale: themeButtonScale }
+                            ]
+                        }}
                     >
-                        <Animated.View style={{ transform: [{ rotate: themeIconRotation.interpolate({
-                            inputRange: [0, 360],
-                            outputRange: ['0deg', '360deg']
-                        }) }] }}>
-                            {isDark ? <Sun size={20} color="#F59E0B" /> : <Moon size={20} color="#000" />}
-                        </Animated.View>
-                    </TouchableOpacity>
-                </Animated.View>
+                        <TouchableOpacity
+                            onPress={handleThemeToggle}
+                            style={cn('p-2')}
+                        >
+                            <Animated.View style={{ transform: [{ rotate: themeIconRotation.interpolate({
+                                inputRange: [0, 360],
+                                outputRange: ['0deg', '360deg']
+                            }) }] }}>
+                                {isDark ? <Sun size={20} color="#F59E0B" /> : <Moon size={20} color="#000" />}
+                            </Animated.View>
+                        </TouchableOpacity>
+                    </Animated.View>
+                </View>
             </View>
 
-            {!showCamera ? (
-
-                <ScrollView style={cn('flex-1')} showsVerticalScrollIndicator={false}>
+            <ScrollView style={cn('flex-1')} showsVerticalScrollIndicator={false}>
                     <View style={cn('p-6')}>
                         {/* Container Number and Trip Segment Display */}
                         <View style={cn(`mb-6 p-4 rounded-lg ${isDark ? 'bg-gray-700 border-gray-600' : 'bg-gray-50 border-gray-200'} border`)}>
@@ -501,8 +518,12 @@ const StepFiveDamagePhotos = ({ onBack, containerData, onNavigateToStepSix, onNa
                                                     style={cn('relative')}
                                                 >
                                                     <Image
-                                                        source={{ uri: `data:image/jpeg;base64,${photo.base64}` }}
-                                                        style={cn('w-20 h-20 rounded-lg')}
+                                                        source={{ uri: photo.uri }}
+                                                        style={cn('w-40 h-40 rounded-lg bg-gray-200')}
+                                                        resizeMode="cover"
+                                                        onError={(error) => console.error('❌ Image load error:', error.nativeEvent.error, 'URI:', photo.uri)}
+                                                        onLoadStart={() => console.log('📸 Loading image:', photo.uri)}
+                                                        onLoadEnd={() => console.log('✅ Image loaded:', photo.uri)}
                                                     />
                                                     <View style={cn('absolute inset-0 bg-black/30 rounded-lg items-center justify-center')}>
                                                         <Eye size={16} color="white" />
@@ -576,45 +597,6 @@ const StepFiveDamagePhotos = ({ onBack, containerData, onNavigateToStepSix, onNa
 
                     </View>
                 </ScrollView>
-            ) : (
-                // Full Screen Camera View
-                <View style={cn('flex-1')}>
-                    <CameraView
-                        ref={cameraRef}
-                        style={cn('flex-1')}
-                        facing={facing}
-                        ratio="1:1"
-                    />
-
-                    {/* Damage Guide Overlay */}
-                    <View style={cn('absolute inset-0 justify-center items-center')}>
-                        {/* Instruction Text */}
-                        <View style={cn('absolute top-4 left-4 right-4 items-center')}>
-                            <View style={cn('bg-black/70 px-6 py-3 rounded-lg')}>
-                                <Text style={cn('text-white text-center text-lg font-semibold')}>
-                                    Take clear photos of the damage
-                                </Text>
-                            </View>
-                        </View>
-
-                        {/* Camera Controls */}
-                        <View style={cn('absolute bottom-8 left-0 right-0 items-center')}>
-                            <TouchableOpacity
-                                onPress={capturePhoto}
-                                disabled={isProcessing}
-                                style={cn(`w-20 h-20 rounded-full bg-white border-4 border-white/30 items-center justify-center ${isProcessing ? 'opacity-50' : ''}`)}
-                            >
-                                {isProcessing ? (
-                                    <ActivityIndicator size="small" color="#6B7280" />
-                                ) : (
-                                    <View style={cn('w-16 h-16 rounded-full bg-white')} />
-                                )}
-                            </TouchableOpacity>
-
-                        </View>
-                    </View>
-                </View>
-            )}
 
             {/* Zoom Modal */}
             <Modal
@@ -631,7 +613,7 @@ const StepFiveDamagePhotos = ({ onBack, containerData, onNavigateToStepSix, onNa
                         <X size={24} color="white" />
                     </TouchableOpacity>
                     <Image
-                        source={{ uri: `data:image/jpeg;base64,${damagePhotos[selectedImageIndex]?.base64}` }}
+                        source={{ uri: damagePhotos[selectedImageIndex]?.uri }}
                         style={cn('w-full h-full')}
                         resizeMode="contain"
                     />

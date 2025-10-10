@@ -8,6 +8,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { cn } from '../../lib/tw';
 import { useTheme } from '../../contexts/ThemeContext';
 import { API_CONFIG } from '../../lib/config';
+import TimerDisplay from '../../components/common/TimerDisplay';
 import { Sun, Moon, Eye, X, Camera, ArrowLeft } from 'lucide-react-native';
 
 const StepEightDamagePhotos = ({ onBack, containerData, onNavigateToStepNine, onNavigateToInspectionRemarks, onNavigateToStepNineDirect }) => {
@@ -66,18 +67,19 @@ const StepEightDamagePhotos = ({ onBack, containerData, onNavigateToStepNine, on
 
     // Restore damage photos when navigating back
     useEffect(() => {
-        if (containerData?.localInsideDamagePhotos && containerData.localInsideDamagePhotos.length > 0) {
+        if (containerData?.insideDamagePhotos && containerData.insideDamagePhotos.length > 0) {
             console.log('📸 Restoring Inside damage photos from previous data');
-            console.log('📸 Number of photos to restore:', containerData.localInsideDamagePhotos.length);
+            console.log('📸 Number of photos to restore:', containerData.insideDamagePhotos.length);
             // Convert stored photos back to format expected by the component
-            const restoredPhotos = containerData.localInsideDamagePhotos.map((photo, index) => ({
-                id: photo.id || Date.now() + index, // Ensure each photo has a unique id
-                uri: photo.uri || `data:image/jpeg;base64,${photo.base64}`,
-                base64: photo.base64,
-                timestamp: photo.timestamp || new Date().toISOString()
-            }));
+            const restoredPhotos = containerData.insideDamagePhotos
+                .filter(photo => photo.uri) // Only restore photos with valid URIs
+                .map((photo, index) => ({
+                    id: photo.id || Date.now() + index, // Ensure each photo has a unique id
+                    uri: photo.uri,
+                    timestamp: photo.timestamp || new Date().toISOString()
+                }));
             setDamagePhotos(restoredPhotos);
-            console.log('✅ Damage photos restored successfully');
+            console.log('✅ Damage photos restored successfully:', restoredPhotos.length);
         } else {
             console.log('⚠️ No Inside damage photos to restore');
         }
@@ -185,12 +187,12 @@ const StepEightDamagePhotos = ({ onBack, containerData, onNavigateToStepNine, on
                 const newPhoto = {
                     id: Date.now(),
                     uri: photo.uri,
-                    base64: photo.base64,
                     timestamp: new Date().toLocaleTimeString()
                 };
 
                 setDamagePhotos(prev => [...prev, newPhoto]);
                 console.log('📸 Inside damage photo captured successfully');
+                console.log('📸 Photo URI:', photo.uri);
             }
         } catch (error) {
             console.error('❌ Error capturing damage photo:', error);
@@ -203,6 +205,11 @@ const StepEightDamagePhotos = ({ onBack, containerData, onNavigateToStepNine, on
 
     const removePhoto = (photoId) => {
         setDamagePhotos(prev => prev.filter(photo => photo.id !== photoId));
+    };
+
+    const openZoomModal = (index) => {
+        setSelectedImageIndex(index);
+        setShowZoomModal(true);
     };
 
     const handleNext = async () => {
@@ -294,26 +301,32 @@ const StepEightDamagePhotos = ({ onBack, containerData, onNavigateToStepNine, on
                         </Text>
                     </View>
 
-                    {/* Theme Switcher */}
-                    <Animated.View
-                        style={{
-                            transform: [
-                                { scale: themeButtonScale }
-                            ]
-                        }}
-                    >
-                        <TouchableOpacity
-                            onPress={handleThemeToggle}
-                            style={cn('p-2')}
+                    {/* Timer Display and Theme Switcher */}
+                    <View style={cn('flex-row items-center')}>
+                        {/* Timer Display */}
+                        <TimerDisplay />
+
+                        {/* Theme Switcher */}
+                        <Animated.View
+                            style={{
+                                transform: [
+                                    { scale: themeButtonScale }
+                                ]
+                            }}
                         >
-                            <Animated.View style={{ transform: [{ rotate: themeIconRotation.interpolate({
-                                inputRange: [0, 360],
-                                outputRange: ['0deg', '360deg']
-                            }) }] }}>
-                                {isDark ? <Sun size={20} color="#F59E0B" /> : <Moon size={20} color="#000" />}
-                            </Animated.View>
-                        </TouchableOpacity>
-                    </Animated.View>
+                            <TouchableOpacity 
+                                onPress={handleThemeToggle}
+                                style={cn('p-2')}
+                            >
+                                <Animated.View style={{ transform: [{ rotate: themeIconRotation.interpolate({
+                                    inputRange: [0, 360],
+                                    outputRange: ['0deg', '360deg']
+                                }) }] }}>
+                                    {isDark ? <Sun size={20} color="#F59E0B" /> : <Moon size={20} color="#000" />}
+                                </Animated.View>
+                            </TouchableOpacity>
+                        </Animated.View>
+                    </View>
                 </View>
 
                 {/* Camera View */}
@@ -332,69 +345,11 @@ const StepEightDamagePhotos = ({ onBack, containerData, onNavigateToStepNine, on
                             {/* Damage Rectangle Outline */}
                             <View
                                 style={[
-                                    cn('border-2 border-red-500 bg-red-500/10'),
+                                    cn('border-2 border-green-500 bg-green-500/10'),
                                     {
                                         width: 280,
                                         height: 420,
                                         borderRadius: 8,
-                                    }
-                                ]}
-                            />
-
-                            {/* Corner Indicators */}
-                            {/* Top Left */}
-                            <View
-                                style={[
-                                    cn('absolute -top-2 -left-2'),
-                                    {
-                                        width: 20,
-                                        height: 20,
-                                        borderTopWidth: 3,
-                                        borderLeftWidth: 3,
-                                        borderTopColor: '#EF4444',
-                                        borderLeftColor: '#EF4444',
-                                    }
-                                ]}
-                            />
-                            {/* Top Right */}
-                            <View
-                                style={[
-                                    cn('absolute -top-2 -right-2'),
-                                    {
-                                        width: 20,
-                                        height: 20,
-                                        borderTopWidth: 3,
-                                        borderRightWidth: 3,
-                                        borderTopColor: '#EF4444',
-                                        borderRightColor: '#EF4444',
-                                    }
-                                ]}
-                            />
-                            {/* Bottom Left */}
-                            <View
-                                style={[
-                                    cn('absolute -bottom-2 -left-2'),
-                                    {
-                                        width: 20,
-                                        height: 20,
-                                        borderBottomWidth: 3,
-                                        borderLeftWidth: 3,
-                                        borderBottomColor: '#EF4444',
-                                        borderLeftColor: '#EF4444',
-                                    }
-                                ]}
-                            />
-                            {/* Bottom Right */}
-                            <View
-                                style={[
-                                    cn('absolute -bottom-2 -right-2'),
-                                    {
-                                        width: 20,
-                                        height: 20,
-                                        borderBottomWidth: 3,
-                                        borderRightWidth: 3,
-                                        borderBottomColor: '#EF4444',
-                                        borderRightColor: '#EF4444',
                                     }
                                 ]}
                             />
@@ -449,26 +404,32 @@ const StepEightDamagePhotos = ({ onBack, containerData, onNavigateToStepNine, on
                     </Text>
                 </View>
 
-                {/* Theme Switcher */}
-                <Animated.View
-                    style={{
-                        transform: [
-                            { scale: themeButtonScale }
-                        ]
-                    }}
-                >
-                    <TouchableOpacity
-                        onPress={handleThemeToggle}
-                        style={cn('p-2')}
+                {/* Timer Display and Theme Switcher */}
+                <View style={cn('flex-row items-center')}>
+                    {/* Timer Display */}
+                    <TimerDisplay />
+
+                    {/* Theme Switcher */}
+                    <Animated.View
+                        style={{
+                            transform: [
+                                { scale: themeButtonScale }
+                            ]
+                        }}
                     >
-                        <Animated.View style={{ transform: [{ rotate: themeIconRotation.interpolate({
-                            inputRange: [0, 360],
-                            outputRange: ['0deg', '360deg']
-                        }) }] }}>
-                            {isDark ? <Sun size={20} color="#F59E0B" /> : <Moon size={20} color="#000" />}
-                        </Animated.View>
-                    </TouchableOpacity>
-                </Animated.View>
+                        <TouchableOpacity
+                            onPress={handleThemeToggle}
+                            style={cn('p-2')}
+                        >
+                            <Animated.View style={{ transform: [{ rotate: themeIconRotation.interpolate({
+                                inputRange: [0, 360],
+                                outputRange: ['0deg', '360deg']
+                            }) }] }}>
+                                {isDark ? <Sun size={20} color="#F59E0B" /> : <Moon size={20} color="#000" />}
+                            </Animated.View>
+                        </TouchableOpacity>
+                    </Animated.View>
+                </View>
             </View>
 
             {!showCamera ? (
@@ -536,8 +497,12 @@ const StepEightDamagePhotos = ({ onBack, containerData, onNavigateToStepNine, on
                                                     style={cn('relative')}
                                                 >
                                                     <Image
-                                                        source={{ uri: `data:image/jpeg;base64,${photo.base64}` }}
-                                                        style={cn('w-20 h-20 rounded-lg')}
+                                                        source={{ uri: photo.uri }}
+                                                        style={cn('w-40 h-40 rounded-lg bg-gray-200')}
+                                                        resizeMode="cover"
+                                                        onError={(error) => console.error('❌ Image load error:', error.nativeEvent.error, 'URI:', photo.uri)}
+                                                        onLoadStart={() => console.log('📸 Loading image:', photo.uri)}
+                                                        onLoadEnd={() => console.log('✅ Image loaded:', photo.uri)}
                                                     />
                                                     <View style={cn('absolute inset-0 bg-black/30 rounded-lg items-center justify-center')}>
                                                         <Eye size={16} color="white" />
@@ -666,7 +631,7 @@ const StepEightDamagePhotos = ({ onBack, containerData, onNavigateToStepNine, on
                         <X size={24} color="white" />
                     </TouchableOpacity>
                     <Image
-                        source={{ uri: `data:image/jpeg;base64,${damagePhotos[selectedImageIndex]?.base64}` }}
+                        source={{ uri: damagePhotos[selectedImageIndex]?.uri }}
                         style={cn('w-full h-full')}
                         resizeMode="contain"
                     />

@@ -276,14 +276,43 @@ const StepFiveBackWallPhoto = ({ onBack, onBackToRightWallDamage, containerData,
             console.log('📸 Storing Back Wall photo for batch upload');
             
             // Store the photo data for batch upload at final submit
-            setFrontWallPhotoData({
+            const photoData = {
                 ...containerData,
                 backWallPhoto: image  // Store for preview and batch upload
-            });
+            };
+            
+            setFrontWallPhotoData(photoData);
             
             console.log('✅ Back Wall photo stored successfully');
             
-            // Show damage check modal
+            // Check if Back Wall damage already exists in database
+            const BACKEND_URL = API_CONFIG.getBackendUrl();
+            const damageCheckResponse = await fetch(`${BACKEND_URL}/api/trip-segments/${containerData?.tripSegmentNumber}/damage-status`, {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+            });
+            
+            if (damageCheckResponse.ok) {
+                const damageResult = await damageCheckResponse.json();
+                const damageLocations = damageResult.damageLocations || [];
+                
+                console.log('📊 Existing damage locations:', damageLocations);
+                
+                // If Back Wall damage already exists, skip modal and go directly to damage photos
+                if (damageLocations.includes('Back Wall')) {
+                    console.log('✅ Back Wall damage already exists - navigating to damage photos');
+                    if (onNavigateToDamagePhotosDirect) {
+                        onNavigateToDamagePhotosDirect(photoData);
+                    } else if (onNavigateToDamagePhotos) {
+                        onNavigateToDamagePhotos(photoData);
+                    }
+                    return;
+                }
+            }
+            
+            // Show damage check modal if no existing damage
             setShowDamageModal(true);
             
         } catch (error) {
