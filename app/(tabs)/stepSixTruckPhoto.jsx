@@ -244,6 +244,9 @@ const StepSixTruckPhoto = ({ onBack, onBackToBackWallDamage, containerData, onNa
                 // Crop the image to the truck frame area
                 const croppedImage = await cropImageToTruckFrame(photo.uri);
 
+                // Wait to ensure the cropped file is fully written to disk
+                await new Promise(resolve => setTimeout(resolve, 500));
+
                 // Get file size of cropped photo
                 try {
                     const fileInfo = await fetch(croppedImage);
@@ -261,9 +264,6 @@ const StepSixTruckPhoto = ({ onBack, onBackToBackWallDamage, containerData, onNa
 
                 setImage(croppedImage);
                 console.log('📸 Truck photo taken and cropped successfully');
-
-                // Wait a bit to ensure the cropped file is fully written to disk
-                await new Promise(resolve => setTimeout(resolve, 300));
 
                 // Call PlateRecognizer API to extract truck number
                 await recognizeTruckNumber(croppedImage);

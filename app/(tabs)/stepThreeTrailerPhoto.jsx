@@ -258,6 +258,11 @@ const StepThreeTrailerPhoto = ({ onBack, onBackToDamagePhotos, containerData, on
 
                 // Crop the image to the trailer frame area
                 const croppedImage = await cropImageToTrailerFrame(photo.uri);
+                console.log('✂️ Cropped image URI:', croppedImage);
+
+                // Wait to ensure the cropped file is fully written to disk
+                console.log('⏳ Waiting for file system to flush...');
+                await new Promise(resolve => setTimeout(resolve, 1000));
 
                 // Get file size of cropped photo
                 try {
@@ -277,9 +282,6 @@ const StepThreeTrailerPhoto = ({ onBack, onBackToDamagePhotos, containerData, on
                 setImage(croppedImage);
                 console.log('📸 Trailer photo taken and cropped successfully');
 
-                // Wait a bit to ensure the cropped file is fully written to disk
-                await new Promise(resolve => setTimeout(resolve, 300));
-
                 // Call PlateRecognizer API to extract licence plate
                 await recognizeLicencePlate(croppedImage);
             }
@@ -295,8 +297,19 @@ const StepThreeTrailerPhoto = ({ onBack, onBackToDamagePhotos, containerData, on
         try {
             setIsRecognizingPlate(true);
             console.log('🚗 Calling PlateRecognizer API...');
+            console.log('🔗 Image URI to send:', imageUri);
 
             const BACKEND_URL = API_CONFIG.getBackendUrl();
+            console.log('🔗 Backend URL:', BACKEND_URL);
+            
+            // Verify the file exists before sending
+            try {
+                const testFetch = await fetch(imageUri);
+                console.log('✅ File accessible, status:', testFetch.status);
+            } catch (testError) {
+                console.error('❌ File not accessible:', testError.message);
+                throw new Error('Cropped image file is not accessible yet');
+            }
             
             const formData = new FormData();
             formData.append('image', {
@@ -304,6 +317,8 @@ const StepThreeTrailerPhoto = ({ onBack, onBackToDamagePhotos, containerData, on
                 type: 'image/jpeg',
                 name: 'trailer.jpg'
             });
+            
+            console.log('📤 Sending request to:', `${BACKEND_URL}/api/plate-recognizer/recognize`);
             
             const response = await fetch(`${BACKEND_URL}/api/plate-recognizer/recognize`, {
                 method: 'POST',
@@ -313,6 +328,7 @@ const StepThreeTrailerPhoto = ({ onBack, onBackToDamagePhotos, containerData, on
                 },
             });
 
+            console.log('📥 Response status:', response.status);
             const result = await response.json();
             console.log('📊 PlateRecognizer response:', result);
 

@@ -142,6 +142,9 @@ const StepOneContainerPhoto = ({ onBack, onNavigateToStepTwo, onNavigateToDamage
                 const croppedImage = await cropImageToOverlay(photo.uri);
                 console.log('✂️ Cropped photo URI:', croppedImage);
                 
+                // Wait to ensure the cropped file is fully written to disk
+                await new Promise(resolve => setTimeout(resolve, 500));
+                
                 // Get file size of cropped photo
                 try {
                     const fileInfo = await fetch(croppedImage);
@@ -155,9 +158,6 @@ const StepOneContainerPhoto = ({ onBack, onNavigateToStepTwo, onNavigateToDamage
                 
                 // Set the cropped image for preview
                 setImage(croppedImage);
-                
-                // Wait a bit to ensure the cropped file is fully written to disk
-                await new Promise(resolve => setTimeout(resolve, 300));
                 
                 // Process the cropped image with Vision AI
                 await processImageWithVisionAI(croppedImage);

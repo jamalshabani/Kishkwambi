@@ -193,6 +193,9 @@ const StepNineDriverDetails = ({ onBack, containerData, onComplete, onShowSucces
                 // Crop the image to the license frame area
                 const croppedImage = await cropImageToLicenseFrame(photo.uri);
 
+                // Wait to ensure the cropped file is fully written to disk
+                await new Promise(resolve => setTimeout(resolve, 500));
+
                 // Get file size of cropped photo
                 try {
                     const fileInfo = await fetch(croppedImage);
@@ -207,9 +210,6 @@ const StepNineDriverDetails = ({ onBack, containerData, onComplete, onShowSucces
                 setImage(croppedImage);
                 setShowCamera(false);
                 console.log('📸 Driver license photo taken and cropped successfully');
-
-                // Wait a bit to ensure the cropped file is fully written to disk
-                await new Promise(resolve => setTimeout(resolve, 300));
 
                 // Show extraction loading
                 setIsExtracting(true);
