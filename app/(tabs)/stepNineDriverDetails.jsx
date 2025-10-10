@@ -208,6 +208,9 @@ const StepNineDriverDetails = ({ onBack, containerData, onComplete, onShowSucces
                 setShowCamera(false);
                 console.log('📸 Driver license photo taken and cropped successfully');
 
+                // Wait a bit to ensure the cropped file is fully written to disk
+                await new Promise(resolve => setTimeout(resolve, 300));
+
                 // Show extraction loading
                 setIsExtracting(true);
                 

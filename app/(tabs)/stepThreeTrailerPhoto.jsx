@@ -277,6 +277,9 @@ const StepThreeTrailerPhoto = ({ onBack, onBackToDamagePhotos, containerData, on
                 setImage(croppedImage);
                 console.log('📸 Trailer photo taken and cropped successfully');
 
+                // Wait a bit to ensure the cropped file is fully written to disk
+                await new Promise(resolve => setTimeout(resolve, 300));
+
                 // Call PlateRecognizer API to extract licence plate
                 await recognizeLicencePlate(croppedImage);
             }

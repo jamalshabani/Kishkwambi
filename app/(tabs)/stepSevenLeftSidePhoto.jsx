@@ -412,7 +412,7 @@ const StepSevenLeftSidePhoto = ({ containerData, truckData, onBack, onNavigateTo
                         </View>
                     </View>
                     
-                    <View style={cn('absolute bottom-0 left-0 bg-black/50 right-0 pb-12 pt-4')}>
+                    <View style={cn('absolute bottom-0 left-0 bg-black right-0 pb-12 pt-1')}>
                         <View style={cn('flex-row items-center justify-center px-8')}>
                             <TouchableOpacity
                                 onPress={takePicture}

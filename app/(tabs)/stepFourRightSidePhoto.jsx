@@ -460,7 +460,7 @@ export default function StepFourRightSidePhoto({ containerData, trailerData, onB
                     </View>
                     
                     {/* Camera Controls Overlay */}
-                    <View style={cn('absolute bottom-0 left-0 bg-black/50 right-0 pb-12 pt-4')}>
+                    <View style={cn('absolute bottom-0 left-0 bg-black/50 right-0 pb-12')}>
                         <View style={cn('flex-row items-center justify-center px-8')}>
                             {/* Capture Button */}
                             <TouchableOpacity
