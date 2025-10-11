@@ -403,21 +403,25 @@ app.post('/api/vision/process-image', uploadS3.single('image'), async (req, res)
         });
 
         const data = await response.json();
-    
+        
+        console.log('📸 ParkPow API Response Status:', response.status);
+        console.log('📸 ParkPow API Raw Response:', JSON.stringify(data, null, 2));
         
         // Check for API errors
         if (!response.ok) {
-            
+            console.error('❌ ParkPow API Error:', data);
             return res.status(500).json({
                 success: false,
                 error: `ParkPow API Error: ${data.error || data.message || 'Unknown error'}`,
-                status: response.status
+                status: response.status,
+                rawResponse: data
             });
         }
 
         // Use utility function to format ParkRow response
         const formattedResponse = formatParkRowResponse(data);
         
+        console.log('✅ Formatted Response:', JSON.stringify(formattedResponse, null, 2));
 
         // Return formatted response with only required fields
         res.json(formattedResponse);
