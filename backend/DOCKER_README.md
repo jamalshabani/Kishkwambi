@@ -20,7 +20,7 @@ MONGODB_URI=mongodb://admin:password@host:27017/
 PORT=3000
 
 # Backend URL (for photo references)
-EXPO_PUBLIC_BACKEND_URL=http://192.168.1.100:3000
+BACKEND_URL=http://192.168.1.100:3000
 
 # Backblaze B2 Configuration
 B2_APPLICATION_KEY_ID=your_key_id

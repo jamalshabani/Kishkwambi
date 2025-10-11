@@ -14,7 +14,7 @@ services:
       - PORT=3000
       # Add your environment variables here or use env_file
       - MONGODB_URI=${MONGODB_URI}
-      - EXPO_PUBLIC_BACKEND_URL=${EXPO_PUBLIC_BACKEND_URL}
+      - BACKEND_URL=${BACKEND_URL}
       - B2_APPLICATION_KEY_ID=${B2_APPLICATION_KEY_ID}
       - B2_APPLICATION_KEY=${B2_APPLICATION_KEY}
       - B2_BUCKET_NAME=${B2_BUCKET_NAME}
