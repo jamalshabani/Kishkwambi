@@ -9,7 +9,7 @@ require('dotenv').config();
 const { formatParkRowResponse, formatGoogleVisionResponse } = require('./utils/parkrowFormatter');
 
 const app = express();
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT || 3000;
 
 // MongoDB connection
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://admin:puxvox-zAddov-3cytna@102.177.84.123:27017/';
@@ -373,7 +373,7 @@ app.post('/api/vision/process-image', uploadS3.single('image'), async (req, res)
 
         // ParkPow Container API key from environment variable
         const PARKPOW_API_KEY = process.env.PARKPOW_API_KEY;
-        
+
         if (!PARKPOW_API_KEY) {
             return res.status(500).json({
                 success: false,
@@ -3261,12 +3261,25 @@ async function startServer() {
 
     await connectToDatabase();
 
+    // Health check endpoint for Docker
+    app.get('/health', (req, res) => {
+        const healthCheck = {
+            status: 'healthy',
+            uptime: process.uptime(),
+            timestamp: new Date().toISOString(),
+            database: db ? 'connected' : 'disconnected'
+        };
+        res.status(200).json(healthCheck);
+    });
+
     // Test endpoint to verify server is working
     app.get('/api/test', (req, res) => {
         res.json({ message: 'Server is running', timestamp: new Date().toISOString() });
     });
 
     app.listen(PORT, '0.0.0.0', () => {
+        console.log(`✅ Server is running on port ${PORT}`);
+        console.log(`🔗 Health check: http://localhost:${PORT}/health`);
     });
 }
 

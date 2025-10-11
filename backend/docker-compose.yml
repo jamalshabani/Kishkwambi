@@ -1,0 +1,55 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: kishkwambi-backend
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      # Add your environment variables here or use env_file
+      - MONGODB_URI=${MONGODB_URI}
+      - EXPO_PUBLIC_BACKEND_URL=${EXPO_PUBLIC_BACKEND_URL}
+      - B2_APPLICATION_KEY_ID=${B2_APPLICATION_KEY_ID}
+      - B2_APPLICATION_KEY=${B2_APPLICATION_KEY}
+      - B2_BUCKET_NAME=${B2_BUCKET_NAME}
+      - B2_BUCKET_ID=${B2_BUCKET_ID}
+      - B2_REGION=${B2_REGION}
+      - B2_ENDPOINT=${B2_ENDPOINT}
+      - GOOGLE_VISION_API_KEY=${GOOGLE_VISION_API_KEY}
+      - PLATERECOGNIZER_API_KEY=${PLATERECOGNIZER_API_KEY}
+      - PARKPOW_API_KEY=${PARKPOW_API_KEY}
+    env_file:
+      - .env
+    volumes:
+      # Mount arrivedContainers directory to persist photos
+      - arrived-containers-data:/app/arrivedContainers
+      # Optional: mount logs directory
+      - ./logs:/app/logs
+    networks:
+      - kishkwambi-network
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+volumes:
+  # Named volume for arrivedContainers with proper permissions
+  arrived-containers-data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./arrivedContainers
+
+networks:
+  kishkwambi-network:
+    driver: bridge
+
