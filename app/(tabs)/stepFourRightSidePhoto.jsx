@@ -25,7 +25,7 @@ export default function StepFourRightSidePhoto({ containerData, trailerData, onB
     // Camera overlay dimensions for right wall photos (matching Left Wall)
     const screenWidth = Dimensions.get('window').width;
     const screenHeight = Dimensions.get('window').height;
-    const rightWallFrameWidth = screenWidth * 0.60; // Same as Left Wall
+    const rightWallFrameWidth = screenWidth * 0.80; // 80% of screen width
     const rightWallFrameHeight = screenHeight * 0.70; // Same as Left Wall
     
     // Calculate the center position for the right wall frame

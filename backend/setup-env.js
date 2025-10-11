@@ -10,8 +10,17 @@ const envPath = path.join(__dirname, '.env');
 if (fs.existsSync(envPath)) {
     console.log('✅ .env file already exists');
     
-    // Read and check for PlateRecognizer API key
+    // Read and check for environment variables
     const envContent = fs.readFileSync(envPath, 'utf8');
+    
+    if (envContent.includes('EXPO_PUBLIC_BACKEND_URL=')) {
+        console.log('✅ EXPO_PUBLIC_BACKEND_URL is configured');
+    } else {
+        console.log('❌ EXPO_PUBLIC_BACKEND_URL is missing from .env file');
+        console.log('📝 Please add the following line to your .env file:');
+        console.log('EXPO_PUBLIC_BACKEND_URL=http://your-server-ip:3001');
+    }
+    
     if (envContent.includes('PLATERECOGNIZER_API_KEY=')) {
         console.log('✅ PLATERECOGNIZER_API_KEY is configured');
     } else {
@@ -26,6 +35,9 @@ if (fs.existsSync(envPath)) {
     const envTemplate = `# MongoDB Configuration
 MONGODB_URI=mongodb://admin:puxvox-zAddov-3cytna@102.177.84.123:27017/
 PORT=3001
+
+# Backend URL (for photo references - should match your server's public URL)
+EXPO_PUBLIC_BACKEND_URL=http://192.168.1.100:3001
 
 # Google Vision API Key
 GOOGLE_VISION_API_KEY=your_google_vision_api_key_here

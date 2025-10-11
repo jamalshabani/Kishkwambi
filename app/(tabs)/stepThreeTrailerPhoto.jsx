@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { View, Text, TouchableOpacity, Alert, Image, ScrollView, Animated, Modal, TextInput, KeyboardAvoidingView, Platform, ActivityIndicator, Dimensions } from 'react-native';
+import { View, Text, TouchableOpacity, Alert, Image, ScrollView, Animated, Modal, TextInput, KeyboardAvoidingView, Platform, ActivityIndicator, Dimensions, Keyboard } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { CameraView, useCameraPermissions } from 'expo-camera';
@@ -25,8 +25,10 @@ const StepThreeTrailerPhoto = ({ onBack, onBackToDamagePhotos, containerData, on
     const [isRecognizingPlate, setIsRecognizingPlate] = useState(false);
     const [facing, setFacing] = useState('back');
     const [trailerData, setTrailerData] = useState(null);
+    const [keyboardVisible, setKeyboardVisible] = useState(false);
     const cameraRef = useRef(null);
     const licencePlateRefs = useRef([]);
+    const scrollViewRef = useRef(null);
     const [showErrorModal, setShowErrorModal] = useState(false);
     const [errorModalData, setErrorModalData] = useState({ title: '', message: '' });
 
@@ -47,6 +49,27 @@ const StepThreeTrailerPhoto = ({ onBack, onBackToDamagePhotos, containerData, on
             
             setLicencePlate(newLicencePlate);
         }
+    }, []);
+
+    // Keyboard event listeners
+    useEffect(() => {
+        const keyboardDidShowListener = Keyboard.addListener(
+            Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
+            () => {
+                setKeyboardVisible(true);
+            }
+        );
+        const keyboardDidHideListener = Keyboard.addListener(
+            Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
+            () => {
+                setKeyboardVisible(false);
+            }
+        );
+
+        return () => {
+            keyboardDidShowListener.remove();
+            keyboardDidHideListener.remove();
+        };
     }, []);
 
     // Conditional back navigation - check if Front Wall damage exists
@@ -699,12 +722,16 @@ const StepThreeTrailerPhoto = ({ onBack, onBackToDamagePhotos, containerData, on
                     style={cn('flex-1')}
                     behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
                     keyboardVerticalOffset={Platform.OS === 'ios' ? 100 : 20}
+                    enabled
                 >
-                    <View
+                    <ScrollView
+                        ref={scrollViewRef}
                         style={cn('flex-1')}
+                        contentContainerStyle={{ flexGrow: 1, paddingBottom: keyboardVisible ? 300 : 20 }}
                         keyboardShouldPersistTaps="handled"
-                        contentContainerStyle={{ paddingBottom: 400 }}
                         showsVerticalScrollIndicator={false}
+                        scrollEnabled={true}
+                        bounces={true}
                     >
                         
                         <View style={cn('p-6')}>
@@ -789,6 +816,11 @@ const StepThreeTrailerPhoto = ({ onBack, onBackToDamagePhotos, containerData, on
                                                             ref={(ref) => (licencePlateRefs.current[index] = ref)}
                                                             value={char}
                                                             onChangeText={(value) => handleLicencePlateChange(index, value)}
+                                                            onFocus={() => {
+                                                                setTimeout(() => {
+                                                                    scrollViewRef.current?.scrollTo({ y: 300, animated: true });
+                                                                }, 100);
+                                                            }}
                                                             style={[
                                                                 cn(`w-12 h-12 border-2 ${isDark ? 'border-yellow-500 bg-gray-800 text-gray-100' : 'border-yellow-700 bg-white text-gray-800'} rounded-lg text-center text-xl font-bold`),
                                                                 {
@@ -837,7 +869,7 @@ const StepThreeTrailerPhoto = ({ onBack, onBackToDamagePhotos, containerData, on
 
                         </View>
 
-                    </View>
+                    </ScrollView>
 
 
                 </KeyboardAvoidingView>

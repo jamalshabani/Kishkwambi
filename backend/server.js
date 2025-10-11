@@ -2681,7 +2681,7 @@ app.post('/api/upload/mobile-photos', upload.array('photos', 10), async (req, re
         // Process uploaded files
         const uploadedFiles = [];
         for (const file of req.files) {
-            const relativePath = `/arrivedContainers/${tripSegmentNumber}/${file.filename}`;
+            const relativePath = `${process.env.EXPO_PUBLIC_BACKEND_URL}/arrivedContainers/${tripSegmentNumber}/${file.filename}`;
             uploadedFiles.push(relativePath);
             
         }
@@ -2793,7 +2793,7 @@ app.post('/api/upload/batch-photos-arrived-containers', uploadS3.fields([
                     // Save to backend/arrivedContainers folder
                     await fs.writeFile(filePath, file.buffer);
                     
-                    const photoUrl = `arrivedContainers/${tripSegmentNumber}/${filename}`;
+                    const photoUrl = `${process.env.EXPO_PUBLIC_BACKEND_URL}/arrivedContainers/${tripSegmentNumber}/${filename}`;
                     
                     // Categorize photos based on type
                     if (photoType === 'TrailerPhoto') {
@@ -2875,7 +2875,7 @@ app.post('/api/upload/batch-photos-arrived-containers', uploadS3.fields([
                     
                     damagePhotosArray.push({
                         damageLocation: standardLocation,
-                        damagePhotoUrl: `arrivedContainers/${tripSegmentNumber}/${filename}`,
+                        damagePhotoUrl: `${process.env.EXPO_PUBLIC_BACKEND_URL}/arrivedContainers/${tripSegmentNumber}/${filename}`,
                         uploadedAt: new Date(timestamp).toISOString()
                     });
                 }

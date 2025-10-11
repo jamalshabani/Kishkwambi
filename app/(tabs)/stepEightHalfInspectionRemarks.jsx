@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, TextInput, Animated, KeyboardAvoidingView, Platform, Modal } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, TextInput, Animated, KeyboardAvoidingView, Platform, Modal, Keyboard } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -15,6 +15,8 @@ const StepEightHalfInspectionRemarks = ({ onBack, onBackToInsideDamagePhotos, co
     const [trailerNumber, setTrailerNumber] = useState(null);
     const [truckNumber, setTruckNumber] = useState(null);
     const [selectedSuggestions, setSelectedSuggestions] = useState(new Set());
+    const [keyboardVisible, setKeyboardVisible] = useState(false);
+    const scrollViewRef = useRef(null);
     
     // State for missing information modal
     const [showMissingInfoModal, setShowMissingInfoModal] = useState(false);
@@ -92,6 +94,27 @@ const StepEightHalfInspectionRemarks = ({ onBack, onBackToInsideDamagePhotos, co
             setSelectedSuggestions(newSelectedSuggestions);
         }
     }, [containerData?.damageRemarks]);
+
+    // Keyboard event listeners
+    useEffect(() => {
+        const keyboardDidShowListener = Keyboard.addListener(
+            Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
+            () => {
+                setKeyboardVisible(true);
+            }
+        );
+        const keyboardDidHideListener = Keyboard.addListener(
+            Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
+            () => {
+                setKeyboardVisible(false);
+            }
+        );
+
+        return () => {
+            keyboardDidShowListener.remove();
+            keyboardDidHideListener.remove();
+        };
+    }, []);
 
     // Animation values for theme switcher
     const themeIconRotation = useRef(new Animated.Value(0)).current;
@@ -306,13 +329,17 @@ const StepEightHalfInspectionRemarks = ({ onBack, onBackToInsideDamagePhotos, co
             <KeyboardAvoidingView 
                 style={cn('flex-1')} 
                 behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-                keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+                keyboardVerticalOffset={Platform.OS === 'ios' ? 100 : 20}
+                enabled
             >
                 <ScrollView 
+                    ref={scrollViewRef}
                     style={cn('flex-1')} 
                     showsVerticalScrollIndicator={false}
                     keyboardShouldPersistTaps="handled"
-                    contentContainerStyle={{ flexGrow: 1 }}
+                    contentContainerStyle={{ flexGrow: 1, paddingBottom: keyboardVisible ? 300 : 20 }}
+                    scrollEnabled={true}
+                    bounces={true}
                 >
                     <View style={cn('p-6')}>
                         {/* Container Number and Trip Segment Display */}
@@ -415,6 +442,11 @@ const StepEightHalfInspectionRemarks = ({ onBack, onBackToInsideDamagePhotos, co
                                         
                                         setSelectedSuggestions(newSelectedSuggestions);
                                     }}
+                                    onFocus={() => {
+                                        setTimeout(() => {
+                                            scrollViewRef.current?.scrollTo({ y: 300, animated: true });
+                                        }, 100);
+                                    }}
                                     multiline={true}
                                     textAlignVertical="top"
                                     returnKeyType="default"
@@ -442,8 +474,8 @@ const StepEightHalfInspectionRemarks = ({ onBack, onBackToInsideDamagePhotos, co
                                                                     px-2 py-1 rounded-full border
                                                                     ${isSelected 
                                                                         ? (isDark 
-                                                                            ? 'bg-blue-600 border-blue-500' 
-                                                                            : 'bg-blue-500 border-blue-400')
+                                                                            ? 'bg-yellow-700 border-yellow-500' 
+                                                                            : 'bg-yellow-700 border-yellow-400')
                                                                         : (isDark 
                                                                             ? 'bg-gray-600 border-gray-500' 
                                                                             : 'bg-white border-gray-200')
@@ -482,8 +514,8 @@ const StepEightHalfInspectionRemarks = ({ onBack, onBackToInsideDamagePhotos, co
                                                                     px-2 py-1 rounded-full border
                                                                     ${isSelected 
                                                                         ? (isDark 
-                                                                            ? 'bg-blue-600 border-blue-500' 
-                                                                            : 'bg-blue-500 border-blue-400')
+                                                                            ? 'bg-yellow-700 border-yellow-500' 
+                                                                            : 'bg-yellow-700 border-yellow-400')
                                                                         : (isDark 
                                                                             ? 'bg-gray-600 border-gray-500' 
                                                                             : 'bg-white border-gray-200')
@@ -522,8 +554,8 @@ const StepEightHalfInspectionRemarks = ({ onBack, onBackToInsideDamagePhotos, co
                                                                     px-2 py-1 rounded-full border
                                                                     ${isSelected 
                                                                         ? (isDark 
-                                                                            ? 'bg-blue-600 border-blue-500' 
-                                                                            : 'bg-blue-500 border-blue-400')
+                                                                            ? 'bg-yellow-700 border-yellow-500' 
+                                                                            : 'bg-yellow-700 border-yellow-500')
                                                                         : (isDark 
                                                                             ? 'bg-gray-600 border-gray-500' 
                                                                             : 'bg-white border-gray-200')
@@ -562,8 +594,8 @@ const StepEightHalfInspectionRemarks = ({ onBack, onBackToInsideDamagePhotos, co
                                                                     px-2 py-1 rounded-full border
                                                                     ${isSelected 
                                                                         ? (isDark 
-                                                                            ? 'bg-blue-600 border-blue-500' 
-                                                                            : 'bg-blue-500 border-blue-400')
+                                                                            ? 'bg-yellow-700 border-yellow-500' 
+                                                                            : 'bg-yellow-700 border-yellow-500')
                                                                         : (isDark 
                                                                             ? 'bg-gray-600 border-gray-500' 
                                                                             : 'bg-white border-gray-200')

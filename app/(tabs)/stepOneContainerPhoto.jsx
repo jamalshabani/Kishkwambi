@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { View, Text, TouchableOpacity, Alert, Image, Animated, Modal, TextInput, ActivityIndicator, ScrollView, KeyboardAvoidingView, Platform, Dimensions } from 'react-native';
+import { View, Text, TouchableOpacity, Alert, Image, Animated, Modal, TextInput, ActivityIndicator, ScrollView, KeyboardAvoidingView, Platform, Dimensions, Keyboard } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { CameraView, useCameraPermissions } from 'expo-camera';
@@ -35,9 +35,11 @@ const StepOneContainerPhoto = ({ onBack, onNavigateToStepTwo, onNavigateToDamage
     const [showContainerModal, setShowContainerModal] = useState(false);
     const [containerModalData, setContainerModalData] = useState({ type: '', message: '' });
     const [screenDimensions, setScreenDimensions] = useState({ width: 0, height: 0 });
+    const [keyboardVisible, setKeyboardVisible] = useState(false);
     const cameraRef = useRef(null);
     const containerNumberRefs = useRef([]);
     const isoCodeRefs = useRef([]);
+    const scrollViewRef = useRef(null);
 
     // Animation values for theme switcher
     const themeIconRotation = useRef(new Animated.Value(0)).current;
@@ -76,6 +78,27 @@ const StepOneContainerPhoto = ({ onBack, onNavigateToStepTwo, onNavigateToDamage
             setContainerData(incomingContainerData);
         }
     }, [incomingContainerData]);
+
+    // Keyboard event listeners
+    useEffect(() => {
+        const keyboardDidShowListener = Keyboard.addListener(
+            Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
+            () => {
+                setKeyboardVisible(true);
+            }
+        );
+        const keyboardDidHideListener = Keyboard.addListener(
+            Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
+            () => {
+                setKeyboardVisible(false);
+            }
+        );
+
+        return () => {
+            keyboardDidShowListener.remove();
+            keyboardDidHideListener.remove();
+        };
+    }, []);
 
     // Camera overlay dimensions
     const screenWidth = Dimensions.get('window').width;
@@ -746,13 +769,17 @@ const StepOneContainerPhoto = ({ onBack, onNavigateToStepTwo, onNavigateToDamage
                 <KeyboardAvoidingView 
                     style={cn('flex-1')}
                     behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-                    keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
+                    keyboardVerticalOffset={Platform.OS === 'ios' ? 100 : 20}
+                    enabled
                 >
                     <ScrollView 
+                        ref={scrollViewRef}
                         style={cn('flex-1')} 
-                        contentContainerStyle={{ flexGrow: 1 }}
+                        contentContainerStyle={{ flexGrow: 1, paddingBottom: keyboardVisible ? 300 : 20 }}
                         keyboardShouldPersistTaps="handled"
                         showsVerticalScrollIndicator={false}
+                        scrollEnabled={true}
+                        bounces={true}
                     >
                         <View style={cn('p-6')}>
                         <View style={cn(`${isDark ? 'bg-gray-800' : 'bg-white'} rounded-lg shadow-lg p-4 mb-6`)}>
@@ -823,6 +850,11 @@ const StepOneContainerPhoto = ({ onBack, onNavigateToStepTwo, onNavigateToDamage
                                                         ref={(ref) => (containerNumberRefs.current[index] = ref)}
                                                         value={char}
                                                         onChangeText={(value) => handleContainerNumberChange(index, value)}
+                                                        onFocus={() => {
+                                                            setTimeout(() => {
+                                                                scrollViewRef.current?.scrollTo({ y: 200, animated: true });
+                                                            }, 100);
+                                                        }}
                                                         style={[
                                                             cn(`w-10 h-12 border-2 ${isDark ? 'border-yellow-500 bg-gray-800 text-gray-100' : 'border-yellow-700 bg-white text-gray-800'} rounded-lg text-center text-xl font-bold`),
                                                             { 
@@ -856,6 +888,11 @@ const StepOneContainerPhoto = ({ onBack, onNavigateToStepTwo, onNavigateToDamage
                                                             ref={(ref) => (isoCodeRefs.current[index] = ref)}
                                                             value={char}
                                                             onChangeText={(value) => handleIsoCodeChange(index, value)}
+                                                            onFocus={() => {
+                                                                setTimeout(() => {
+                                                                    scrollViewRef.current?.scrollTo({ y: 250, animated: true });
+                                                                }, 100);
+                                                            }}
                                                             style={[
                                                                 cn(`w-10 h-12 border-2 ${isDark ? 'border-yellow-500 bg-gray-800 text-gray-100' : 'border-yellow-700 bg-white text-gray-800'} rounded-lg text-center text-xl font-bold`),
                                                                 { 

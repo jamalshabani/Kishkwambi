@@ -28,7 +28,7 @@ const StepSevenLeftSidePhoto = ({ containerData, truckData, onBack, onNavigateTo
     // Camera overlay dimensions for left wall photos
     const screenWidth = Dimensions.get('window').width;
     const screenHeight = Dimensions.get('window').height;
-    const leftWallFrameWidth = screenWidth * 0.60;
+    const leftWallFrameWidth = screenWidth * 0.80; // 80% of screen width
     const leftWallFrameHeight = screenHeight * 0.70;
     
     const centerX = (screenWidth - leftWallFrameWidth) / 2;
