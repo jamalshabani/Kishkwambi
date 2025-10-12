@@ -120,12 +120,46 @@ const StepNineDriverDetails = ({ onBack, containerData, onComplete, onShowSucces
     const cropImageToLicenseFrame = async (imageUri) => {
         try {
             const imageInfo = await ImageManipulator.manipulateAsync(imageUri, [], { format: ImageManipulator.SaveFormat.JPEG });
-            const cropArea = calculateCropArea(imageInfo.width, imageInfo.height);
-            if (cropArea.x < 0 || cropArea.y < 0 || cropArea.width <= 0 || cropArea.height <= 0) return imageUri;
-            if (cropArea.x + cropArea.width > imageInfo.width || cropArea.y + cropArea.height > imageInfo.height) return imageUri;
-            const croppedImage = await ImageManipulator.manipulateAsync(imageUri, [{ crop: { originX: cropArea.x, originY: cropArea.y, width: cropArea.width, height: cropArea.height } }], { compress: 0.6, format: ImageManipulator.SaveFormat.JPEG });
+            const imageWidth = imageInfo.width;
+            const imageHeight = imageInfo.height;
+            
+            // Log size before cropping
+            let beforeCropSize = 0;
+            try {
+                const beforeInfo = await fetch(imageUri);
+                const beforeBlob = await beforeInfo.blob();
+                beforeCropSize = beforeBlob.size;
+                console.log(`📊 BEFORE CROP: ${imageWidth}x${imageHeight}, ${(beforeCropSize / 1024 / 1024).toFixed(2)}MB`);
+            } catch (e) {}
+            
+            const cropArea = calculateCropArea(imageWidth, imageHeight);
+            
+            if (cropArea.x < 0 || cropArea.y < 0 || cropArea.width <= 0 || cropArea.height <= 0) {
+                console.log('⚠️ Invalid crop area, skipping crop');
+                return imageUri;
+            }
+            if (cropArea.x + cropArea.width > imageWidth || cropArea.y + cropArea.height > imageHeight) {
+                console.log('⚠️ Crop area exceeds image bounds, skipping crop');
+                return imageUri;
+            }
+            
+            const croppedImage = await ImageManipulator.manipulateAsync(
+                imageUri, 
+                [{ crop: { originX: cropArea.x, originY: cropArea.y, width: cropArea.width, height: cropArea.height } }], 
+                { compress: 1.0, format: ImageManipulator.SaveFormat.JPEG } // No compression during crop
+            );
+            
+            // Log size after cropping
+            try {
+                const afterInfo = await fetch(croppedImage.uri);
+                const afterBlob = await afterInfo.blob();
+                const reduction = beforeCropSize > 0 ? ((1 - afterBlob.size / beforeCropSize) * 100).toFixed(1) : 0;
+                console.log(`📊 AFTER CROP: ${cropArea.width}x${cropArea.height}, ${(afterBlob.size / 1024 / 1024).toFixed(2)}MB (${reduction}% reduction)`);
+            } catch (e) {}
+            
             return croppedImage.uri;
         } catch (error) {
+            console.error('❌ Crop error:', error);
             return imageUri;
         }
     };
@@ -173,7 +207,7 @@ const StepNineDriverDetails = ({ onBack, containerData, onComplete, onShowSucces
         try {
             setIsProcessing(true);
             const photo = await cameraRef.current.takePictureAsync({
-                quality: 0.3,
+                quality: 0.6,
                 base64: true, // Enable base64 for Vision AI
                 skipProcessing: true,
                 exif: false,
@@ -312,6 +346,78 @@ const StepNineDriverDetails = ({ onBack, containerData, onComplete, onShowSucces
         }
     };
 
+    /**
+     * Resize and compress image to reduce file size
+     * Process: Resize → Compress
+     * @param {string} imageUri - URI of the image to resize and compress
+     * @param {number} quality - Compression quality (0.0 to 1.0, default 0.6)
+     * @param {number} maxWidth - Maximum width (default 1920)
+     * @param {number} maxHeight - Maximum height (default 1080)
+     * @returns {Promise<string>} - URI of the processed image
+     */
+    const compressImage = async (imageUri, quality = 0.6, maxWidth = 1920, maxHeight = 1080) => {
+        try {
+            // Get original image info
+            const imageInfo = await ImageManipulator.manipulateAsync(imageUri, [], {});
+            const originalWidth = imageInfo.width;
+            const originalHeight = imageInfo.height;
+            
+            // Get original file size
+            let originalSize = 0;
+            try {
+                const originalInfo = await fetch(imageUri);
+                const originalBlob = await originalInfo.blob();
+                originalSize = originalBlob.size;
+                console.log(`📊 BEFORE RESIZE: ${originalWidth}x${originalHeight}, ${(originalSize / 1024 / 1024).toFixed(2)}MB`);
+            } catch (e) {}
+            
+            // Calculate new dimensions (maintain aspect ratio)
+            let newWidth = originalWidth;
+            let newHeight = originalHeight;
+            
+            // Only resize if image is larger than max dimensions
+            if (originalWidth > maxWidth || originalHeight > maxHeight) {
+                const widthRatio = maxWidth / originalWidth;
+                const heightRatio = maxHeight / originalHeight;
+                const ratio = Math.min(widthRatio, heightRatio);
+                
+                newWidth = Math.round(originalWidth * ratio);
+                newHeight = Math.round(originalHeight * ratio);
+            }
+            
+            // Prepare transformations
+            const transformations = [];
+            if (newWidth < originalWidth) {
+                transformations.push({ resize: { width: newWidth } });
+            }
+            
+            // Apply resize and compression
+            const processed = await ImageManipulator.manipulateAsync(
+                imageUri,
+                transformations,
+                {
+                    compress: quality,
+                    format: ImageManipulator.SaveFormat.JPEG
+                }
+            );
+            
+            // Log final result
+            try {
+                const processedInfo = await fetch(processed.uri);
+                const processedBlob = await processedInfo.blob();
+                const reduction = originalSize > 0 ? ((1 - processedBlob.size / originalSize) * 100).toFixed(1) : 0;
+                console.log(`📊 AFTER RESIZE & COMPRESS: ${newWidth}x${newHeight}, ${(processedBlob.size / 1024 / 1024).toFixed(2)}MB`);
+                console.log(`✅ TOTAL REDUCTION: ${reduction}%`);
+                console.log('─────────────────────────────────');
+            } catch (e) {}
+            
+            return processed.uri;
+        } catch (error) {
+            console.error('❌ Resize/Compression error:', error);
+            return imageUri;
+        }
+    };
+
     const uploadAllPhotosToArrivedContainers = async (tripSegmentNumber, containerData, progressCallback) => {
         try {
             
@@ -324,73 +430,90 @@ const StepNineDriverDetails = ({ onBack, containerData, onComplete, onShowSucces
             // Collect all photos with their types
             const photos = [];
             
-            // Container photo
+            console.log('📸 Compressing photos before upload...');
+            
+            // Compress and add Container photo
             if (containerData?.containerPhoto) {
-                photos.push({ uri: containerData.containerPhoto, type: 'ContainerPhoto' });
+                const compressedUri = await compressImage(containerData.containerPhoto);
+                photos.push({ uri: compressedUri, type: 'ContainerPhoto' });
             }
             
-            // Trailer photo
+            // Compress and add Trailer photo
             if (containerData?.trailerPhoto) {
-                photos.push({ uri: containerData.trailerPhoto, type: 'TrailerPhoto' });
+                const compressedUri = await compressImage(containerData.trailerPhoto);
+                photos.push({ uri: compressedUri, type: 'TrailerPhoto' });
             }
             
-            // Right wall photo
+            // Compress and add Right wall photo
             if (containerData?.rightWallPhoto) {
-                photos.push({ uri: containerData.rightWallPhoto, type: 'RightWallPhoto' });
+                const compressedUri = await compressImage(containerData.rightWallPhoto);
+                photos.push({ uri: compressedUri, type: 'RightWallPhoto' });
             }
             
-            // Back wall photo
+            // Compress and add Back wall photo
             if (containerData?.backWallPhoto) {
-                photos.push({ uri: containerData.backWallPhoto, type: 'BackWallPhoto' });
+                const compressedUri = await compressImage(containerData.backWallPhoto);
+                photos.push({ uri: compressedUri, type: 'BackWallPhoto' });
             }
             
-            // Truck photo
+            // Compress and add Truck photo
             if (containerData?.truckPhoto) {
-                photos.push({ uri: containerData.truckPhoto, type: 'TruckPhoto' });
+                const compressedUri = await compressImage(containerData.truckPhoto);
+                photos.push({ uri: compressedUri, type: 'TruckPhoto' });
             }
             
-            // Left side photo
+            // Compress and add Left side photo
             if (containerData?.leftSidePhoto) {
-                photos.push({ uri: containerData.leftSidePhoto, type: 'LeftSidePhoto' });
+                const compressedUri = await compressImage(containerData.leftSidePhoto);
+                photos.push({ uri: compressedUri, type: 'LeftSidePhoto' });
             }
             
-            // Inside photo
+            // Compress and add Inside photo
             if (containerData?.insidePhoto) {
-                photos.push({ uri: containerData.insidePhoto, type: 'InsidePhoto' });
+                const compressedUri = await compressImage(containerData.insidePhoto);
+                photos.push({ uri: compressedUri, type: 'InsidePhoto' });
             }
             
-            // Damage photos from all locations
+            // Compress and add Damage photos from all locations
             const damagePhotos = [];
             if (containerData?.frontWallDamagePhotos && containerData.frontWallDamagePhotos.length > 0) {
-                containerData.frontWallDamagePhotos.forEach(photo => {
-                    damagePhotos.push({ uri: photo.uri, location: 'FrontWall' });
-                });
+                for (const photo of containerData.frontWallDamagePhotos) {
+                    const compressedUri = await compressImage(photo.uri);
+                    damagePhotos.push({ uri: compressedUri, location: 'FrontWall' });
+                }
             }
             if (containerData?.rightWallDamagePhotos && containerData.rightWallDamagePhotos.length > 0) {
-                containerData.rightWallDamagePhotos.forEach(photo => {
-                    damagePhotos.push({ uri: photo.uri, location: 'RightWall' });
-                });
+                for (const photo of containerData.rightWallDamagePhotos) {
+                    const compressedUri = await compressImage(photo.uri);
+                    damagePhotos.push({ uri: compressedUri, location: 'RightWall' });
+                }
             }
             if (containerData?.backWallDamagePhotos && containerData.backWallDamagePhotos.length > 0) {
-                containerData.backWallDamagePhotos.forEach(photo => {
-                    damagePhotos.push({ uri: photo.uri, location: 'BackWall' });
-                });
+                for (const photo of containerData.backWallDamagePhotos) {
+                    const compressedUri = await compressImage(photo.uri);
+                    damagePhotos.push({ uri: compressedUri, location: 'BackWall' });
+                }
             }
             if (containerData?.leftWallDamagePhotos && containerData.leftWallDamagePhotos.length > 0) {
-                containerData.leftWallDamagePhotos.forEach(photo => {
-                    damagePhotos.push({ uri: photo.uri, location: 'LeftWall' });
-                });
+                for (const photo of containerData.leftWallDamagePhotos) {
+                    const compressedUri = await compressImage(photo.uri);
+                    damagePhotos.push({ uri: compressedUri, location: 'LeftWall' });
+                }
             }
             if (containerData?.insideDamagePhotos && containerData.insideDamagePhotos.length > 0) {
-                containerData.insideDamagePhotos.forEach(photo => {
-                    damagePhotos.push({ uri: photo.uri, location: 'Inside' });
-                });
+                for (const photo of containerData.insideDamagePhotos) {
+                    const compressedUri = await compressImage(photo.uri);
+                    damagePhotos.push({ uri: compressedUri, location: 'Inside' });
+                }
             }
             
-            // Driver license photo
+            // Compress and add Driver license photo
             if (image) {
-                photos.push({ uri: image, type: 'DriverLicensePhoto' });
+                const compressedUri = await compressImage(image);
+                photos.push({ uri: compressedUri, type: 'DriverLicensePhoto' });
             }
+            
+            console.log(`✅ Compressed ${photos.length} main photos and ${damagePhotos.length} damage photos`);
             
             const totalPhotos = photos.length + damagePhotos.length;
             

@@ -339,6 +339,364 @@ app.post('/api/auth/change-password', async (req, res) => {
     }
 });
 
+// Check if user has PIN setup for this device
+app.post('/api/auth/check-pin', async (req, res) => {
+    try {
+        const { userId, deviceId } = req.body;
+
+        if (!userId || !deviceId) {
+            return res.status(400).json({
+                success: false,
+                error: 'User ID and device ID are required'
+            });
+        }
+
+        if (!db) {
+            throw new Error('Database not connected');
+        }
+
+        const collection = db.collection(COLLECTION_NAME);
+        const user = await collection.findOne({ 
+            _id: new ObjectId(userId),
+            'pinDevices.deviceId': deviceId
+        });
+
+        res.json({
+            success: true,
+            hasPinSetup: !!user
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+
+// Setup PIN for a device
+app.post('/api/auth/setup-pin', async (req, res) => {
+    try {
+        const { userId, deviceId, pin, deviceName } = req.body;
+
+        if (!userId || !deviceId || !pin) {
+            return res.status(400).json({
+                success: false,
+                error: 'User ID, device ID, and PIN are required'
+            });
+        }
+
+        // Validate PIN is 4 digits
+        if (!/^\d{4}$/.test(pin)) {
+            return res.status(400).json({
+                success: false,
+                error: 'PIN must be exactly 4 digits'
+            });
+        }
+
+        if (!db) {
+            throw new Error('Database not connected');
+        }
+
+        const collection = db.collection(COLLECTION_NAME);
+        
+        // Find user by ID
+        const user = await collection.findOne({ _id: new ObjectId(userId) });
+
+        if (!user) {
+            return res.status(404).json({
+                success: false,
+                error: 'User not found'
+            });
+        }
+
+        // Hash the PIN
+        const bcrypt = require('bcryptjs');
+        const saltRounds = 12;
+        const pinHash = await bcrypt.hash(pin, saltRounds);
+
+        // Check if device already has PIN setup
+        const existingDevice = user.pinDevices?.find(d => d.deviceId === deviceId);
+
+        if (existingDevice) {
+            // Update existing device PIN
+            const result = await collection.updateOne(
+                { 
+                    _id: new ObjectId(userId),
+                    'pinDevices.deviceId': deviceId
+                },
+                { 
+                    $set: { 
+                        'pinDevices.$.pinHash': pinHash,
+                        'pinDevices.$.deviceName': deviceName || 'Unknown Device',
+                        'pinDevices.$.lastUsed': new Date()
+                    } 
+                }
+            );
+
+            if (result.modifiedCount === 1) {
+                res.json({
+                    success: true,
+                    message: 'PIN updated successfully'
+                });
+            } else {
+                res.status(500).json({
+                    success: false,
+                    error: 'Failed to update PIN'
+                });
+            }
+        } else {
+            // Add new device with PIN
+            const result = await collection.updateOne(
+                { _id: new ObjectId(userId) },
+                { 
+                    $push: { 
+                        pinDevices: {
+                            deviceId,
+                            pinHash,
+                            deviceName: deviceName || 'Unknown Device',
+                            createdAt: new Date(),
+                            lastUsed: new Date()
+                        }
+                    } 
+                }
+            );
+
+            if (result.modifiedCount === 1) {
+                res.json({
+                    success: true,
+                    message: 'PIN setup successfully'
+                });
+            } else {
+                res.status(500).json({
+                    success: false,
+                    error: 'Failed to setup PIN'
+                });
+            }
+        }
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+
+// Login with PIN
+app.post('/api/auth/login-pin', async (req, res) => {
+    try {
+        const { deviceId, pin } = req.body;
+
+        if (!deviceId || !pin) {
+            return res.status(400).json({
+                success: false,
+                error: 'Device ID and PIN are required'
+            });
+        }
+
+        // Validate PIN is 4 digits
+        if (!/^\d{4}$/.test(pin)) {
+            return res.status(400).json({
+                success: false,
+                error: 'Invalid PIN format'
+            });
+        }
+
+        if (!db) {
+            throw new Error('Database not connected');
+        }
+
+        const collection = db.collection(COLLECTION_NAME);
+        
+        // Find user with this device ID
+        const user = await collection.findOne({ 
+            'pinDevices.deviceId': deviceId
+        });
+
+        if (!user) {
+            return res.status(401).json({
+                success: false,
+                error: 'No PIN setup for this device'
+            });
+        }
+
+        if (user.isActive !== 'Yes') {
+            return res.status(401).json({
+                success: false,
+                error: 'Account is deactivated. Please contact administrator.'
+            });
+        }
+
+        // Find the specific device
+        const device = user.pinDevices.find(d => d.deviceId === deviceId);
+
+        if (!device) {
+            return res.status(401).json({
+                success: false,
+                error: 'No PIN setup for this device'
+            });
+        }
+
+        // Check if device is locked due to failed attempts
+        const now = new Date();
+        if (device.lockedUntil && device.lockedUntil > now) {
+            const remainingMinutes = Math.ceil((device.lockedUntil - now) / 60000);
+            return res.status(429).json({
+                success: false,
+                error: `Too many failed attempts. Please try again in ${remainingMinutes} minute${remainingMinutes > 1 ? 's' : ''}`,
+                lockedUntil: device.lockedUntil,
+                remainingMinutes
+            });
+        }
+
+        // Verify PIN
+        const bcrypt = require('bcryptjs');
+        const isPinValid = await bcrypt.compare(pin, device.pinHash);
+
+        if (!isPinValid) {
+            // Increment failed attempts
+            const failedAttempts = (device.failedAttempts || 0) + 1;
+            let lockedUntil = null;
+            let lockoutMinutes = 0;
+
+            // Progressive lockout strategy
+            // 5 attempts: 5 minutes
+            // 10 attempts: 15 minutes
+            // 15 attempts: 30 minutes
+            // 20+ attempts: 60 minutes
+            if (failedAttempts >= 20) {
+                lockoutMinutes = 60;
+            } else if (failedAttempts >= 15) {
+                lockoutMinutes = 30;
+            } else if (failedAttempts >= 10) {
+                lockoutMinutes = 15;
+            } else if (failedAttempts >= 5) {
+                lockoutMinutes = 5;
+            }
+
+            if (lockoutMinutes > 0) {
+                lockedUntil = new Date(now.getTime() + lockoutMinutes * 60000);
+            }
+
+            // Update failed attempts
+            await collection.updateOne(
+                { 
+                    _id: user._id,
+                    'pinDevices.deviceId': deviceId
+                },
+                { 
+                    $set: { 
+                        'pinDevices.$.failedAttempts': failedAttempts,
+                        'pinDevices.$.lockedUntil': lockedUntil,
+                        'pinDevices.$.lastFailedAttempt': now
+                    } 
+                }
+            );
+
+            const attemptsRemaining = Math.max(0, 5 - failedAttempts);
+            
+            if (lockedUntil) {
+                return res.status(429).json({
+                    success: false,
+                    error: `Too many failed attempts. Account locked for ${lockoutMinutes} minutes`,
+                    failedAttempts,
+                    lockedUntil,
+                    lockoutMinutes
+                });
+            } else {
+                return res.status(401).json({
+                    success: false,
+                    error: `Invalid PIN. ${attemptsRemaining} attempt${attemptsRemaining !== 1 ? 's' : ''} remaining before lockout`,
+                    failedAttempts,
+                    attemptsRemaining
+                });
+            }
+        }
+
+        // PIN is valid - reset failed attempts and update last used
+        await collection.updateOne(
+            { 
+                _id: user._id,
+                'pinDevices.deviceId': deviceId
+            },
+            { 
+                $set: { 
+                    'pinDevices.$.lastUsed': now,
+                    'pinDevices.$.failedAttempts': 0,
+                    'pinDevices.$.lockedUntil': null,
+                    'pinDevices.$.lastFailedAttempt': null
+                } 
+            }
+        );
+
+        // Return user data (without password)
+        const userData = {
+            id: user._id,
+            email: user.email,
+            name: `${user.firstName} ${user.lastName}`,
+            role: user.role,
+            permissions: user.permissions || [],
+            phone: user.phone
+        };
+
+        res.json({
+            success: true,
+            user: userData
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+
+// Remove PIN for a device
+app.post('/api/auth/remove-pin', async (req, res) => {
+    try {
+        const { userId, deviceId } = req.body;
+
+        if (!userId || !deviceId) {
+            return res.status(400).json({
+                success: false,
+                error: 'User ID and device ID are required'
+            });
+        }
+
+        if (!db) {
+            throw new Error('Database not connected');
+        }
+
+        const collection = db.collection(COLLECTION_NAME);
+        
+        // Remove device from pinDevices array
+        const result = await collection.updateOne(
+            { _id: new ObjectId(userId) },
+            { 
+                $pull: { 
+                    pinDevices: { deviceId }
+                } 
+            }
+        );
+
+        if (result.modifiedCount === 1) {
+            res.json({
+                success: true,
+                message: 'PIN removed successfully'
+            });
+        } else {
+            res.status(500).json({
+                success: false,
+                error: 'Failed to remove PIN'
+            });
+        }
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+
 // Get connection status
 app.get('/api/status', async (req, res) => {
     try {
@@ -2745,9 +3103,8 @@ app.post('/api/upload/mobile-photos', upload.array('photos', 10), async (req, re
     }
 });
 
-// Batch upload endpoint for all inspection photos to LOCAL backend/arrivedContainers folder
-// NOTE: This saves to LOCAL FILESYSTEM ONLY (backend/arrivedContainers/)
-// NOT uploaded to Backblaze B2 - that will be handled separately later
+// Batch upload endpoint for all inspection photos to Backblaze B2 Cloud Storage
+// Uploads all photos (container, trailer, truck, walls, inside, driver license, damage) to B2
 app.post('/api/upload/batch-photos-arrived-containers', uploadS3.fields([
     { name: 'photos', maxCount: 20 },
     { name: 'damagePhotos', maxCount: 50 }
@@ -2769,16 +3126,13 @@ app.post('/api/upload/batch-photos-arrived-containers', uploadS3.fields([
             }
 
             const tripsegmentsCollection = db.collection('tripsegments');
-            
-            // Create folder for this trip segment in backend/arrivedContainers
-            const containerFolderPath = path.join(ARRIVED_CONTAINERS_DIR, tripSegmentNumber);
-            await fs.mkdir(containerFolderPath, { recursive: true });
 
             const containerPhotosArray = [];
             const damagePhotosArray = [];
             let trailerPhotoUrl = null;
             let truckPhotoUrl = null;
             let driverLicensePhotoUrl = null;
+            const uploadedFiles = [];
 
             // Process inspection photos (container, trailer, truck, walls, inside, driver license)
             if (req.files?.photos && req.files.photos.length > 0) {
@@ -2792,12 +3146,28 @@ app.post('/api/upload/batch-photos-arrived-containers', uploadS3.fields([
                     
                     // Generate filename
                     const filename = generateFilename(tripSegmentNumber, photoType, sequenceNumber, timestamp);
-                    const filePath = path.join(containerFolderPath, filename);
                     
-                    // Save to backend/arrivedContainers folder
-                    await fs.writeFile(filePath, file.buffer);
+                    // Upload to B2 with folder structure: tripSegmentNumber/filename.jpg
+                    const s3Key = `${tripSegmentNumber}/${filename}`;
+                    const uploadResult = await uploadToS3(file, s3Key, 'image/jpeg');
                     
-                    const photoUrl = `${process.env.BACKEND_URL}/arrivedContainers/${tripSegmentNumber}/${filename}`;
+                    if (!uploadResult.success) {
+                        console.error(`Failed to upload ${filename} to B2:`, uploadResult.error);
+                        return res.status(500).json({
+                            success: false,
+                            error: `Failed to upload ${photoType} to cloud storage: ${uploadResult.error}`
+                        });
+                    }
+                    
+                    const photoUrl = uploadResult.url;
+                    
+                    // Track uploaded file
+                    uploadedFiles.push({
+                        s3Key: s3Key,
+                        filename: filename,
+                        url: uploadResult.url,
+                        type: photoType
+                    });
                     
                     // Categorize photos based on type
                     if (photoType === 'TrailerPhoto') {
@@ -2850,10 +3220,18 @@ app.post('/api/upload/batch-photos-arrived-containers', uploadS3.fields([
                     
                     // Generate filename for damage photo
                     const filename = generateFilename(tripSegmentNumber, 'DamagePhoto', sequenceNumber, timestamp);
-                    const filePath = path.join(containerFolderPath, filename);
                     
-                    // Save to backend/arrivedContainers folder
-                    await fs.writeFile(filePath, file.buffer);
+                    // Upload to B2 with folder structure: tripSegmentNumber/filename.jpg
+                    const s3Key = `${tripSegmentNumber}/${filename}`;
+                    const uploadResult = await uploadToS3(file, s3Key, 'image/jpeg');
+                    
+                    if (!uploadResult.success) {
+                        console.error(`Failed to upload damage photo ${filename} to B2:`, uploadResult.error);
+                        return res.status(500).json({
+                            success: false,
+                            error: `Failed to upload damage photo to cloud storage: ${uploadResult.error}`
+                        });
+                    }
                     
                     // Map location names to standard format
                     let standardLocation = '';
@@ -2879,8 +3257,16 @@ app.post('/api/upload/batch-photos-arrived-containers', uploadS3.fields([
                     
                     damagePhotosArray.push({
                         damageLocation: standardLocation,
-                        damagePhotoUrl: `${process.env.BACKEND_URL}/arrivedContainers/${tripSegmentNumber}/${filename}`,
+                        damagePhotoUrl: uploadResult.url, // Use B2 URL
                         uploadedAt: new Date(timestamp).toISOString()
+                    });
+                    
+                    uploadedFiles.push({
+                        s3Key: s3Key,
+                        filename: filename,
+                        url: uploadResult.url,
+                        type: 'DamagePhoto',
+                        location: standardLocation
                     });
                 }
             }
@@ -2922,13 +3308,14 @@ app.post('/api/upload/batch-photos-arrived-containers', uploadS3.fields([
 
             res.json({
                 success: true,
-                message: 'All photos saved to backend/arrivedContainers successfully',
+                message: 'All photos uploaded to Backblaze B2 cloud storage successfully',
                 photoReferences: {
                     containerPhotos: containerPhotosArray,
                     damagePhotos: damagePhotosArray
                 },
                 totalPhotos: containerPhotosArray.length + damagePhotosArray.length,
-                localPath: `arrivedContainers/${tripSegmentNumber}/`
+                cloudPath: `${tripSegmentNumber}/`,
+                uploadedFiles: uploadedFiles
             });
 
         } catch (error) {

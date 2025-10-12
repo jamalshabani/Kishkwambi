@@ -94,13 +94,38 @@ export const AuthProvider = ({ children }) => {
         }
     };
 
+    const signInWithPin = async (deviceId, pin) => {
+        setLoading(true);
+        try {
+            const result = await auth.signInWithPin(deviceId, pin);
+            
+            if (result.success) {
+                setUser(result.user);
+            }
+            return result;
+        } catch (error) {
+            return {
+                success: false,
+                error: 'Failed to sign in with PIN'
+            };
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const setUserDirectly = (userData) => {
+        setUser(userData);
+    };
+
     const value = {
         user,
         loading,
         signIn,
+        signInWithPin,
         signOut,
         changePassword,
         setLoadingState,
+        setUserDirectly,
         isAuthenticated: !!user
     };
 

@@ -252,7 +252,7 @@ const StepThreeTrailerPhoto = ({ onBack, onBackToDamagePhotos, containerData, on
         try {
             setIsProcessing(true);
             const photo = await cameraRef.current.takePictureAsync({
-                quality: 0.3,
+                quality: 0.6,
                 base64: false,
                 skipProcessing: true,
                 exif: false,

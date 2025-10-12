@@ -16,6 +16,7 @@
     "babel-preset-expo": "^54.0.3",
     "bcryptjs": "^3.0.2",
     "expo": "54.0.13",
+    "expo-application": "~7.0.7",
     "expo-camera": "^17.0.8",
     "expo-constants": "^18.0.9",
     "expo-image-manipulator": "~14.0.7",

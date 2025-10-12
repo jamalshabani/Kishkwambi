@@ -141,7 +141,7 @@ const StepOneContainerPhoto = ({ onBack, onNavigateToStepTwo, onNavigateToDamage
         if (cameraRef.current) {
             try {
                 const photo = await cameraRef.current.takePictureAsync({
-                    quality: 0.3,  // Reduced from 0.4 to 0.3 for smaller file size
+                    quality: 0.6,
                     base64: false,
                     skipProcessing: true,
                     exif: false,

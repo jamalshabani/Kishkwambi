@@ -50,6 +50,43 @@ const userSchema = new Schema({
         required: true
     },
 
+    // PIN-related fields for quick login
+    pinDevices: [{
+        deviceId: {
+            type: String,
+            required: true
+        },
+        pinHash: {
+            type: String,
+            required: true
+        },
+        deviceName: {
+            type: String,
+            default: 'Unknown Device'
+        },
+        createdAt: {
+            type: Date,
+            default: Date.now
+        },
+        lastUsed: {
+            type: Date,
+            default: Date.now
+        },
+        // Brute force protection
+        failedAttempts: {
+            type: Number,
+            default: 0
+        },
+        lockedUntil: {
+            type: Date,
+            default: null
+        },
+        lastFailedAttempt: {
+            type: Date,
+            default: null
+        }
+    }]
+
 }, { timestamps: true }
 )
 
