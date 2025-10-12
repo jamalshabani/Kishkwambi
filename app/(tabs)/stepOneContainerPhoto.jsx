@@ -151,8 +151,8 @@ const StepOneContainerPhoto = ({ onBack, onNavigateToStepTwo, onNavigateToDamage
                 try {
                     const fileInfo = await fetch(photo.uri);
                     const blob = await fileInfo.blob();
-                    const fileSizeKB = (blob.size / 1024).toFixed(2);
                     const fileSizeMB = (blob.size / 1024 / 1024).toFixed(2);
+                    console.log(`📊 AFTER CAPTURE: ${fileSizeMB}MB`);
                 } catch (sizeError) {
                 }
                 
@@ -166,8 +166,8 @@ const StepOneContainerPhoto = ({ onBack, onNavigateToStepTwo, onNavigateToDamage
                 try {
                     const fileInfo = await fetch(croppedImage);
                     const blob = await fileInfo.blob();
-                    const fileSizeKB = (blob.size / 1024).toFixed(2);
                     const fileSizeMB = (blob.size / 1024 / 1024).toFixed(2);
+                    console.log(`📊 AFTER CROP: ${fileSizeMB}MB`);
                 } catch (sizeError) {
                 }
                 

@@ -183,24 +183,44 @@ const StepOneDamagePhotos = ({ onBack, containerData, onNavigateToStepThree, onN
             const imageWidth = imageInfo.width;
             const imageHeight = imageInfo.height;
             
+            // Log size before cropping
+            let beforeCropSize = 0;
+            try {
+                const beforeInfo = await fetch(imageUri);
+                const beforeBlob = await beforeInfo.blob();
+                beforeCropSize = beforeBlob.size;
+                console.log(`📊 BEFORE CROP: ${imageWidth}x${imageHeight}, ${(beforeCropSize / 1024 / 1024).toFixed(2)}MB`);
+            } catch (e) {}
+            
             const cropArea = calculateCropArea(imageWidth, imageHeight);
             
             if (cropArea.x < 0 || cropArea.y < 0 || cropArea.width <= 0 || cropArea.height <= 0) {
+                console.log('⚠️ Invalid crop area, skipping crop');
                 return imageUri;
             }
             
             if (cropArea.x + cropArea.width > imageWidth || cropArea.y + cropArea.height > imageHeight) {
+                console.log('⚠️ Crop area exceeds image bounds, skipping crop');
                 return imageUri;
             }
             
             const croppedImage = await ImageManipulator.manipulateAsync(
                 imageUri,
                 [{ crop: { originX: cropArea.x, originY: cropArea.y, width: cropArea.width, height: cropArea.height } }],
-                { compress: 0.6, format: ImageManipulator.SaveFormat.JPEG }
+                { compress: 1.0, format: ImageManipulator.SaveFormat.JPEG } // No compression during crop
             );
+            
+            // Log size after cropping
+            try {
+                const afterInfo = await fetch(croppedImage.uri);
+                const afterBlob = await afterInfo.blob();
+                const reduction = beforeCropSize > 0 ? ((1 - afterBlob.size / beforeCropSize) * 100).toFixed(1) : 0;
+                console.log(`📊 AFTER CROP: ${cropArea.width}x${cropArea.height}, ${(afterBlob.size / 1024 / 1024).toFixed(2)}MB (${reduction}% reduction)`);
+            } catch (e) {}
             
             return croppedImage.uri;
         } catch (error) {
+            console.error('❌ Crop error:', error);
             return imageUri;
         }
     };

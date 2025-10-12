@@ -194,14 +194,17 @@ app.get('/api/users', async (req, res) => {
 // Authenticate user
 app.post('/api/auth/login', async (req, res) => {
     try {
-        const { email, password } = req.body;
+        let { email, password } = req.body;
 
         if (!email || !password) {
             return res.status(400).json({
                 success: false,
-                error: 'Email and password are required'
+                error: 'Email and Password are required'
             });
         }
+
+        // Convert email to lowercase for case-insensitive matching
+        email = email.toLowerCase().trim();
 
         if (!db) {
             throw new Error('Database not connected');
@@ -761,9 +764,7 @@ app.post('/api/vision/process-image', uploadS3.single('image'), async (req, res)
         });
 
         const data = await response.json();
-        
-        console.log('📸 ParkPow API Response Status:', response.status);
-        console.log('📸 ParkPow API Raw Response:', JSON.stringify(data, null, 2));
+    
         
         // Check for API errors
         if (!response.ok) {
@@ -779,7 +780,6 @@ app.post('/api/vision/process-image', uploadS3.single('image'), async (req, res)
         // Use utility function to format ParkRow response
         const formattedResponse = formatParkRowResponse(data);
         
-        console.log('✅ Formatted Response:', JSON.stringify(formattedResponse, null, 2));
 
         // Return formatted response with only required fields
         res.json(formattedResponse);
@@ -3103,8 +3103,8 @@ app.post('/api/upload/mobile-photos', upload.array('photos', 10), async (req, re
     }
 });
 
-// Batch upload endpoint for all inspection photos to Backblaze B2 Cloud Storage
-// Uploads all photos (container, trailer, truck, walls, inside, driver license, damage) to B2
+// Batch upload endpoint for all inspection photos to LOCAL backend/arrivedContainers folder
+// Saves all photos with consistent naming: ContainerPhoto (1-5), DamagePhoto, TruckPhoto, TrailerPhoto
 app.post('/api/upload/batch-photos-arrived-containers', uploadS3.fields([
     { name: 'photos', maxCount: 20 },
     { name: 'damagePhotos', maxCount: 50 }
@@ -3126,6 +3126,10 @@ app.post('/api/upload/batch-photos-arrived-containers', uploadS3.fields([
             }
 
             const tripsegmentsCollection = db.collection('tripsegments');
+            
+            // Create folder for this trip segment: backend/arrivedContainers/ST25-00123/
+            const containerFolderPath = path.join(ARRIVED_CONTAINERS_DIR, tripSegmentNumber);
+            await fs.mkdir(containerFolderPath, { recursive: true });
 
             const containerPhotosArray = [];
             const damagePhotosArray = [];
@@ -3137,49 +3141,27 @@ app.post('/api/upload/batch-photos-arrived-containers', uploadS3.fields([
             // Process inspection photos (container, trailer, truck, walls, inside, driver license)
             if (req.files?.photos && req.files.photos.length > 0) {
                 const photoTypesArray = Array.isArray(photoTypes) ? photoTypes : [photoTypes];
+                let containerPhotoCounter = 0; // Counter for ContainerPhoto (1-5)
                 
                 for (let i = 0; i < req.files.photos.length; i++) {
                     const file = req.files.photos[i];
-                    const photoType = photoTypesArray[i] || 'Photo';
+                    const originalPhotoType = photoTypesArray[i] || 'Photo';
                     const timestamp = Date.now() + i; // Ensure unique timestamps
-                    const sequenceNumber = i + 1;
                     
-                    // Generate filename
-                    const filename = generateFilename(tripSegmentNumber, photoType, sequenceNumber, timestamp);
+                    // Normalize photo type for filename
+                    // Front wall, Right wall, Back wall, Left wall, Inside → All use "ContainerPhoto"
+                    let filenamePhotoType;
+                    let sequenceNumber;
+                    let locationName = '';
                     
-                    // Upload to B2 with folder structure: tripSegmentNumber/filename.jpg
-                    const s3Key = `${tripSegmentNumber}/${filename}`;
-                    const uploadResult = await uploadToS3(file, s3Key, 'image/jpeg');
-                    
-                    if (!uploadResult.success) {
-                        console.error(`Failed to upload ${filename} to B2:`, uploadResult.error);
-                        return res.status(500).json({
-                            success: false,
-                            error: `Failed to upload ${photoType} to cloud storage: ${uploadResult.error}`
-                        });
-                    }
-                    
-                    const photoUrl = uploadResult.url;
-                    
-                    // Track uploaded file
-                    uploadedFiles.push({
-                        s3Key: s3Key,
-                        filename: filename,
-                        url: uploadResult.url,
-                        type: photoType
-                    });
-                    
-                    // Categorize photos based on type
-                    if (photoType === 'TrailerPhoto') {
-                        trailerPhotoUrl = photoUrl;
-                    } else if (photoType === 'TruckPhoto') {
-                        truckPhotoUrl = photoUrl;
-                    } else if (photoType === 'DriverLicensePhoto') {
-                        driverLicensePhotoUrl = photoUrl;
-                    } else {
-                        // Map photo types to standard location names
-                        let locationName = '';
-                        switch(photoType) {
+                    if (['ContainerPhoto', 'RightWallPhoto', 'BackWallPhoto', 'LeftSidePhoto', 'InsidePhoto'].includes(originalPhotoType)) {
+                        // All wall and inside photos use "ContainerPhoto" in filename
+                        filenamePhotoType = 'ContainerPhoto';
+                        containerPhotoCounter++;
+                        sequenceNumber = containerPhotoCounter; // 1, 2, 3, 4, 5
+                        
+                        // Map to location name for database
+                        switch(originalPhotoType) {
                             case 'ContainerPhoto':
                                 locationName = 'Front Wall';
                                 break;
@@ -3195,10 +3177,40 @@ app.post('/api/upload/batch-photos-arrived-containers', uploadS3.fields([
                             case 'InsidePhoto':
                                 locationName = 'Inside';
                                 break;
-                            default:
-                                locationName = photoType.replace('Photo', '').replace(/([A-Z])/g, ' $1').trim();
                         }
-                        
+                    } else {
+                        // TruckPhoto, TrailerPhoto, DriverLicensePhoto keep their type
+                        filenamePhotoType = originalPhotoType;
+                        sequenceNumber = 1;
+                    }
+                    
+                    // Generate filename with normalized type
+                    const filename = generateFilename(tripSegmentNumber, filenamePhotoType, sequenceNumber, timestamp);
+                    const filePath = path.join(containerFolderPath, filename);
+                    
+                    // Save to local backend/arrivedContainers/{tripSegmentNumber}/ folder
+                    await fs.writeFile(filePath, file.buffer);
+                    
+                    const photoUrl = `${process.env.BACKEND_URL}/arrivedContainers/${tripSegmentNumber}/${filename}`;
+                    
+                    // Track uploaded file
+                    uploadedFiles.push({
+                        filename: filename,
+                        localPath: filePath,
+                        url: photoUrl,
+                        type: filenamePhotoType,
+                        originalType: originalPhotoType
+                    });
+                    
+                    // Categorize photos based on type
+                    if (originalPhotoType === 'TrailerPhoto') {
+                        trailerPhotoUrl = photoUrl;
+                    } else if (originalPhotoType === 'TruckPhoto') {
+                        truckPhotoUrl = photoUrl;
+                    } else if (originalPhotoType === 'DriverLicensePhoto') {
+                        driverLicensePhotoUrl = photoUrl;
+                    } else if (locationName) {
+                        // Container photos (walls and inside)
                         containerPhotosArray.push({
                             containerPhotoLocation: locationName,
                             containerPhotoUrl: photoUrl,
@@ -3220,18 +3232,10 @@ app.post('/api/upload/batch-photos-arrived-containers', uploadS3.fields([
                     
                     // Generate filename for damage photo
                     const filename = generateFilename(tripSegmentNumber, 'DamagePhoto', sequenceNumber, timestamp);
+                    const filePath = path.join(containerFolderPath, filename);
                     
-                    // Upload to B2 with folder structure: tripSegmentNumber/filename.jpg
-                    const s3Key = `${tripSegmentNumber}/${filename}`;
-                    const uploadResult = await uploadToS3(file, s3Key, 'image/jpeg');
-                    
-                    if (!uploadResult.success) {
-                        console.error(`Failed to upload damage photo ${filename} to B2:`, uploadResult.error);
-                        return res.status(500).json({
-                            success: false,
-                            error: `Failed to upload damage photo to cloud storage: ${uploadResult.error}`
-                        });
-                    }
+                    // Save to local backend/arrivedContainers/{tripSegmentNumber}/ folder
+                    await fs.writeFile(filePath, file.buffer);
                     
                     // Map location names to standard format
                     let standardLocation = '';
@@ -3257,14 +3261,14 @@ app.post('/api/upload/batch-photos-arrived-containers', uploadS3.fields([
                     
                     damagePhotosArray.push({
                         damageLocation: standardLocation,
-                        damagePhotoUrl: uploadResult.url, // Use B2 URL
+                        damagePhotoUrl: `${process.env.BACKEND_URL}/arrivedContainers/${tripSegmentNumber}/${filename}`,
                         uploadedAt: new Date(timestamp).toISOString()
                     });
                     
                     uploadedFiles.push({
-                        s3Key: s3Key,
                         filename: filename,
-                        url: uploadResult.url,
+                        localPath: filePath,
+                        url: `${process.env.BACKEND_URL}/arrivedContainers/${tripSegmentNumber}/${filename}`,
                         type: 'DamagePhoto',
                         location: standardLocation
                     });
@@ -3308,13 +3312,13 @@ app.post('/api/upload/batch-photos-arrived-containers', uploadS3.fields([
 
             res.json({
                 success: true,
-                message: 'All photos uploaded to Backblaze B2 cloud storage successfully',
+                message: 'All photos saved to backend/arrivedContainers successfully',
                 photoReferences: {
                     containerPhotos: containerPhotosArray,
                     damagePhotos: damagePhotosArray
                 },
                 totalPhotos: containerPhotosArray.length + damagePhotosArray.length,
-                cloudPath: `${tripSegmentNumber}/`,
+                localPath: `arrivedContainers/${tripSegmentNumber}/`,
                 uploadedFiles: uploadedFiles
             });
 

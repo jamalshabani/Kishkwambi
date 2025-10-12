@@ -177,8 +177,8 @@ const PinLoginScreen = ({ onSuccess, onBackToLogin, inlineMode = false }) => {
                     <Text style={cn('text-2xl font-bold text-gray-800 text-center mb-2')}>
                         Enter Your PIN
                     </Text>
-                    <Text style={cn('text-gray-600 text-center')}>
-                        Enter your 4-digit PIN to login quickly
+                    <Text style={cn('text-sm text-gray-500 text-center')}>
+                        Enter your 4-digit PIN to login
                     </Text>
                 </View>
 

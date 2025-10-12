@@ -55,11 +55,8 @@ export default function HomeScreen() {
     };
 
     const handleEmailLoginSuccess = async (user) => {
-        console.log('🔵 handleEmailLoginSuccess called with user:', user.email);
-        
         // Check if PIN is already setup for this device
         const deviceId = await getDeviceId();
-        console.log('🔵 Device ID:', deviceId);
         
         const response = await fetch(`${API_CONFIG.BACKEND_URL}/api/auth/check-pin`, {
             method: 'POST',
@@ -70,15 +67,12 @@ export default function HomeScreen() {
         });
         
         const data = await response.json();
-        console.log('🔵 PIN check response:', data);
         
         if (!data.hasPinSetup) {
-            console.log('✅ No PIN setup - showing PIN setup screen. User NOT set in auth context yet.');
             // Show PIN setup screen (don't set user in auth context yet)
             setCurrentUser(user);
             setShowPinSetup(true);
         } else {
-            console.log('✅ PIN already setup - setting user and redirecting to dashboard');
             // PIN already setup, set user and go to dashboard
             setUserDirectly(user);
             router.replace('/(tabs)/dashboard');
@@ -86,7 +80,6 @@ export default function HomeScreen() {
     };
 
     const handlePinSetupComplete = () => {
-        console.log('✅ PIN setup complete - NOW setting user in auth context');
         // PIN setup complete, now set user in auth context and navigate to dashboard
         if (currentUser) {
             setUserDirectly(currentUser);
@@ -106,11 +99,8 @@ export default function HomeScreen() {
 
     // Show PIN setup screen if needed
     if (showPinSetup && currentUser) {
-        console.log('🟣 Rendering PIN setup screen for user:', currentUser.email);
         return <PinSetupScreen user={currentUser} onComplete={handlePinSetupComplete} forcedSetup={true} />;
     }
-    
-    console.log('🟣 Rendering login screen - showPinSetup:', showPinSetup, 'isAuthenticated:', isAuthenticated);
 
     return (
         <ScrollView style={cn('flex-1')} contentContainerStyle={{ flexGrow: 1 }}>

@@ -86,16 +86,10 @@ const LoginForm = ({ inlineMode = false, onLoginSuccess }) => {
             globalError = '';
             errorRef.current = '';
 
-            console.log('🟢 Login successful, user:', result.user.email);
-            console.log('🟢 onLoginSuccess callback exists?', !!onLoginSuccess);
-            console.log('🟢 inlineMode?', inlineMode);
-
             // If onLoginSuccess callback provided (inline mode), use it
             if (onLoginSuccess) {
-                console.log('🟢 Calling onLoginSuccess callback (user NOT set in auth context yet)');
                 onLoginSuccess(result.user);
             } else {
-                console.log('🟢 No callback, handling PIN check internally');
                 // Otherwise, handle PIN check internally (full screen mode)
                 const deviceId = await getDeviceId();
                 const pinCheck = await auth.checkPinSetup(result.user.id, deviceId);
@@ -181,11 +175,11 @@ const LoginForm = ({ inlineMode = false, onLoginSuccess }) => {
             <View>
                 {/* Header */}
                 <View style={cn('mb-6')}>
-                    <Text style={cn('text-2xl font-bold text-gray-800 mb-2')}>
+                    <Text style={cn('text-2xl font-bold text-gray-800 text-center mb-2')}>
                         Login
                     </Text>
-                    <Text style={cn('text-sm text-gray-500')}>
-                        Enter your credentials to continue
+                    <Text style={cn('text-sm text-gray-500 text-center')}>
+                        Enter your credentials to login
                     </Text>
                 </View>
 
