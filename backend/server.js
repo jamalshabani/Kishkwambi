@@ -1169,6 +1169,10 @@ app.post('/api/update-container-info', async (req, res) => {
             inspectionDate 
         } = req.body;
         
+        console.log('📥 Received update-container-info request:');
+        console.log('   containerNumber:', containerNumber);
+        console.log('   inspectorName:', inspectorName);
+        console.log('   Full body:', JSON.stringify(req.body, null, 2));
 
         if (!containerNumber) {
             return res.status(400).json({
@@ -1184,21 +1188,26 @@ app.post('/api/update-container-info', async (req, res) => {
         const collection = db.collection('tripsegments'); // Use same collection as validate-container
         const trimmedContainerNumber = containerNumber.trim();
         
+        // Build update object dynamically - only include fields that are actually provided
+        const updateFields = {
+            lastUpdated: new Date().toISOString()
+        };
+        
+        // Only add fields if they have actual values (not null, undefined, or empty string)
+        if (isoCode) updateFields.isoCode = isoCode;
+        if (containerType) updateFields.containerType = containerType;
+        if (containerColor) updateFields.containerColor = containerColor;
+        if (containerColorCode) updateFields.containerColorCode = containerColorCode;
+        if (containerSize) updateFields.containerSize = containerSize;
+        if (inspectorName) updateFields.inspectorName = inspectorName;
+        if (inspectionDate) updateFields.inspectionDate = inspectionDate;
+        
+        console.log('💾 Fields to update:', Object.keys(updateFields).join(', '));
+        
         // Try exact match first, then without spaces (same logic as validate-container)
         let updateResult = await collection.updateOne(
             { containerNumber: trimmedContainerNumber },
-            {
-                $set: {
-                    isoCode: isoCode || null,
-                    containerType: containerType || null,
-                    containerColor: containerColor || null,
-                    containerColorCode: containerColorCode || null,
-                    containerSize: containerSize || null,
-                    inspectorName: inspectorName || null,
-                    inspectionDate: inspectionDate || new Date().toISOString(),
-                    lastUpdated: new Date().toISOString()
-                }
-            },
+            { $set: updateFields },
             { upsert: false } // Don't create if doesn't exist
         );
 
@@ -1207,19 +1216,8 @@ app.post('/api/update-container-info', async (req, res) => {
             const containerWithoutSpaces = trimmedContainerNumber.replace(/\s/g, '');
             updateResult = await collection.updateOne(
                 { containerNumber: containerWithoutSpaces },
-                {
-                    $set: {
-                        isoCode: isoCode || null,
-                        containerType: containerType || null,
-                        containerColor: containerColor || null,
-                        containerColorCode: containerColorCode || null,
-                        containerSize: containerSize || null,
-                        inspectorName: inspectorName || null,
-                        inspectionDate: inspectionDate || new Date().toISOString(),
-                        lastUpdated: new Date().toISOString()
-                    }
-                },
-                { upsert: false } // Don't create if doesn't exist
+                { $set: updateFields },
+                { upsert: false }
             );
         }
 

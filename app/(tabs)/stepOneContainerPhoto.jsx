@@ -413,6 +413,7 @@ const StepOneContainerPhoto = ({ onBack, onNavigateToStepTwo, onNavigateToDamage
                     
                     // Update container information in database before navigating
                     try {
+                        console.log('👤 Current user object:', JSON.stringify(user, null, 2));
                         
                         // Determine container type based on ISO code
                         const containerType = getContainerTypeFromIsoCode(containerData.isoCode);
@@ -421,6 +422,11 @@ const StepOneContainerPhoto = ({ onBack, onNavigateToStepTwo, onNavigateToDamage
                         const inspectorName = user?.firstName && user?.lastName 
                             ? `${user.firstName} ${user.lastName}`
                             : user?.name || 'Unknown Inspector';
+                        
+                        console.log('👤 Inspector Name:', inspectorName);
+                        console.log('👤 user.firstName:', user?.firstName);
+                        console.log('👤 user.lastName:', user?.lastName);
+                        console.log('👤 user.name:', user?.name);
                         
                         // Get current date
                         const inspectionDate = new Date().toISOString();
@@ -437,6 +443,7 @@ const StepOneContainerPhoto = ({ onBack, onNavigateToStepTwo, onNavigateToDamage
                             inspectionDate: inspectionDate
                         };
                         
+                        console.log('📤 Sending update to /api/update-container-info:', JSON.stringify(updateData, null, 2));
                         
                         // Call API to update container information
                         const updateResponse = await fetch(`${BACKEND_URL}/api/update-container-info`, {
