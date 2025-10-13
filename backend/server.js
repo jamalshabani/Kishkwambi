@@ -754,15 +754,24 @@ app.post('/api/vision/process-image', uploadS3.single('image'), async (req, res)
         });
 
         const fetch = require('node-fetch');
+        const AbortController = require('abort-controller');
+        const controller = new AbortController();
+        const timeout = setTimeout(() => {
+            controller.abort();
+        }, 20000); // 20 second timeout for ParkPow API
+        
         const response = await fetch('https://container-api.parkpow.com/api/v1/predict/', {
             method: 'POST',
             headers: {
                 'Authorization': `Token ${PARKPOW_API_KEY}`,
                 ...form.getHeaders()
             },
-            body: form
+            body: form,
+            signal: controller.signal,
+            timeout: 20000 // Additional timeout safeguard
         });
-
+        
+        clearTimeout(timeout);
         const data = await response.json();
     
         
@@ -785,6 +794,17 @@ app.post('/api/vision/process-image', uploadS3.single('image'), async (req, res)
         res.json(formattedResponse);
 
     } catch (error) {
+        console.error('❌ ParkPow API Error:', error.message);
+        
+        // Handle timeout errors specifically
+        if (error.name === 'AbortError' || error.message.includes('aborted')) {
+            return res.status(408).json({
+                success: false,
+                error: 'ParkPow API request timed out. Please try again.',
+                timeout: true
+            });
+        }
+        
         res.status(500).json({
             success: false,
             error: error.message || 'Failed to process image with ParkPow API'

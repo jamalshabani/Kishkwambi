@@ -645,18 +645,20 @@ const StepFiveBackWallPhoto = ({ onBack, onBackToRightWallDamage, containerData,
                                 Back Wall Photo
                             </Text>
                             
-                            <TouchableOpacity
-                                onPress={() => setShowZoomModal(true)}
-                                style={cn('relative')}
-                            >
-                                <Image 
-                                    source={{ uri: image }} 
-                                    style={cn('w-full h-64 rounded-lg')} 
-                                />
-                                <View style={cn('absolute inset-0 bg-black/30 rounded-lg items-center justify-center')}>
-                                    <Eye size={32} color="white" />
+                            <View style={cn('mb-2 flex items-center justify-center')}>
+                                <View style={cn('relative')}>
+                                    <Image source={{ uri: image }} style={cn('w-[280px] h-[280px] rounded-lg')} />
+                                    {/* Eye Icon Overlay */}
+                                    <TouchableOpacity
+                                        onPress={() => setShowZoomModal(true)}
+                                        style={cn('absolute inset-0 items-center justify-center')}
+                                    >
+                                        <View style={cn('bg-black/50 rounded-full p-3')}>
+                                            <Eye size={32} color="white" />
+                                        </View>
+                                    </TouchableOpacity>
                                 </View>
-                            </TouchableOpacity>
+                            </View>
 
                             {/* Retake Button */}
                             <TouchableOpacity

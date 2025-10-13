@@ -75,6 +75,10 @@ const StepNineDriverDetails = ({ onBack, containerData, onComplete, onShowSucces
         transporterName: 'Local Transporter'
     });
 
+    // Error modal state
+    const [showErrorModal, setShowErrorModal] = useState(false);
+    const [errorModalData, setErrorModalData] = useState({ title: '', message: '' });
+
     // Focus states for gradient borders
     const [focusedField, setFocusedField] = useState(null);
 
@@ -226,23 +230,34 @@ const StepNineDriverDetails = ({ onBack, containerData, onComplete, onShowSucces
                 // Wait to ensure the cropped file is fully written to disk
                 await new Promise(resolve => setTimeout(resolve, 500));
 
-                // Get file size of cropped photo
+                // Resize image to optimal size for OCR (faster upload and processing)
+                const resizedImage = await ImageManipulator.manipulateAsync(
+                    croppedImage,
+                    [{ resize: { width: 1024 } }], // Resize to max width 1024px
+                    { compress: 0.7, format: ImageManipulator.SaveFormat.JPEG, base64: true }
+                );
+
+                // Wait to ensure the resized file is fully written to disk
+                await new Promise(resolve => setTimeout(resolve, 1000));
+
+                // Get file size comparison
                 try {
-                    const fileInfo = await fetch(croppedImage);
+                    const fileInfo = await fetch(resizedImage.uri);
                     const blob = await fileInfo.blob();
                     const originalFileInfo = await fetch(photo.uri);
                     const originalBlob = await originalFileInfo.blob();
                     const reduction = (((originalBlob.size - blob.size) / originalBlob.size) * 100).toFixed(1);
+                    console.log(`📊 Optimized driver license for OCR: ${resizedImage.width}x${resizedImage.height}, ${reduction}% size reduction`);
                 } catch (e) {}
 
-                setImage(croppedImage);
+                setImage(resizedImage.uri);
                 setShowCamera(false);
 
                 // Show extraction loading
                 setIsExtracting(true);
                 
-                // Call Vision AI to extract driver details (use original base64 for better OCR)
-                await extractDriverDetails(photo.base64);
+                // Call Vision AI to extract driver details (use optimized base64)
+                await extractDriverDetails(resizedImage.base64);
                 
                 // Automatically show the form with extracted data
                 setShowForm(true);
@@ -261,14 +276,20 @@ const StepNineDriverDetails = ({ onBack, containerData, onComplete, onShowSucces
 
             const BACKEND_URL = API_CONFIG.getBackendUrl();
 
+            // Add timeout to prevent hanging requests
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
+
             const response = await fetch(`${BACKEND_URL}/api/vision/extract-driver-details`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({ base64Image }),
+                signal: controller.signal
             });
 
+            clearTimeout(timeoutId);
             const result = await response.json();
 
             if (result.success && result.data) {
@@ -292,14 +313,26 @@ const StepNineDriverDetails = ({ onBack, containerData, onComplete, onShowSucces
                     transporterName: capitalizeWords(extractedData.transporterName || prev.transporterName)
                 }));
             } else {
-                Alert.alert(
-                    'Manual Input Required',
-                    'Unable to extract driver details from the photo. Please enter the information manually.',
-                    [{ text: 'OK' }]
-                );
+                setErrorModalData({
+                    title: 'Manual Input Required',
+                    message: 'Unable to extract driver details from the photo. Please enter the information manually.'
+                });
+                setShowErrorModal(true);
             }
         } catch (error) {
-            Alert.alert('Recognition Error', 'Failed to extract driver details. Please enter manually.');
+            // Check if it's a timeout error
+            if (error.name === 'AbortError') {
+                setErrorModalData({
+                    title: 'Request Timed Out',
+                    message: 'The recognition took too long. Please enter the driver details manually.'
+                });
+            } else {
+                setErrorModalData({
+                    title: 'Recognition Error',
+                    message: 'Failed to extract driver details. Please enter manually.'
+                });
+            }
+            setShowErrorModal(true);
         } finally {
             setIsRecognizing(false);
         }
@@ -420,8 +453,13 @@ const StepNineDriverDetails = ({ onBack, containerData, onComplete, onShowSucces
 
     const uploadAllPhotosToArrivedContainers = async (tripSegmentNumber, containerData, progressCallback) => {
         try {
+            console.log('🚀 uploadAllPhotosToArrivedContainers called');
+            console.log('📋 Trip Segment:', tripSegmentNumber);
+            console.log('📋 Container Data keys:', Object.keys(containerData || {}));
             
             const BACKEND_URL = API_CONFIG.getBackendUrl();
+            console.log('🌐 Backend URL:', BACKEND_URL);
+            
             const formData = new FormData();
             
             // Add trip segment number
@@ -514,8 +552,11 @@ const StepNineDriverDetails = ({ onBack, containerData, onComplete, onShowSucces
             }
             
             console.log(`✅ Compressed ${photos.length} main photos and ${damagePhotos.length} damage photos`);
+            console.log('📋 Main photos:', photos.map(p => p.type).join(', '));
+            console.log('📋 Damage photos locations:', damagePhotos.map(p => p.location).join(', '));
             
             const totalPhotos = photos.length + damagePhotos.length;
+            console.log(`📊 Total photos to upload: ${totalPhotos}`);
             
             // Update progress: preparing upload
             if (progressCallback) {
@@ -523,7 +564,9 @@ const StepNineDriverDetails = ({ onBack, containerData, onComplete, onShowSucces
             }
             
             // Add all photos to formData
+            console.log('📦 Adding photos to FormData...');
             photos.forEach((photo, index) => {
+                console.log(`  Adding photo ${index + 1}: ${photo.type} from ${photo.uri.substring(0, 50)}...`);
                 formData.append('photos', {
                     uri: photo.uri,
                     type: 'image/jpeg',
@@ -533,7 +576,9 @@ const StepNineDriverDetails = ({ onBack, containerData, onComplete, onShowSucces
             });
             
             // Add damage photos
+            console.log('📦 Adding damage photos to FormData...');
             damagePhotos.forEach((photo, index) => {
+                console.log(`  Adding damage photo ${index + 1}: ${photo.location} from ${photo.uri.substring(0, 50)}...`);
                 formData.append('damagePhotos', {
                     uri: photo.uri,
                     type: 'image/jpeg',
@@ -557,6 +602,9 @@ const StepNineDriverDetails = ({ onBack, containerData, onComplete, onShowSucces
             const controller = new AbortController();
             const timeoutId = setTimeout(() => controller.abort(), 300000); // 5 minute timeout
             
+            console.log(`📤 Uploading to: ${BACKEND_URL}/api/upload/batch-photos-arrived-containers`);
+            console.log(`📊 Uploading ${totalPhotos} photos (${photos.length} main + ${damagePhotos.length} damage)...`);
+            
             try {
                 // Don't set Content-Type manually - let React Native set it with the boundary
                 const response = await fetch(`${BACKEND_URL}/api/upload/batch-photos-arrived-containers`, {
@@ -568,13 +616,16 @@ const StepNineDriverDetails = ({ onBack, containerData, onComplete, onShowSucces
                 clearTimeout(timeoutId);
                 clearInterval(progressInterval);
                 
+                console.log(`📥 Response status: ${response.status} ${response.statusText}`);
                 
                 if (!response.ok) {
                     const errorText = await response.text();
+                    console.error(`❌ Server error: ${response.status} - ${errorText}`);
                     throw new Error(`Server responded with status ${response.status}: ${errorText}`);
                 }
                 
                 const result = await response.json();
+                console.log('📦 Upload result:', JSON.stringify(result, null, 2));
             
                 if (result.success) {
                     // Update to 100% progress
@@ -596,11 +647,17 @@ const StepNineDriverDetails = ({ onBack, containerData, onComplete, onShowSucces
             }
             
         } catch (error) {
+            console.error('❌ Upload exception:', error);
+            console.error('❌ Error name:', error.name);
+            console.error('❌ Error message:', error.message);
+            console.error('❌ Error stack:', error.stack);
             
             // Provide more helpful error messages
             let errorMessage = error.message;
             if (error.message.includes('Network request failed')) {
                 errorMessage = 'Cannot connect to server. Please check:\n1. Your device is on the same network\n2. Backend server is running\n3. Backend URL is correct: ' + API_CONFIG.getBackendUrl();
+            } else if (error.message.includes('Failed to fetch') || error.message.includes('fetch')) {
+                errorMessage = 'Network error. Please check your connection and backend server.';
             }
             
             return { success: false, error: errorMessage };
@@ -714,30 +771,51 @@ inwardLOLOBalance = 75000;
             // Small delay to ensure success screen is rendered
             await new Promise(resolve => setTimeout(resolve, 300));
             
-            // Upload all photos to arrivedContainers folder with progress updates
+            // Upload all photos to InspectionPhotos folder with progress updates
+            console.log('📤 Starting batch photo upload...');
             const uploadResult = await uploadAllPhotosToArrivedContainers(
                 containerData?.tripSegmentNumber, 
                 containerData,
                 onUpdateUploadProgress
             );
             
+            console.log('📤 Upload result:', uploadResult);
+            
             if (!uploadResult.success) {
-                Alert.alert('Upload Error', 'Failed to upload photos. Please try again.');
+                console.error('❌ Upload failed:', uploadResult.error);
+                setErrorModalData({
+                    title: 'Upload Error',
+                    message: uploadResult.error || 'Failed to upload photos. Please try again.'
+                });
+                setShowErrorModal(true);
                 return;
             }
             
+            console.log('✅ Photos uploaded successfully');
 
             // Save driver details to database
+            console.log('💾 Saving driver details to database...');
             const saveResult = await saveDriverDetailsToDatabase(containerData?.tripSegmentNumber, driverDetails, null);
             
             if (!saveResult.success) {
-                Alert.alert('Database Error', 'Failed to save driver details. Please try again.');
+                console.error('❌ Database save failed:', saveResult.error);
+                setErrorModalData({
+                    title: 'Database Error',
+                    message: saveResult.error || 'Failed to save driver details. Please try again.'
+                });
+                setShowErrorModal(true);
                 return;
             }
 
+            console.log('✅ Driver details saved successfully');
             
         } catch (error) {
-            Alert.alert('Error', 'An error occurred while completing driver details. Please try again.');
+            console.error('❌ Exception in handleComplete:', error);
+            setErrorModalData({
+                title: 'Error',
+                message: error.message || 'An error occurred while completing driver details. Please try again.'
+            });
+            setShowErrorModal(true);
         } finally {
             setIsProcessing(false);
         }
@@ -1200,6 +1278,39 @@ inwardLOLOBalance = 75000;
                     </View>
                 </Modal>
             )}
+
+            {/* Error Modal - Consistent styling with Container Not Found */}
+            <Modal
+                visible={showErrorModal}
+                transparent={true}
+                animationType="fade"
+                onRequestClose={() => setShowErrorModal(false)}
+            >
+                <View style={cn('flex-1 justify-center items-center bg-black/50')}>
+                    <View style={cn('bg-white rounded-3xl mx-8 p-6')}>
+                        
+                        {/* Message Text */}
+                        <View style={cn('mt-4 mb-6')}>
+                            <Text style={cn('text-red-500 text-center text-lg font-semibold leading-6')}>
+                                {errorModalData.title}
+                            </Text>
+                            <Text style={cn('text-gray-600 font-bold text-center text-sm mt-2')}>
+                                {errorModalData.message}
+                            </Text>
+                        </View>
+                        
+                        {/* OK Button */}
+                        <TouchableOpacity
+                            onPress={() => setShowErrorModal(false)}
+                            style={cn('bg-red-500 rounded-xl py-4')}
+                        >
+                            <Text style={cn('text-white text-center font-semibold text-base')}>
+                                OK
+                            </Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </Modal>
         </SafeAreaView>
     );
 };

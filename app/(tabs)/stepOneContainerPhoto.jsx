@@ -40,14 +40,16 @@ const StepOneContainerPhoto = ({ onBack, onNavigateToStepTwo, onNavigateToDamage
     const containerNumberRefs = useRef([]);
     const isoCodeRefs = useRef([]);
     const scrollViewRef = useRef(null);
+    const hasInitializedData = useRef(false);
 
     // Animation values for theme switcher
     const themeIconRotation = useRef(new Animated.Value(0)).current;
     const themeButtonScale = useRef(new Animated.Value(1)).current;
 
-    // Restore container photo and data when navigating back
+    // Restore container photo and data when navigating back (only once)
     useEffect(() => {
-        if (incomingContainerData) {
+        if (incomingContainerData && !hasInitializedData.current) {
+            hasInitializedData.current = true;
         
             // Restore container photo
             if (incomingContainerData.containerPhoto) {
@@ -484,41 +486,97 @@ const StepOneContainerPhoto = ({ onBack, onNavigateToStepTwo, onNavigateToDamage
     };
 
     const processImageWithVisionAI = async (imageUri) => {
+        console.log('🚀 Starting processImageWithVisionAI with image:', imageUri);
         setIsProcessing(true);
         try {
             const BACKEND_URL = API_CONFIG.getBackendUrl();
             const startTime = Date.now();
             
+            console.log('🔄 Resizing image...');
+            // Resize image to optimal size for OCR (faster upload and processing)
+            const resizedImage = await ImageManipulator.manipulateAsync(
+                imageUri,
+                [{ resize: { width: 1024 } }], // Resize to max width 1024px
+                { compress: 0.7, format: ImageManipulator.SaveFormat.JPEG }
+            );
+            
+            console.log('✅ Resize complete, waiting for file write...');
+            // Wait to ensure the resized file is fully written to disk
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            
+            console.log(`📊 Optimized image for OCR: ${resizedImage.width}x${resizedImage.height}`);
+            
+            // Verify the file exists before sending
+            try {
+                const testFetch = await fetch(resizedImage.uri);
+                const testBlob = await testFetch.blob();
+                console.log(`✅ Resized file verified: ${(testBlob.size / 1024).toFixed(0)}KB`);
+            } catch (testError) {
+                console.error('❌ Resized file not accessible:', testError.message);
+                throw new Error('Resized image file is not accessible yet. Please try again.');
+            }
             
             // Create FormData for file upload
             const formData = new FormData();
             formData.append('image', {
-                uri: imageUri,
+                uri: resizedImage.uri,
                 type: 'image/jpeg',
                 name: 'container.jpg'
             });
             
-            // Call ParkRow API
+            console.log('📤 Calling ParkPow API...');
+            // Call ParkRow API with timeout
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
+            
             const parkrowResponse = await fetch(`${BACKEND_URL}/api/vision/process-image`, {
                 method: 'POST',
                 body: formData,
                 headers: {
                     'Content-Type': 'multipart/form-data',
                 },
-            }).then(res => res.json()).catch(err => ({
-                success: false,
-                error: `ParkRow API Error: ${err.message}`,
-                data: { containerNumber: '', isoCode: '' }
-            }));
+                signal: controller.signal
+            }).then(res => {
+                clearTimeout(timeoutId);
+                return res.json();
+            }).catch(err => {
+                clearTimeout(timeoutId);
+                return {
+                    success: false,
+                    error: err.name === 'AbortError' ? 'Request timed out' : `ParkRow API Error: ${err.message}`,
+                    data: { containerNumber: '', isoCode: '' }
+                };
+            });
             
             const endTime = Date.now();
             const processingTime = ((endTime - startTime) / 1000).toFixed(2);
             
+            console.log('📦 ParkPow API Response:', JSON.stringify(parkrowResponse, null, 2));
+            console.log('⏱️ Processing time:', processingTime, 'seconds');
+            
+            // Check if API call was successful
+            if (!parkrowResponse.success) {
+                console.error('❌ API Error:', parkrowResponse.error);
+                setContainerModalData({
+                    type: 'error',
+                    message: parkrowResponse.error || 'Failed to process image'
+                });
+                setShowContainerModal(true);
+                setExtractedData({ containerNumber: '', isoCode: '' });
+                setContainerNumber(Array(11).fill(''));
+                setIsoCode(Array(4).fill(''));
+                return;
+            }
             
             // Extract ParkRow results
             const bestResults = extractParkRowResults(parkrowResponse.data);
+            console.log('🔍 Extracted Results:', bestResults);
             
-            if (bestResults) {
+            // Check if we have actual data (not just empty strings)
+            if (bestResults && (bestResults.containerNumber || bestResults.isoCode)) {
+                console.log('✅ Valid data extracted');
+                console.log('📝 Container Number:', bestResults.containerNumber);
+                console.log('📝 ISO Code:', bestResults.isoCode);
                 
                 setExtractedData({
                     containerNumber: bestResults.containerNumber || '',
@@ -528,18 +586,30 @@ const StepOneContainerPhoto = ({ onBack, onNavigateToStepTwo, onNavigateToDamage
                 // Populate individual character arrays
                 const containerChars = (bestResults.containerNumber || '').padEnd(11, ' ').split('').slice(0, 11);
                 const isoChars = (bestResults.isoCode || '').padEnd(4, ' ').split('').slice(0, 4);
+                console.log('📝 Setting state - Container chars:', containerChars.join(''));
+                console.log('📝 Setting state - ISO chars:', isoChars.join(''));
                 setContainerNumber(containerChars);
                 setIsoCode(isoChars);
             } else {
                 // Fallback to empty values if no data detected
-                Alert.alert('No Data Detected', 'Could not extract container information from the image. Please try again.');
+                console.warn('⚠️ No valid data extracted from image');
+                setContainerModalData({
+                    type: 'error',
+                    message: 'Could not extract container information from the image. Please try again.'
+                });
+                setShowContainerModal(true);
                 setExtractedData({ containerNumber: '', isoCode: '' });
                 setContainerNumber(Array(11).fill(''));
                 setIsoCode(Array(4).fill(''));
             }
         } catch (error) {
+            console.error('❌ Exception in processImageWithVisionAI:', error);
             const errorMessage = error.message || 'Failed to process image with ParkRow API';
-            Alert.alert('Error', errorMessage);
+            setContainerModalData({
+                type: 'error',
+                message: errorMessage
+            });
+            setShowContainerModal(true);
             
             // Set empty values on error
             setExtractedData({ containerNumber: '', isoCode: '' });
@@ -555,9 +625,21 @@ const StepOneContainerPhoto = ({ onBack, onNavigateToStepTwo, onNavigateToDamage
         newContainerNumber[index] = value.toUpperCase().slice(-1);
         setContainerNumber(newContainerNumber);
         
+        // Update extractedData to keep it in sync
+        const joinedNumber = newContainerNumber.join('').trim();
+        setExtractedData(prev => ({
+            ...prev,
+            containerNumber: joinedNumber
+        }));
+        
         // Auto-focus next input
         if (value && index < 10) {
             containerNumberRefs.current[index + 1]?.focus();
+        }
+        
+        // Handle backspace - move to previous input if current is empty
+        if (!value && index > 0) {
+            containerNumberRefs.current[index - 1]?.focus();
         }
     };
 
@@ -566,9 +648,21 @@ const StepOneContainerPhoto = ({ onBack, onNavigateToStepTwo, onNavigateToDamage
         newIsoCode[index] = value.toUpperCase().slice(-1);
         setIsoCode(newIsoCode);
         
+        // Update extractedData to keep it in sync
+        const joinedCode = newIsoCode.join('').trim();
+        setExtractedData(prev => ({
+            ...prev,
+            isoCode: joinedCode
+        }));
+        
         // Auto-focus next input
         if (value && index < 3) {
             isoCodeRefs.current[index + 1]?.focus();
+        }
+        
+        // Handle backspace - move to previous input if current is empty
+        if (!value && index > 0) {
+            isoCodeRefs.current[index - 1]?.focus();
         }
     };
 
@@ -580,6 +674,8 @@ const StepOneContainerPhoto = ({ onBack, onNavigateToStepTwo, onNavigateToDamage
             containerNumber: '',
             isoCode: '',
         });
+        // Reset the initialization flag so new data can be loaded
+        hasInitializedData.current = false;
     };
 
     // Function to simulate container positioning detection
@@ -785,17 +881,8 @@ const StepOneContainerPhoto = ({ onBack, onNavigateToStepTwo, onNavigateToDamage
                         <View style={cn(`${isDark ? 'bg-gray-800' : 'bg-white'} rounded-lg shadow-lg p-4 mb-6`)}>
                             <View style={cn('mb-2 flex items-center justify-center')}>
                                 <View style={cn('relative')}>
-                                    {/* Display cropped image preview (from Container Guide Frame area) */}
-                                    <Image 
-                                        source={typeof image === 'string' ? { uri: image } : image} 
-                                        style={{
-                                            width: 280,
-                                            height: 280 * 0.94, // Maintain the same aspect ratio as the Container Guide Frame
-                                            borderRadius: 8,
-                                        }}
-                                        resizeMode="cover"
-                                    />
-                                    {/* Eye Icon Overlay - Click to zoom cropped photo */}
+                                    <Image source={{ uri: image }} style={cn('w-[280px] h-[280px] rounded-lg')} />
+                                    {/* Eye Icon Overlay */}
                                     <TouchableOpacity
                                         onPress={() => setShowZoomModal(true)}
                                         style={cn('absolute inset-0 items-center justify-center')}

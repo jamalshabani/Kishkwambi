@@ -29,6 +29,7 @@ const StepSixTruckPhoto = ({ onBack, onBackToBackWallDamage, containerData, onNa
     const cameraRef = useRef(null);
     const truckNumberRefs = useRef([]);
     const scrollViewRef = useRef(null);
+    const hasInitializedTruckNumber = useRef(false);
     const [trailerNumber, setTrailerNumber] = useState(null);
     const [showErrorModal, setShowErrorModal] = useState(false);
     const [errorModalData, setErrorModalData] = useState({ title: '', message: '' });
@@ -60,7 +61,8 @@ const StepSixTruckPhoto = ({ onBack, onBackToBackWallDamage, containerData, onNa
     }, [containerData?.truckPhoto]);
     
     useEffect(() => {
-        if (containerData?.truckNumber) {
+        if (containerData?.truckNumber && !hasInitializedTruckNumber.current) {
+            hasInitializedTruckNumber.current = true;
             // Convert truck number string to array for the inputs
             const truckNumberArray = containerData.truckNumber.split('');
             // Pad with empty strings if needed
@@ -260,9 +262,21 @@ const StepSixTruckPhoto = ({ onBack, onBackToBackWallDamage, containerData, onNa
         newTruckNumber[index] = value.toUpperCase();
         setTruckNumber(newTruckNumber);
 
+        // Update extractedData to keep it in sync
+        const joinedNumber = newTruckNumber.join('').trim();
+        setExtractedData(prev => ({
+            ...prev,
+            truckNumber: joinedNumber
+        }));
+
         // Auto-focus next input
         if (value && index < truckNumber.length - 1) {
             truckNumberRefs.current[index + 1]?.focus();
+        }
+        
+        // Handle backspace - move to previous input if current is empty
+        if (!value && index > 0) {
+            truckNumberRefs.current[index - 1]?.focus();
         }
     };
 
@@ -324,23 +338,28 @@ const StepSixTruckPhoto = ({ onBack, onBackToBackWallDamage, containerData, onNa
 
             const BACKEND_URL = API_CONFIG.getBackendUrl();
             
-            // Verify the file exists before sending
-            try {
-                const testFetch = await fetch(imageUri);
-            } catch (testError) {
-                throw new Error('Cropped image file is not accessible yet');
-            }
+            // Resize image to optimal size for plate recognition (faster upload and processing)
+            const resizedImage = await ImageManipulator.manipulateAsync(
+                imageUri,
+                [{ resize: { width: 1024 } }], // Resize to max width 1024px
+                { compress: 0.7, format: ImageManipulator.SaveFormat.JPEG }
+            );
+            
+            // Wait to ensure the resized file is fully written to disk
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            
+            console.log(`📊 Optimized truck image for OCR: ${resizedImage.width}x${resizedImage.height}`);
             
             const formData = new FormData();
             formData.append('image', {
-                uri: imageUri,
+                uri: resizedImage.uri,
                 type: 'image/jpeg',
                 name: 'truck.jpg'
             });
             
             // Add timeout to the fetch request
             const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+            const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout (reduced from 30s)
             
             try {
                 const response = await fetch(`${BACKEND_URL}/api/plate-recognizer/recognize`, {

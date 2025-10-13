@@ -48,6 +48,7 @@ const StepThreeTrailerPhoto = ({ onBack, onBackToDamagePhotos, containerData, on
             }
             
             setLicencePlate(newLicencePlate);
+            setExtractedData({ licencePlate: containerData.trailerNumber });
         }
     }, []);
 
@@ -165,9 +166,21 @@ const StepThreeTrailerPhoto = ({ onBack, onBackToDamagePhotos, containerData, on
         newLicencePlate[index] = value.toUpperCase();
         setLicencePlate(newLicencePlate);
 
+        // Update extractedData to keep it in sync
+        const joinedPlate = newLicencePlate.join('').trim();
+        setExtractedData(prev => ({
+            ...prev,
+            licencePlate: joinedPlate
+        }));
+
         // Auto-focus next input
         if (value && index < licencePlate.length - 1) {
             licencePlateRefs.current[index + 1]?.focus();
+        }
+        
+        // Handle backspace - move to previous input if current is empty
+        if (!value && index > 0) {
+            licencePlateRefs.current[index - 1]?.focus();
         }
     };
 
@@ -324,20 +337,28 @@ const StepThreeTrailerPhoto = ({ onBack, onBackToDamagePhotos, containerData, on
 
             const BACKEND_URL = API_CONFIG.getBackendUrl();
             
-            // Verify the file exists before sending
-            try {
-                const testFetch = await fetch(imageUri);
-            } catch (testError) {
-                throw new Error('Cropped image file is not accessible yet');
-            }
+            // Resize image to optimal size for plate recognition (faster upload and processing)
+            const resizedImage = await ImageManipulator.manipulateAsync(
+                imageUri,
+                [{ resize: { width: 1024 } }], // Resize to max width 1024px
+                { compress: 0.7, format: ImageManipulator.SaveFormat.JPEG }
+            );
+            
+            // Wait to ensure the resized file is fully written to disk
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            
+            console.log(`📊 Optimized trailer image for OCR: ${resizedImage.width}x${resizedImage.height}`);
             
             const formData = new FormData();
             formData.append('image', {
-                uri: imageUri,
+                uri: resizedImage.uri,
                 type: 'image/jpeg',
                 name: 'trailer.jpg'
             });
             
+            // Add timeout to prevent hanging requests
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
             
             const response = await fetch(`${BACKEND_URL}/api/plate-recognizer/recognize`, {
                 method: 'POST',
@@ -345,7 +366,10 @@ const StepThreeTrailerPhoto = ({ onBack, onBackToDamagePhotos, containerData, on
                 headers: {
                     'Content-Type': 'multipart/form-data',
                 },
+                signal: controller.signal
             });
+            
+            clearTimeout(timeoutId);
 
             const result = await response.json();
 
@@ -373,8 +397,14 @@ const StepThreeTrailerPhoto = ({ onBack, onBackToDamagePhotos, containerData, on
             }
         } catch (error) {
             
-            // Check if it's a network error
-            if (error.message.includes('Network request failed')) {
+            // Check if it's a timeout error
+            if (error.name === 'AbortError') {
+                setErrorModalData({
+                    title: 'Request Timed Out',
+                    message: 'The plate recognition took too long. Please try again or enter manually.'
+                });
+                setShowErrorModal(true);
+            } else if (error.message.includes('Network request failed')) {
                 setErrorModalData({
                     title: 'Network Error',
                     message: 'Try taking the photo again or enter the trailer number manually.'
