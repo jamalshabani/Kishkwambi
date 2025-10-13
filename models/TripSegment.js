@@ -254,7 +254,7 @@ const tripSegmentSchema = new Schema({
 
     hasDamages: {
         type: String,
-        required: false
+        default: "No"
     },
 
     damageLocations: {

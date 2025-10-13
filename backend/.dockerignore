@@ -45,6 +45,6 @@ logs
 *.log
 
 # Photos directory (will be mounted as volume)
-arrivedContainers
-arrivedContainers/*
+InspectionPhotos
+InspectionPhotos/*
 

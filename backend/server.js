@@ -164,7 +164,7 @@ async function connectToDatabase() {
 app.get('/api/health', async (req, res) => {
     res.json({
         success: true,
-        message: 'Backend server is running'
+        message: 'Backend server v4 is running'
     });
 });
 
@@ -238,10 +238,12 @@ app.post('/api/auth/login', async (req, res) => {
             });
         }
 
-        // Return user data (without password)
+        // Return user data (without password) - Include firstName and lastName for inspectorName
         const userData = {
             id: user._id,
             email: user.email,
+            firstName: user.firstName,
+            lastName: user.lastName,
             name: `${user.firstName} ${user.lastName}`,
             role: user.role,
             permissions: user.permissions || [],
@@ -631,10 +633,12 @@ app.post('/api/auth/login-pin', async (req, res) => {
             }
         );
 
-        // Return user data (without password)
+        // Return user data (without password) - Include firstName and lastName for inspectorName
         const userData = {
             id: user._id,
             email: user.email,
+            firstName: user.firstName,
+            lastName: user.lastName,
             name: `${user.firstName} ${user.lastName}`,
             role: user.role,
             permissions: user.permissions || [],
