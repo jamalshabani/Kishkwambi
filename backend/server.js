@@ -32,19 +32,19 @@ const s3Client = new S3Client({
 const S3_BUCKET_NAME = process.env.B2_BUCKET_NAME || 'simba-terminal-photos';
 
 // Backend directory configuration
-const ARRIVED_CONTAINERS_DIR = path.join(__dirname, 'arrivedContainers');
+const INSPECTION_PHOTOS_DIR = path.join(__dirname, 'InspectionPhotos');
 
 // Ensure backend directories exist
 async function ensureBackendDirectories() {
     try {
-        await fs.mkdir(ARRIVED_CONTAINERS_DIR, { recursive: true });
+        await fs.mkdir(INSPECTION_PHOTOS_DIR, { recursive: true });
     } catch (error) {
     }
 }
 
 // Helper function to generate standardized filenames
 function generateFilename(tripSegmentNumber, photoType, sequenceNumber, timestamp) {
-    return `${tripSegmentNumber}_${photoType}_${sequenceNumber}_${timestamp}.jpg`;
+    return `${tripSegmentNumber}-${photoType}_${sequenceNumber}_${timestamp}.jpg`;
 }
 
 // S3 Upload Utility Functions
@@ -90,7 +90,7 @@ const memoryStorage = multer.memoryStorage();
 const diskStorage = multer.diskStorage({
     destination: async (req, file, cb) => {
         const tripSegmentNumber = req.body.tripSegmentNumber || 'unknown';
-        const uploadPath = path.join(ARRIVED_CONTAINERS_DIR, tripSegmentNumber);
+        const uploadPath = path.join(INSPECTION_PHOTOS_DIR, tripSegmentNumber, 'ArrivedContainer');
         
         try {
             await fs.mkdir(uploadPath, { recursive: true });
@@ -144,8 +144,8 @@ app.use(cors());
 app.use(express.json({ limit: '50mb' })); // Increase limit for base64 images
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
-// Serve static files from arrivedContainers directory
-app.use('/arrivedContainers', express.static(path.join(__dirname, 'arrivedContainers')));
+// Serve static files from InspectionPhotos directory
+app.use('/InspectionPhotos', express.static(path.join(__dirname, 'InspectionPhotos')));
 
 // Connect to MongoDB
 async function connectToDatabase() {
@@ -3043,7 +3043,7 @@ app.post('/api/upload/mobile-photos', upload.array('photos', 10), async (req, re
         // Process uploaded files
         const uploadedFiles = [];
         for (const file of req.files) {
-            const relativePath = `${process.env.BACKEND_URL}/arrivedContainers/${tripSegmentNumber}/${file.filename}`;
+            const relativePath = `${process.env.BACKEND_URL}/InspectionPhotos/${tripSegmentNumber}/ArrivedContainer/${file.filename}`;
             uploadedFiles.push(relativePath);
             
         }
@@ -3103,7 +3103,7 @@ app.post('/api/upload/mobile-photos', upload.array('photos', 10), async (req, re
     }
 });
 
-// Batch upload endpoint for all inspection photos to LOCAL backend/arrivedContainers folder
+// Batch upload endpoint for all inspection photos to LOCAL backend/InspectionPhotos folder
 // Saves all photos with consistent naming: ContainerPhoto (1-5), DamagePhoto, TruckPhoto, TrailerPhoto
 app.post('/api/upload/batch-photos-arrived-containers', uploadS3.fields([
     { name: 'photos', maxCount: 20 },
@@ -3127,8 +3127,8 @@ app.post('/api/upload/batch-photos-arrived-containers', uploadS3.fields([
 
             const tripsegmentsCollection = db.collection('tripsegments');
             
-            // Create folder for this trip segment: backend/arrivedContainers/ST25-00123/
-            const containerFolderPath = path.join(ARRIVED_CONTAINERS_DIR, tripSegmentNumber);
+            // Create folder for this trip segment: backend/InspectionPhotos/ST25-00123/ArrivedContainer/
+            const containerFolderPath = path.join(INSPECTION_PHOTOS_DIR, tripSegmentNumber, 'ArrivedContainer');
             await fs.mkdir(containerFolderPath, { recursive: true });
 
             const containerPhotosArray = [];
@@ -3188,10 +3188,10 @@ app.post('/api/upload/batch-photos-arrived-containers', uploadS3.fields([
                     const filename = generateFilename(tripSegmentNumber, filenamePhotoType, sequenceNumber, timestamp);
                     const filePath = path.join(containerFolderPath, filename);
                     
-                    // Save to local backend/arrivedContainers/{tripSegmentNumber}/ folder
+                    // Save to local backend/InspectionPhotos/{tripSegmentNumber}/ArrivedContainer/ folder
                     await fs.writeFile(filePath, file.buffer);
                     
-                    const photoUrl = `${process.env.BACKEND_URL}/arrivedContainers/${tripSegmentNumber}/${filename}`;
+                    const photoUrl = `${process.env.BACKEND_URL}/InspectionPhotos/${tripSegmentNumber}/ArrivedContainer/${filename}`;
                     
                     // Track uploaded file
                     uploadedFiles.push({
@@ -3234,7 +3234,7 @@ app.post('/api/upload/batch-photos-arrived-containers', uploadS3.fields([
                     const filename = generateFilename(tripSegmentNumber, 'DamagePhoto', sequenceNumber, timestamp);
                     const filePath = path.join(containerFolderPath, filename);
                     
-                    // Save to local backend/arrivedContainers/{tripSegmentNumber}/ folder
+                    // Save to local backend/InspectionPhotos/{tripSegmentNumber}/ArrivedContainer/ folder
                     await fs.writeFile(filePath, file.buffer);
                     
                     // Map location names to standard format
@@ -3261,14 +3261,14 @@ app.post('/api/upload/batch-photos-arrived-containers', uploadS3.fields([
                     
                     damagePhotosArray.push({
                         damageLocation: standardLocation,
-                        damagePhotoUrl: `${process.env.BACKEND_URL}/arrivedContainers/${tripSegmentNumber}/${filename}`,
+                        damagePhotoUrl: `${process.env.BACKEND_URL}/InspectionPhotos/${tripSegmentNumber}/ArrivedContainer/${filename}`,
                         uploadedAt: new Date(timestamp).toISOString()
                     });
                     
                     uploadedFiles.push({
                         filename: filename,
                         localPath: filePath,
-                        url: `${process.env.BACKEND_URL}/arrivedContainers/${tripSegmentNumber}/${filename}`,
+                        url: `${process.env.BACKEND_URL}/InspectionPhotos/${tripSegmentNumber}/ArrivedContainer/${filename}`,
                         type: 'DamagePhoto',
                         location: standardLocation
                     });
@@ -3312,13 +3312,13 @@ app.post('/api/upload/batch-photos-arrived-containers', uploadS3.fields([
 
             res.json({
                 success: true,
-                message: 'All photos saved to backend/arrivedContainers successfully',
+                message: 'All photos saved to backend/InspectionPhotos successfully',
                 photoReferences: {
                     containerPhotos: containerPhotosArray,
                     damagePhotos: damagePhotosArray
                 },
                 totalPhotos: containerPhotosArray.length + damagePhotosArray.length,
-                localPath: `arrivedContainers/${tripSegmentNumber}/`,
+                localPath: `InspectionPhotos/${tripSegmentNumber}/ArrivedContainer/`,
                 uploadedFiles: uploadedFiles
             });
 
@@ -3376,7 +3376,10 @@ async function startServer() {
             }));
 
             const fetch = require('node-fetch');
-            const response = await fetch(PLATERECOGNIZER_URL, {
+            
+            // Add timeout to PlateRecognizer API call (20 seconds)
+            // Using Promise.race to implement timeout
+            const fetchPromise = fetch(PLATERECOGNIZER_URL, {
                 method: 'POST',
                 headers: {
                     'Authorization': `Token ${PLATERECOGNIZER_API_KEY}`,
@@ -3384,36 +3387,70 @@ async function startServer() {
                 },
                 body: formData,
             });
-
-            const data = await response.json();
+            
+            const timeoutPromise = new Promise((_, reject) => {
+                setTimeout(() => reject(new Error('Request timeout')), 20000); // 20 second timeout
+            });
+            
+            try {
+                const response = await Promise.race([fetchPromise, timeoutPromise]);
+                const data = await response.json();
         
 
-            if (data.results && data.results.length > 0) {
-                const plateResult = data.results[0];
-                const plateNumber = plateResult.plate.toUpperCase(); // Convert to uppercase
-                const confidence = plateResult.score; // Use 'score' instead of 'confidence'
-                
-                
-                res.json({
-                    success: true,
-                    data: {
-                        licencePlate: plateNumber,
-                        confidence: confidence,
-                        rawResponse: data
-                    }
-                });
-            } else {
-                res.json({
-                    success: true,
-                    data: {
-                        licencePlate: '',
-                        confidence: 0,
-                        rawResponse: data
-                    }
-                });
+                if (data.results && data.results.length > 0) {
+                    const plateResult = data.results[0];
+                    const plateNumber = plateResult.plate.toUpperCase(); // Convert to uppercase
+                    const confidence = plateResult.score; // Use 'score' instead of 'confidence'
+                    
+                    
+                    res.json({
+                        success: true,
+                        data: {
+                            licencePlate: plateNumber,
+                            confidence: confidence,
+                            rawResponse: data
+                        }
+                    });
+                } else {
+                    res.json({
+                        success: true,
+                        data: {
+                            licencePlate: '',
+                            confidence: 0,
+                            rawResponse: data
+                        }
+                    });
+                }
+            } catch (fetchError) {
+                // Handle timeout specifically
+                if (fetchError.message === 'Request timeout') {
+                    console.error('⏱️ PlateRecognizer API timeout after 20 seconds');
+                    return res.status(504).json({
+                        success: false,
+                        error: 'PlateRecognizer API request timed out. The service may be slow or unavailable.'
+                    });
+                }
+                throw fetchError; // Re-throw to outer catch
             }
 
         } catch (error) {
+            console.error('❌ PlateRecognizer API Error:', error);
+            
+            // More detailed error logging
+            if (error.code === 'ENOTFOUND') {
+                return res.status(503).json({
+                    success: false,
+                    error: 'Cannot reach PlateRecognizer API. Please check your internet connection.'
+                });
+            }
+            
+            if (error.code === 'ECONNREFUSED') {
+                return res.status(503).json({
+                    success: false,
+                    error: 'PlateRecognizer API connection refused. Service may be down.'
+                });
+            }
+            
             res.status(500).json({
                 success: false,
                 error: error.message || 'Failed to recognize licence plate'

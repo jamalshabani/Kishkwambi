@@ -384,11 +384,12 @@ const StepSixTruckPhoto = ({ onBack, onBackToBackWallDamage, containerData, onNa
             }
             } catch (fetchError) {
                 if (fetchError.name === 'AbortError') {
-                    Alert.alert(
-                        'Request Timeout',
-                        'The request took too long. Please enter the truck number manually.',
-                        [{ text: 'OK' }]
-                    );
+                    // Use styled modal instead of Alert
+                    setErrorModalData({
+                        title: 'Request Timeout',
+                        message: 'The request took too long. Please enter the truck number manually.'
+                    });
+                    setShowErrorModal(true);
                 } else {
                     throw fetchError; // Re-throw to outer catch
                 }
