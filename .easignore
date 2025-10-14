@@ -1,0 +1,55 @@
+# EAS Build Ignore File
+# Files and folders to exclude from EAS build
+
+# Backend folder (not needed for mobile app build)
+backend/
+backend/**
+
+# Development files
+node_modules/
+.expo/
+.expo-shared/
+
+# Native folders (let EAS Prebuild generate them)
+android/
+ios/
+
+# Git
+.git/
+.gitignore
+
+# Documentation
+*.md
+README.md
+COMPLETE_PHOTO_LOGGING.md
+PARKROW_TIMEOUT_FIXED.md
+PHOTO_NAMING_FIXED.md
+PHOTO_PROCESSING_COMPLETE.md
+PIN_AUTHENTICATION_DOCS.md
+PIN_QUICK_START.md
+ALL_UPDATES_SUMMARY.md
+
+# Environment files
+.env
+.env.*
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Build artifacts
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Test files
+__tests__/
+coverage/
+

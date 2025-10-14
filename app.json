@@ -2,14 +2,14 @@
   "expo": {
     "name": "Simba Terminals",
     "slug": "simba-terminals",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "orientation": "portrait",
-    "icon": "./assets/logo/logo.jpg",
+    "icon": "./assets/logo/logo.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "scheme": "simba-terminals",
     "splash": {
-      "image": "./assets/logo/logo.jpg",
+      "image": "./assets/logo/logo.png",
       "resizeMode": "contain",
       "backgroundColor": "#BC8405"
     },
@@ -18,18 +18,30 @@
       "backgroundColor": "#BC8405"
     },
     "android": {
+      "package": "com.jjuma1992.kishkwambi",
       "adaptiveIcon": {
-        "foregroundImage": "./assets/logo/logo.jpg",
+        "foregroundImage": "./assets/logo/logo.png",
         "backgroundColor": "#BC8405"
       },
       "backgroundColor": "#BC8405",
-      "edgeToEdgeEnabled": true
+      "edgeToEdgeEnabled": true,
+      "permissions": [
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE"
+      ]
     },
     "web": {
-      "favicon": "./assets/logo/logo.jpg"
+      "favicon": "./assets/logo/logo.png"
     },
     "plugins": [
       "expo-router"
-    ]
+    ],
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "624c3d5b-b3cc-45fa-86e0-d00132144a9a"
+      }
+    }
   }
 }
