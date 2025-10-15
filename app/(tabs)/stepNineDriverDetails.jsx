@@ -70,7 +70,7 @@ const StepNineDriverDetails = ({ onBack, containerData, onComplete, onShowSucces
     const [driverDetails, setDriverDetails] = useState({
         firstName: '',
         lastName: '',
-        phoneNumber: '',
+        phoneNumber: '+255',
         licenseNumber: '',
         transporterName: 'Local Transporter'
     });
@@ -696,7 +696,7 @@ inwardLOLOBalance = 75000;
                 driverFirstName: driverDetails.firstName,
                 driverLastName: driverDetails.lastName,
                 driverLicenceNumber: driverDetails.licenseNumber,
-                driverPhoneNumber: driverDetails.phoneNumber,
+                driverPhoneNumber: driverDetails.phoneNumber.replace(/\s/g, ''), // Remove spaces before saving
                 containerStatus: "Pending",
                 inspectionDate: inspectionDate,
                 inspectionTime: inspectionTime,
@@ -822,10 +822,52 @@ inwardLOLOBalance = 75000;
     };
 
     const handleInputChange = (field, value) => {
-        setDriverDetails(prev => ({
-            ...prev,
-            [field]: value
-        }));
+        // Validation for Driver Licence Number: only allow 10 digits
+        if (field === 'licenseNumber') {
+            // Only allow numbers
+            const numericValue = value.replace(/[^0-9]/g, '');
+            // Limit to 10 digits
+            const limitedValue = numericValue.slice(0, 10);
+            
+            setDriverDetails(prev => ({
+                ...prev,
+                [field]: limitedValue
+            }));
+        } 
+        // Validation for Phone Number: format +255 ### ### ###
+        else if (field === 'phoneNumber') {
+            // Remove the fixed prefix +255 to get only user input
+            let userInput = value.replace('+255 ', '').replace('+255', '');
+            
+            // Remove all non-numeric characters from user input
+            const numericValue = userInput.replace(/[^0-9]/g, '');
+            
+            // Limit to 9 digits
+            const limitedDigits = numericValue.slice(0, 9);
+            
+            // Format as +255 ### ### ###
+            let formattedValue = '+255';
+            if (limitedDigits.length > 0) {
+                if (limitedDigits.length <= 3) {
+                    formattedValue += ' ' + limitedDigits;
+                } else if (limitedDigits.length <= 6) {
+                    formattedValue += ' ' + limitedDigits.slice(0, 3) + ' ' + limitedDigits.slice(3);
+                } else {
+                    formattedValue += ' ' + limitedDigits.slice(0, 3) + ' ' + limitedDigits.slice(3, 6) + ' ' + limitedDigits.slice(6);
+                }
+            }
+            
+            setDriverDetails(prev => ({
+                ...prev,
+                [field]: formattedValue
+            }));
+        } 
+        else {
+            setDriverDetails(prev => ({
+                ...prev,
+                [field]: value
+            }));
+        }
     };
 
     if (!permission) {
@@ -1152,12 +1194,12 @@ inwardLOLOBalance = 75000;
                                     </View>
                                 </View>
 
-                                {/* Row 2: Driver License Number and Phone Number */}
+                                {/* Row 2: Driver Licence Number and Phone Number */}
                                 <View style={cn('flex-row gap-2 mb-4')}>
-                                    {/* Driver License Number */}
+                                    {/* Driver Licence Number */}
                                     <View style={cn('flex-1')}>
                                         <Text style={cn(`text-sm font-medium mb-2 ${isDark ? 'text-gray-300' : 'text-gray-600'}`)}>
-                                            License Number <Text style={cn('text-red-500')}>*</Text>
+                                            Licence Number <Text style={cn('text-red-500')}>*</Text>
                                         </Text>
                                         <View style={cn('rounded-lg overflow-hidden')}>
                                             <LinearGradient
@@ -1168,11 +1210,12 @@ inwardLOLOBalance = 75000;
                                             >
                                                 <TextInput
                                                     style={cn(`px-3 py-3 rounded-lg ${isDark ? 'bg-gray-700 text-white' : 'bg-gray-50 text-black'} ${focusedField === 'licenseNumber' ? '' : 'border'} ${focusedField === 'licenseNumber' ? '' : (isDark ? 'border-gray-600' : 'border-gray-300')}`)}
-                                                    placeholder="License #"
+                                                    placeholder="Licence #"
                                                     placeholderTextColor={isDark ? '#9CA3AF' : '#6B7280'}
                                                     value={driverDetails.licenseNumber}
                                                     onChangeText={(value) => handleInputChange('licenseNumber', value)}
-                                                    keyboardType="phone-pad"
+                                                    keyboardType="numeric"
+                                                    maxLength={10}
                                                     onFocus={() => setFocusedField('licenseNumber')}
                                                     onBlur={() => setFocusedField(null)}
                                                 />
@@ -1194,11 +1237,12 @@ inwardLOLOBalance = 75000;
                                             >
                                                 <TextInput
                                                     style={cn(`px-3 py-3 rounded-lg ${isDark ? 'bg-gray-700 text-white' : 'bg-gray-50 text-black'} ${focusedField === 'phoneNumber' ? '' : 'border'} ${focusedField === 'phoneNumber' ? '' : (isDark ? 'border-gray-600' : 'border-gray-300')}`)}
-                                                    placeholder="Phone #"
+                                                    placeholder="+255 ### ### ###"
                                                     placeholderTextColor={isDark ? '#9CA3AF' : '#6B7280'}
                                                     value={driverDetails.phoneNumber}
                                                     onChangeText={(value) => handleInputChange('phoneNumber', value)}
-                                                    keyboardType="phone-pad"
+                                                    keyboardType="numeric"
+                                                    maxLength={16}
                                                     onFocus={() => setFocusedField('phoneNumber')}
                                                     onBlur={() => setFocusedField(null)}
                                                 />

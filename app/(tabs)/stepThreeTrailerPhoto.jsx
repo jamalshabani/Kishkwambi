@@ -17,7 +17,7 @@ const StepThreeTrailerPhoto = ({ onBack, onBackToDamagePhotos, containerData, on
     const [permission, requestPermission] = useCameraPermissions();
     const [image, setImage] = useState(null);
     const [showZoomModal, setShowZoomModal] = useState(false);
-    const [licencePlate, setLicencePlate] = useState(Array(7).fill(''));
+    const [licencePlate, setLicencePlate] = useState(['T', '', '', '', '', '', '']);
     const [extractedData, setExtractedData] = useState({
         licencePlate: '',
     });
@@ -40,7 +40,7 @@ const StepThreeTrailerPhoto = ({ onBack, onBackToDamagePhotos, containerData, on
         
         if (containerData?.trailerNumber) {
             const plateArray = containerData.trailerNumber.split('');
-            const newLicencePlate = Array(7).fill('');
+            const newLicencePlate = ['T', '', '', '', '', '', ''];
             
             // Fill the array with the saved trailer number
             for (let i = 0; i < Math.min(plateArray.length, 7); i++) {
@@ -162,8 +162,29 @@ const StepThreeTrailerPhoto = ({ onBack, onBackToDamagePhotos, containerData, on
     };
 
     const handleLicencePlateChange = (index, value) => {
+        // First character must always be 'T' and cannot be edited
+        if (index === 0) {
+            return; // Don't allow editing the first character
+        }
+        
+        // Get the last character entered
+        const char = value.toUpperCase().slice(-1);
+        
+        // Validation: Format is T###XXX (T + 3 numbers + 3 letters)
+        if (index >= 1 && index <= 3) {
+            // Positions 1-3: must be numbers (0-9)
+            if (char && !/^[0-9]$/.test(char)) {
+                return; // Invalid input - don't update
+            }
+        } else if (index >= 4 && index <= 6) {
+            // Positions 4-6: must be letters (A-Z)
+            if (char && !/^[A-Z]$/.test(char)) {
+                return; // Invalid input - don't update
+            }
+        }
+        
         const newLicencePlate = [...licencePlate];
-        newLicencePlate[index] = value.toUpperCase();
+        newLicencePlate[index] = char;
         setLicencePlate(newLicencePlate);
 
         // Update extractedData to keep it in sync
@@ -179,7 +200,7 @@ const StepThreeTrailerPhoto = ({ onBack, onBackToDamagePhotos, containerData, on
         }
         
         // Handle backspace - move to previous input if current is empty
-        if (!value && index > 0) {
+        if (!value && index > 1) { // Changed from index > 0 to index > 1 to prevent going back to 'T'
             licencePlateRefs.current[index - 1]?.focus();
         }
     };
@@ -380,7 +401,7 @@ const StepThreeTrailerPhoto = ({ onBack, onBackToDamagePhotos, containerData, on
 
                 // Auto-fill the licence plate input fields
                 const plateArray = detectedPlate.split('');
-                const newLicencePlate = Array(7).fill('');
+                const newLicencePlate = ['T', '', '', '', '', '', ''];
 
                 // Fill the array with detected characters (already uppercase from backend)
                 for (let i = 0; i < Math.min(plateArray.length, 7); i++) {
@@ -389,11 +410,11 @@ const StepThreeTrailerPhoto = ({ onBack, onBackToDamagePhotos, containerData, on
 
                 setLicencePlate(newLicencePlate);
             } else {
-                Alert.alert(
-                    'No Licence Plate Detected',
-                    'Please manually enter the trailer licence plate number.',
-                    [{ text: 'OK' }]
-                );
+                setErrorModalData({
+                    title: 'No Trailer Number Detected',
+                    message: 'No trailer license number was detected in the image. Please enter it manually.'
+                });
+                setShowErrorModal(true);
             }
         } catch (error) {
             
@@ -411,11 +432,11 @@ const StepThreeTrailerPhoto = ({ onBack, onBackToDamagePhotos, containerData, on
                 });
                 setShowErrorModal(true);
             } else {
-                Alert.alert(
-                    'Recognition Error',
-                    'Failed to recognize licence plate. Please enter manually.',
-                    [{ text: 'OK' }]
-                );
+                setErrorModalData({
+                    title: 'Recognition Error',
+                    message: 'Failed to recognize licence plate. Please enter manually.'
+                });
+                setShowErrorModal(true);
             }
         } finally {
             setIsRecognizingPlate(false);
@@ -425,7 +446,7 @@ const StepThreeTrailerPhoto = ({ onBack, onBackToDamagePhotos, containerData, on
     const retakePhoto = () => {
         setImage(null);
         setExtractedData({ licencePlate: '' });
-        setLicencePlate(Array(7).fill(''));
+        setLicencePlate(['T', '', '', '', '', '', '']);
     };
 
 
@@ -879,11 +900,14 @@ const StepThreeTrailerPhoto = ({ onBack, onBackToDamagePhotos, containerData, on
                                                                     margin: 0,
                                                                     lineHeight: 25,
                                                                     includeFontPadding: false
-                                                                }
+                                                                },
+                                                                index === 0 && { opacity: 0.7 }
                                                             ]}
                                                             maxLength={1}
+                                                            keyboardType={(index >= 1 && index <= 3) ? 'numeric' : 'default'}
                                                             autoCapitalize="characters"
                                                             selectTextOnFocus
+                                                            editable={index !== 0}
                                                         />
                                                     </View>
                                                 ))}

@@ -628,8 +628,26 @@ const StepOneContainerPhoto = ({ onBack, onNavigateToStepTwo, onNavigateToDamage
     };
 
     const handleContainerNumberChange = (index, value) => {
+        // Get the last character entered
+        const char = value.toUpperCase().slice(-1);
+        
+        // Validation: First 4 characters must be letters, last 7 must be numbers
+        if (index < 4) {
+            // First 4 positions: only allow letters (A-Z)
+            if (char && !/^[A-Z]$/.test(char)) {
+                // Invalid input - don't update, just return
+                return;
+            }
+        } else {
+            // Last 7 positions: only allow numbers (0-9)
+            if (char && !/^[0-9]$/.test(char)) {
+                // Invalid input - don't update, just return
+                return;
+            }
+        }
+        
         const newContainerNumber = [...containerNumber];
-        newContainerNumber[index] = value.toUpperCase().slice(-1);
+        newContainerNumber[index] = char;
         setContainerNumber(newContainerNumber);
         
         // Update extractedData to keep it in sync
@@ -651,8 +669,34 @@ const StepOneContainerPhoto = ({ onBack, onNavigateToStepTwo, onNavigateToDamage
     };
 
     const handleIsoCodeChange = (index, value) => {
+        // Get the last character entered
+        const char = value.toUpperCase().slice(-1);
+        
+        // Validation: ISO code format validation
+        if (index === 0) {
+            // First character: must be 2, 4, 5, or M
+            if (char && !/^[245]$/.test(char)) {
+                return;
+            }
+        } else if (index === 1) {
+            // Second character: must be 2 or 5
+            if (char && !/^[25]$/.test(char)) {
+                return;
+            }
+        } else if (index === 2) {
+            // Third character: must be G, R, U, P, or T
+            if (char && !/^[GRUPT]$/.test(char)) {
+                return;
+            }
+        } else if (index === 3) {
+            // Fourth character: must be a number (0-9)
+            if (char && !/^[0-9]$/.test(char)) {
+                return;
+            }
+        }
+        
         const newIsoCode = [...isoCode];
-        newIsoCode[index] = value.toUpperCase().slice(-1);
+        newIsoCode[index] = char;
         setIsoCode(newIsoCode);
         
         // Update extractedData to keep it in sync
@@ -960,6 +1004,7 @@ const StepOneContainerPhoto = ({ onBack, onNavigateToStepTwo, onNavigateToDamage
                                                             }
                                                         ]}
                                                         maxLength={1}
+                                                        keyboardType={index < 4 ? 'default' : 'numeric'}
                                                         autoCapitalize="characters"
                                                         selectTextOnFocus
                                                     />
@@ -998,6 +1043,7 @@ const StepOneContainerPhoto = ({ onBack, onNavigateToStepTwo, onNavigateToDamage
                                                                 }
                                                             ]}
                                                             maxLength={1}
+                                                            keyboardType={(index === 0 || index === 1 || index === 3) ? 'numeric' : 'default'}
                                                             autoCapitalize="characters"
                                                             selectTextOnFocus
                                                         />

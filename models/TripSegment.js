@@ -29,7 +29,7 @@ const tripSegmentSchema = new Schema({
             type: String,
             required: true
         },
-        containerPhotoPath: {
+        containerPhotoUrl: {
             type: String,
             required: true
         },
@@ -267,7 +267,7 @@ const tripSegmentSchema = new Schema({
             type: String,
             required: true
         },
-        damagePhotoPath: {
+        damagePhotoUrl: {
             type: String,
             required: true
         },
