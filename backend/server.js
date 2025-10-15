@@ -8,6 +8,68 @@ const { S3Client, PutObjectCommand, DeleteObjectCommand } = require('@aws-sdk/cl
 require('dotenv').config();
 const { formatParkRowResponse, formatGoogleVisionResponse } = require('./utils/parkrowFormatter');
 
+// Notification creation function
+async function createStatusChangeNotification(tripSegment, oldStatus, newStatus) {
+    try {
+        console.log('🔔 Attempting to create notification:', { oldStatus, newStatus, containerNumber: tripSegment.containerNumber });
+        
+        // Only create notifications for specific status transitions
+        const validTransitions = {
+            'Not Received->Pending': {
+                title: `[${tripSegment.tripSegmentNumber}] Arrival Inspection`,
+                message: `Inspection for ${tripSegment.containerNumber} has completed. Approve or reject the inspection.`
+            },
+            'Pending->Arrived': {
+                title: `[${tripSegment.tripSegmentNumber}] Container Arrived`,
+                message: `Container ${tripSegment.containerNumber} has arrived in the yard`
+            },
+            'Arrived->Received': {
+                title: `[${tripSegment.tripSegmentNumber}] Container Received`,
+                message: `Container ${tripSegment.containerNumber} has been received and is now in the yard`
+            }
+        };
+
+        const transitionKey = `${oldStatus}->${newStatus}`;
+        const notificationConfig = validTransitions[transitionKey];
+
+        if (!notificationConfig) {
+            console.log('No notification needed for transition:', transitionKey);
+            return null;
+        }
+
+        // Create notification using MongoDB native operations
+        const notification = {
+            userId: null, // null means visible to all users
+            type: 'STATUS_CHANGE',
+            title: notificationConfig.title,
+            message: notificationConfig.message,
+            containerNumber: tripSegment.containerNumber,
+            tripSegmentId: tripSegment._id,
+            tripSegmentNumber: tripSegment.tripSegmentNumber,
+            metadata: {
+                oldStatus: oldStatus,
+                newStatus: newStatus,
+                shippingLine: tripSegment.shippingLine,
+                containerSize: tripSegment.containerSize
+            },
+            link: `/trip-segments/${tripSegment._id}`,
+            isRead: false,
+            createdAt: new Date(),
+            updatedAt: new Date()
+        };
+
+        // Insert notification into database using MongoDB native operations
+        const notificationsCollection = db.collection('notifications');
+        await notificationsCollection.insertOne(notification);
+
+        console.log(`✅ Notification created for status change: ${oldStatus} -> ${newStatus}`);
+        return notification;
+    } catch (error) {
+        console.error('Failed to create status change notification:', error);
+        return null;
+    }
+}
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 
@@ -154,7 +216,9 @@ async function connectToDatabase() {
 
         await client.connect();
         db = client.db(DB_NAME);
+        console.log('✅ Connected to MongoDB');
     } catch (error) {
+        console.error('❌ Database connection failed:', error);
         process.exit(1);
     }
 }
@@ -3511,6 +3575,18 @@ async function startServer() {
             // Update TripSegment document with driver details
             const tripsegmentsCollection = db.collection('tripsegments');
             
+            // First, get the current document to check original status
+            const currentTripSegment = await tripsegmentsCollection.findOne({ tripSegmentNumber: tripSegmentNumber });
+            
+            if (!currentTripSegment) {
+                return res.status(404).json({
+                    success: false,
+                    error: 'Trip segment not found'
+                });
+            }
+
+            const originalStatus = currentTripSegment.containerStatus;
+            
             const updateData = {
                 transporterName: transporterName || "Local Transporter",
                 driverFirstName: driverFirstName || '',
@@ -3547,26 +3623,22 @@ async function startServer() {
                 { $set: updateData }
             );
 
-            if (updateResult.matchedCount === 0) {
-                return res.status(404).json({
-                    success: false,
-                    error: 'Trip segment not found'
-                });
+            // Create notification if status changed
+            if (originalStatus !== updateData.containerStatus) {
+                try {
+                    await createStatusChangeNotification(currentTripSegment, originalStatus, updateData.containerStatus);
+                } catch (notificationError) {
+                    console.error('Failed to create notification:', notificationError);
+                    // Don't fail the main operation if notification fails
+                }
             }
 
-            if (updateResult.modifiedCount === 0) {
-                return res.status(200).json({
-                    success: true,
-                    message: 'Trip segment found but no changes were needed'
-                });
-            }
-
-            
             res.json({
                 success: true,
                 message: 'Driver details updated successfully',
                 tripSegmentNumber: tripSegmentNumber,
-                updatedFields: Object.keys(updateData)
+                statusChange: originalStatus !== updateData.containerStatus ? 
+                    `${originalStatus} -> ${updateData.containerStatus}` : null
             });
 
         } catch (error) {
