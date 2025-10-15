@@ -72,8 +72,20 @@ const StepNineDriverDetails = ({ onBack, containerData, onComplete, onShowSucces
         lastName: '',
         phoneNumber: '+255',
         licenseNumber: '',
-        transporterName: 'Local Transporter'
+        transporterName: 'Local Transporter',
+        country: 'TZ'
     });
+
+    // Country phone prefixes
+    const countryPrefixes = {
+        'TZ': '+255',
+        'KE': '+254',
+        'UG': '+256',
+        'ZM': '+260',
+        'RW': '+250',
+        'DRC': '+243',
+        'OTHER': '+'
+    };
 
     // Error modal state
     const [showErrorModal, setShowErrorModal] = useState(false);
@@ -697,6 +709,7 @@ inwardLOLOBalance = 75000;
                 driverLastName: driverDetails.lastName,
                 driverLicenceNumber: driverDetails.licenseNumber,
                 driverPhoneNumber: driverDetails.phoneNumber.replace(/\s/g, ''), // Remove spaces before saving
+                driverCountry: driverDetails.country,
                 containerStatus: "Pending",
                 inspectionDate: inspectionDate,
                 inspectionTime: inspectionTime,
@@ -822,38 +835,65 @@ inwardLOLOBalance = 75000;
     };
 
     const handleInputChange = (field, value) => {
-        // Validation for Driver Licence Number: only allow 10 digits
+        // Validation for Driver Licence Number: only apply 10-digit limit for Tanzania (TZ)
         if (field === 'licenseNumber') {
             // Only allow numbers
             const numericValue = value.replace(/[^0-9]/g, '');
-            // Limit to 10 digits
-            const limitedValue = numericValue.slice(0, 10);
+            
+            // Apply 10-digit limit only for Tanzania, allow more digits for other countries
+            const maxDigits = driverDetails.country === 'TZ' ? 10 : 20;
+            const limitedValue = numericValue.slice(0, maxDigits);
             
             setDriverDetails(prev => ({
                 ...prev,
                 [field]: limitedValue
             }));
         } 
-        // Validation for Phone Number: format +255 ### ### ###
+        // Validation for Phone Number: format based on country prefix
         else if (field === 'phoneNumber') {
-            // Remove the fixed prefix +255 to get only user input
-            let userInput = value.replace('+255 ', '').replace('+255', '');
+            const currentPrefix = countryPrefixes[driverDetails.country];
+            
+            // Remove the current prefix to get only user input
+            let userInput = value.replace(currentPrefix + ' ', '').replace(currentPrefix, '');
             
             // Remove all non-numeric characters from user input
             const numericValue = userInput.replace(/[^0-9]/g, '');
             
-            // Limit to 9 digits
-            const limitedDigits = numericValue.slice(0, 9);
+            // Limit digits based on country
+            let maxDigits;
+            if (driverDetails.country === 'RW') {
+                maxDigits = 10; // Rwanda uses 10 digits after +250
+            } else if (driverDetails.country === 'DRC') {
+                maxDigits = 9; // DRC uses 9 digits after +243
+            } else if (driverDetails.country === 'OTHER') {
+                maxDigits = 15; // Allow more digits for "Other"
+            } else {
+                maxDigits = 9; // TZ, KE, UG, ZM use 9 digits after country code
+            }
             
-            // Format as +255 ### ### ###
-            let formattedValue = '+255';
+            const limitedDigits = numericValue.slice(0, maxDigits);
+            
+            // Format with spaces based on country
+            let formattedValue = currentPrefix;
             if (limitedDigits.length > 0) {
-                if (limitedDigits.length <= 3) {
-                    formattedValue += ' ' + limitedDigits;
-                } else if (limitedDigits.length <= 6) {
-                    formattedValue += ' ' + limitedDigits.slice(0, 3) + ' ' + limitedDigits.slice(3);
+                if (driverDetails.country === 'RW') {
+                    // Rwanda: +250 XXX XXX XXXX (10 digits in groups of 3-3-4)
+                    if (limitedDigits.length <= 3) {
+                        formattedValue += ' ' + limitedDigits;
+                    } else if (limitedDigits.length <= 6) {
+                        formattedValue += ' ' + limitedDigits.slice(0, 3) + ' ' + limitedDigits.slice(3);
+                    } else {
+                        formattedValue += ' ' + limitedDigits.slice(0, 3) + ' ' + limitedDigits.slice(3, 6) + ' ' + limitedDigits.slice(6);
+                    }
                 } else {
-                    formattedValue += ' ' + limitedDigits.slice(0, 3) + ' ' + limitedDigits.slice(3, 6) + ' ' + limitedDigits.slice(6);
+                    // Other countries: +XXX XXX XXX XXX (9 digits in groups of 3-3-3)
+                    if (limitedDigits.length <= 3) {
+                        formattedValue += ' ' + limitedDigits;
+                    } else if (limitedDigits.length <= 6) {
+                        formattedValue += ' ' + limitedDigits.slice(0, 3) + ' ' + limitedDigits.slice(3);
+                    } else {
+                        formattedValue += ' ' + limitedDigits.slice(0, 3) + ' ' + limitedDigits.slice(3, 6) + ' ' + limitedDigits.slice(6);
+                    }
                 }
             }
             
@@ -1141,6 +1181,49 @@ inwardLOLOBalance = 75000;
                                     Driver Information
                                 </Text>
 
+                                {/* Country Selection */}
+                                <View style={cn('mb-4')}>
+                                    <Text style={cn(`text-sm font-medium mb-2 ${isDark ? 'text-gray-300' : 'text-gray-600'}`)}>
+                                        Driver Country of Origin
+                                    </Text>
+                                    <View style={cn('flex-row gap-1 flex-wrap')}>
+                                        {[
+                                            { code: 'TZ', name: 'Tanzania', flag: '🇹🇿' },
+                                            { code: 'KE', name: 'Kenya', flag: '🇰🇪' },
+                                            { code: 'UG', name: 'Uganda', flag: '🇺🇬' },
+                                            { code: 'ZM', name: 'Zambia', flag: '🇿🇲' },
+                                            { code: 'RW', name: 'Rwanda', flag: '🇷🇼' },
+                                            { code: 'DRC', name: 'DR Congo', flag: '🇨🇩' },
+                                            { code: 'OTHER', name: 'Other', flag: '🌍' }
+                                        ].map((country) => (
+                                            <TouchableOpacity
+                                                key={country.code}
+                                                onPress={() => {
+                                                    const newPrefix = countryPrefixes[country.code];
+                                                    setDriverDetails(prev => ({ 
+                                                        ...prev, 
+                                                        country: country.code,
+                                                        phoneNumber: newPrefix
+                                                    }));
+                                                }}
+                                                style={cn('w-16 rounded-lg overflow-hidden')}
+                                            >
+                                                <LinearGradient
+                                                    colors={driverDetails.country === country.code ? ['#F59E0B', '#000000'] : ['#E5E7EB', '#D1D5DB']}
+                                                    start={{ x: 0, y: 0 }}
+                                                    end={{ x: 1, y: 0 }}
+                                                    style={cn('p-2 items-center')}
+                                                >
+                                                    <Text style={cn('text-lg mb-1')}>{country.flag}</Text>
+                                                    <Text style={cn(`text-xs font-semibold ${driverDetails.country === country.code ? 'text-white' : 'text-gray-700'}`)}>
+                                                        {country.code}
+                                                    </Text>
+                                                </LinearGradient>
+                                            </TouchableOpacity>
+                                        ))}
+                                    </View>
+                                </View>
+
                                 {/* Row 1: Driver First Name and Last Name */}
                                 <View style={cn('flex-row gap-2 mb-4')}>
                                     {/* Driver First Name */}
@@ -1196,8 +1279,8 @@ inwardLOLOBalance = 75000;
 
                                 {/* Row 2: Driver Licence Number and Phone Number */}
                                 <View style={cn('flex-row gap-2 mb-4')}>
-                                    {/* Driver Licence Number */}
-                                    <View style={cn('flex-1')}>
+                                    {/* Driver Licence Number - 50% width */}
+                                    <View style={cn('w-1/2')}>
                                         <Text style={cn(`text-sm font-medium mb-2 ${isDark ? 'text-gray-300' : 'text-gray-600'}`)}>
                                             Licence Number <Text style={cn('text-red-500')}>*</Text>
                                         </Text>
@@ -1223,8 +1306,8 @@ inwardLOLOBalance = 75000;
                                         </View>
                                     </View>
 
-                                    {/* Driver Phone Number */}
-                                    <View style={cn('flex-1')}>
+                                    {/* Driver Phone Number - 50% width */}
+                                    <View style={cn('w-1/2')}>
                                         <Text style={cn(`text-sm font-medium mb-2 ${isDark ? 'text-gray-300' : 'text-gray-600'}`)}>
                                             Phone Number <Text style={cn('text-red-500')}>*</Text>
                                         </Text>
@@ -1237,12 +1320,16 @@ inwardLOLOBalance = 75000;
                                             >
                                                 <TextInput
                                                     style={cn(`px-3 py-3 rounded-lg ${isDark ? 'bg-gray-700 text-white' : 'bg-gray-50 text-black'} ${focusedField === 'phoneNumber' ? '' : 'border'} ${focusedField === 'phoneNumber' ? '' : (isDark ? 'border-gray-600' : 'border-gray-300')}`)}
-                                                    placeholder="+255 ### ### ###"
+                                                    placeholder={
+                                                        driverDetails.country === 'RW' 
+                                                            ? `${countryPrefixes[driverDetails.country]} ### ### ####` 
+                                                            : `${countryPrefixes[driverDetails.country]} ### ### ###`
+                                                    }
                                                     placeholderTextColor={isDark ? '#9CA3AF' : '#6B7280'}
                                                     value={driverDetails.phoneNumber}
                                                     onChangeText={(value) => handleInputChange('phoneNumber', value)}
                                                     keyboardType="numeric"
-                                                    maxLength={16}
+                                                    maxLength={20}
                                                     onFocus={() => setFocusedField('phoneNumber')}
                                                     onBlur={() => setFocusedField(null)}
                                                 />
@@ -1252,27 +1339,13 @@ inwardLOLOBalance = 75000;
                                 </View>
 
 
-                            {/* Action Buttons */}
-                            <View style={cn('flex-row gap-4 mb-6')}>
-                                <TouchableOpacity
-                                    onPress={() => setShowForm(false)}
-                                    style={cn('flex-1 rounded-lg overflow-hidden')}
-                                >
-                                    <LinearGradient
-                                        colors={['#000000', '#F59E0B']}
-                                        start={{ x: 0, y: 0 }}
-                                        end={{ x: 1, y: 0 }}
-                                        style={cn('px-4 py-4 items-center')}
-                                    >
-                                        <Text style={cn('text-white font-bold')}>Previous</Text>
-                                    </LinearGradient>
-                                </TouchableOpacity>
-                                
+                            {/* Submit Button - Full Width */}
+                            <View style={cn('mb-6')}>
                                 <TouchableOpacity
                                     onPress={handleComplete}
                                     disabled={isProcessing || !driverDetails.firstName || !driverDetails.lastName || 
                                              !driverDetails.phoneNumber || !driverDetails.licenseNumber}
-                                    style={cn(`flex-1 rounded-lg overflow-hidden ${(isProcessing || !driverDetails.firstName || !driverDetails.lastName || 
+                                    style={cn(`rounded-lg overflow-hidden ${(isProcessing || !driverDetails.firstName || !driverDetails.lastName || 
                                              !driverDetails.phoneNumber || !driverDetails.licenseNumber) ? 'opacity-50' : ''}`)}
                                 >
                                     <LinearGradient
