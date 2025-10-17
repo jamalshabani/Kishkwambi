@@ -567,8 +567,13 @@ const StepNineDriverDetails = ({ onBack, containerData, onComplete, onShowSucces
             console.log('📋 Main photos:', photos.map(p => p.type).join(', '));
             console.log('📋 Damage photos locations:', damagePhotos.map(p => p.location).join(', '));
             
-            const totalPhotos = photos.length + damagePhotos.length;
-            console.log(`📊 Total photos to upload: ${totalPhotos}`);
+            // Count document photos
+            let documentPhotoCount = 0;
+            if (containerData?.depotAllocationPhoto) documentPhotoCount++;
+            if (containerData?.interchangeDocumentPhoto) documentPhotoCount++;
+            
+            const totalPhotos = photos.length + damagePhotos.length + documentPhotoCount;
+            console.log(`📊 Total photos to upload: ${totalPhotos} (${photos.length} main + ${damagePhotos.length} damage + ${documentPhotoCount} document)`);
             
             // Update progress: preparing upload
             if (progressCallback) {
@@ -598,6 +603,27 @@ const StepNineDriverDetails = ({ onBack, containerData, onComplete, onShowSucces
                 });
                 formData.append('damageLocations', photo.location);
             });
+            
+            // Add document photos as separate fields
+            if (containerData?.depotAllocationPhoto) {
+                const compressedUri = await compressImage(containerData.depotAllocationPhoto);
+                formData.append('depotAllocationPhoto', {
+                    uri: compressedUri,
+                    type: 'image/jpeg',
+                    name: 'depot-allocation.jpg'
+                });
+                console.log('📦 Added depot allocation photo to FormData');
+            }
+            
+            if (containerData?.interchangeDocumentPhoto) {
+                const compressedUri = await compressImage(containerData.interchangeDocumentPhoto);
+                formData.append('interchangePhoto', {
+                    uri: compressedUri,
+                    type: 'image/jpeg',
+                    name: 'interchange-document.jpg'
+                });
+                console.log('📦 Added interchange document photo to FormData');
+            }
             
             // Simulate progress during upload (since we can't track individual photo uploads in one request)
             let currentPhotoCount = 0;

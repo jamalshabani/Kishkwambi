@@ -3224,6 +3224,7 @@ app.post('/api/upload/batch-photos-arrived-containers', uploadS3.fields([
             }
 
             const tripsegmentsCollection = db.collection('tripsegments');
+            const timestamp = Date.now(); // Global timestamp for all photos in this batch
 
             const containerPhotosArray = [];
             const damagePhotosArray = [];
@@ -3240,7 +3241,7 @@ app.post('/api/upload/batch-photos-arrived-containers', uploadS3.fields([
                 for (let i = 0; i < req.files.photos.length; i++) {
                     const file = req.files.photos[i];
                     const originalPhotoType = photoTypesArray[i] || 'Photo';
-                    const timestamp = Date.now() + i; // Ensure unique timestamps
+                    const photoTimestamp = timestamp + i; // Ensure unique timestamps
                     
                     // Normalize photo type for filename
                     // Front wall, Right wall, Back wall, Left wall, Inside → All use "ContainerPhoto"
@@ -3279,7 +3280,7 @@ app.post('/api/upload/batch-photos-arrived-containers', uploadS3.fields([
                     }
                     
                     // Generate filename with normalized type
-                    const filename = generateFilename(tripSegmentNumber, filenamePhotoType, sequenceNumber, timestamp);
+                    const filename = generateFilename(tripSegmentNumber, filenamePhotoType, sequenceNumber, photoTimestamp);
                     const s3Key = `InspectionPhotos/${tripSegmentNumber}/ArrivedContainer/${filename}`;
                     
                     // Upload to Backblaze B2 cloud storage
@@ -3325,11 +3326,11 @@ app.post('/api/upload/batch-photos-arrived-containers', uploadS3.fields([
                 for (let i = 0; i < req.files.damagePhotos.length; i++) {
                     const file = req.files.damagePhotos[i];
                     const location = damageLocationsArray[i] || 'Unknown';
-                    const timestamp = Date.now() + i + 1000; // Offset to avoid collisions
+                    const damageTimestamp = timestamp + i + 1000; // Offset to avoid collisions
                     const sequenceNumber = i + 1;
                     
                     // Generate filename for damage photo
-                    const filename = generateFilename(tripSegmentNumber, 'DamagePhoto', sequenceNumber, timestamp);
+                    const filename = generateFilename(tripSegmentNumber, 'DamagePhoto', sequenceNumber, damageTimestamp);
                     const s3Key = `InspectionPhotos/${tripSegmentNumber}/ArrivedContainer/${filename}`;
                     
                     // Upload to Backblaze B2 cloud storage
@@ -3467,6 +3468,10 @@ app.post('/api/upload/batch-photos-arrived-containers', uploadS3.fields([
             );
 
             if (updateResult.modifiedCount === 0) {
+                console.log('⚠️ No TripSegment document was updated for batch photos');
+            } else {
+                console.log(`✅ TripSegment ${tripSegmentNumber} updated with batch photos`);
+                console.log('📊 Update data:', JSON.stringify(updateData.$set, null, 2));
             }
 
 
@@ -3475,9 +3480,13 @@ app.post('/api/upload/batch-photos-arrived-containers', uploadS3.fields([
                 message: 'All photos uploaded to Backblaze B2 cloud storage successfully',
                 photoReferences: {
                     containerPhotos: containerPhotosArray,
-                    damagePhotos: damagePhotosArray
+                    damagePhotos: damagePhotosArray,
+                    documentPhotos: {
+                        depotAllocationPhoto: updateData.$set.depotAllocationPhoto || null,
+                        interchangePhoto: updateData.$set.interchangePhoto || null
+                    }
                 },
-                totalPhotos: containerPhotosArray.length + damagePhotosArray.length,
+                totalPhotos: containerPhotosArray.length + damagePhotosArray.length + (updateData.$set.depotAllocationPhoto ? 1 : 0) + (updateData.$set.interchangePhoto ? 1 : 0),
                 storageLocation: 'Backblaze B2 Cloud Storage',
                 uploadedFiles: uploadedFiles
             });
