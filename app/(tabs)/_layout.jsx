@@ -439,6 +439,8 @@ export default function TabLayout() {
         setInsideDamagePhotosData(null);
         setInspectionRemarksData(null);
         setDriverData(null);
+        setDepotAllocationPhoto(null);
+        setInterchangeDocumentPhoto(null);
     };
 
     const renderContent = () => {
