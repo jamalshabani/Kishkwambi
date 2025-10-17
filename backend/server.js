@@ -228,7 +228,7 @@ async function connectToDatabase() {
 app.get('/api/health', async (req, res) => {
     res.json({
         success: true,
-        message: 'Backend server v7 is running'
+        message: 'Backend server v8 is running'
     });
 });
 
