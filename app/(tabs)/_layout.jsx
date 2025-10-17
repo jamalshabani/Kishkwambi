@@ -27,6 +27,8 @@ import StepEightDamagePhotos from './stepEightDamagePhotos';
 import StepEightHalfInspectionRemarks from './stepEightHalfInspectionRemarks';
 import StepNineDriverDetails from './stepNineDriverDetails';
 import InspectionSuccess from './inspectionSuccess';
+import StepDepotAllocationPhoto from './stepDepotAllocationPhoto';
+import StepInterchangeDocumentPhoto from './stepInterchangeDocumentPhoto';
 
 export default function TabLayout() {
     const { isDark } = useTheme();
@@ -52,6 +54,8 @@ export default function TabLayout() {
     const [inspectionData, setInspectionData] = useState(null);
     const [uploadProgress, setUploadProgress] = useState({ current: 0, total: 0, percentage: 0 });
     const [isUploading, setIsUploading] = useState(false);
+    const [depotAllocationPhoto, setDepotAllocationPhoto] = useState(null);
+    const [interchangeDocumentPhoto, setInterchangeDocumentPhoto] = useState(null);
 
     // Redirect to login if not authenticated
     useEffect(() => {
@@ -105,6 +109,14 @@ export default function TabLayout() {
         setActiveTab('stepOneContainerPhoto');
     };
 
+    const navigateToDepotAllocationPhoto = () => {
+        setActiveTab('stepDepotAllocationPhoto');
+    };
+
+    const navigateToInterchangeDocumentPhoto = () => {
+        setActiveTab('stepInterchangeDocumentPhoto');
+    };
+
     const navigateBackToDashboardFromStepOne = () => {
         // Reset the inspection timer when returning to dashboard
         resetTimer();
@@ -155,6 +167,9 @@ export default function TabLayout() {
             setContainerData(data);
             setActiveTab('stepOneContainerPhoto');
         }
+        
+        // Preserve document photos when navigating back
+        // The document photos are already in state, so they will persist
     };
 
     const navigateToStepTwo = (data) => {
@@ -432,7 +447,15 @@ export default function TabLayout() {
 
         switch (activeTab) {
             case 'dashboard':
-                return <Dashboard onTakePhoto={navigateToStepOne} onGoToStepOne={navigateToStepOne} />;
+                return <Dashboard onTakePhoto={(photoType) => {
+                    if (photoType === 'depot-allocation') {
+                        navigateToDepotAllocationPhoto();
+                    } else if (photoType === 'interchange-document') {
+                        navigateToInterchangeDocumentPhoto();
+                    } else {
+                        navigateToStepOne();
+                    }
+                }} onGoToStepOne={navigateToStepOne} depotAllocationPhoto={depotAllocationPhoto} onRemoveDepotPhoto={() => setDepotAllocationPhoto(null)} interchangeDocumentPhoto={interchangeDocumentPhoto} onRemoveInterchangePhoto={() => setInterchangeDocumentPhoto(null)} tripSegmentNumber={containerData?.tripSegmentNumber} />;
             case 'profile':
                 return <Profile />;
             case 'stepOneContainerPhoto':
@@ -441,7 +464,9 @@ export default function TabLayout() {
                     ...containerData,
                     ...(damagePhotosData || {}),
                     ...(trailerData || {}),
-                    ...(rightSidePhotoData || {})
+                    ...(rightSidePhotoData || {}),
+                    depotAllocationPhoto: depotAllocationPhoto,
+                    interchangeDocumentPhoto: interchangeDocumentPhoto
                 };
                 return <StepOneContainerPhoto onBack={navigateBackToDashboardFromStepOne} onNavigateToStepTwo={navigateToStepTwo} onNavigateToDamagePhotos={navigateToDamagePhotos} containerData={containerPhotoData} />;
             case 'stepTwoContainerDetails':
@@ -450,7 +475,9 @@ export default function TabLayout() {
                     ...containerData,
                     ...(damagePhotosData || {}),
                     ...(trailerData || {}),
-                    ...(rightSidePhotoData || {})
+                    ...(rightSidePhotoData || {}),
+                    depotAllocationPhoto: depotAllocationPhoto,
+                    interchangeDocumentPhoto: interchangeDocumentPhoto
                 };
                 return <StepTwoContainerDetails onBack={navigateBackToStepOne} containerData={containerDetailsData} onNavigateToStepThree={navigateToStepThree} onNavigateToDamagePhotos={navigateToDamagePhotos} onNavigateToStepThreeDirect={navigateToStepThree} />;
             case 'stepOneDamagePhotos':
@@ -459,7 +486,9 @@ export default function TabLayout() {
                     ...containerData,
                     ...damagePhotosData,
                     ...(trailerData || {}),
-                    ...(rightSidePhotoData || {})
+                    ...(rightSidePhotoData || {}),
+                    depotAllocationPhoto: depotAllocationPhoto,
+                    interchangeDocumentPhoto: interchangeDocumentPhoto
                 };
                 return <StepOneDamagePhotos onBack={navigateBackToStepTwo} containerData={containerDamageData} onNavigateToStepThree={navigateToStepThree} onNavigateToStepTwo={navigateToStepTwo} />;
             case 'stepThreeTrailerPhoto':
@@ -470,7 +499,9 @@ export default function TabLayout() {
                     ...trailerData,
                     ...(rightSidePhotoData || {}),
                     ...(rightSideDamagePhotosData || {}),
-                    ...(frontWallPhotoData || {})
+                    ...(frontWallPhotoData || {}),
+                    depotAllocationPhoto: depotAllocationPhoto,
+                    interchangeDocumentPhoto: interchangeDocumentPhoto
                 };
                 return <StepThreeTrailerPhoto onBack={navigateBackToStepTwo} onBackToDamagePhotos={navigateBackToDamagePhotos} containerData={trailerPhotoData} onNavigateToStepFour={navigateToStepFour} onNavigateToStepFourDirect={navigateToStepFour} />;
             case 'stepFourRightSidePhoto':
@@ -480,7 +511,9 @@ export default function TabLayout() {
                     ...rightSidePhotoData,
                     ...(frontWallPhotoData || {}),
                     ...(rightSideDamagePhotosData || {}),
-                    ...(frontWallDamagePhotosData || {})
+                    ...(frontWallDamagePhotosData || {}),
+                    depotAllocationPhoto: depotAllocationPhoto,
+                    interchangeDocumentPhoto: interchangeDocumentPhoto
                 };
                 return <StepFourRightSidePhoto onBack={navigateBackToStepThree} containerData={rightSideData} trailerData={rightSideData} onNavigateToStepFive={navigateToStepFive} onNavigateToDamagePhotos={navigateToStepFourDamagePhotos} onNavigateToDamagePhotosDirect={navigateToStepFourDamagePhotos} />;
             case 'stepFourDamagePhotos':
@@ -489,7 +522,9 @@ export default function TabLayout() {
                     ...rightSidePhotoData,
                     ...rightSideDamagePhotosData,
                     ...(frontWallPhotoData || {}),
-                    ...(frontWallDamagePhotosData || {})
+                    ...(frontWallDamagePhotosData || {}),
+                    depotAllocationPhoto: depotAllocationPhoto,
+                    interchangeDocumentPhoto: interchangeDocumentPhoto
                 };
                 return <StepFourDamagePhotos onBack={navigateBackFromRightWallDamageToPhoto} containerData={rightDamageData} onNavigateToStepFive={navigateToStepFive} onNavigateToStepFiveDirect={navigateToStepFive} />;
             case 'stepFiveDamagePhotos':
@@ -497,7 +532,9 @@ export default function TabLayout() {
                 const frontDamageData = {
                     ...frontWallPhotoData,
                     ...frontWallDamagePhotosData,
-                    ...(truckPhotoData || {})
+                    ...(truckPhotoData || {}),
+                    depotAllocationPhoto: depotAllocationPhoto,
+                    interchangeDocumentPhoto: interchangeDocumentPhoto
                 };
                 return <StepFiveDamagePhotos onBack={navigateBackFromFrontWallDamageToPhoto} containerData={frontDamageData} onNavigateToStepSix={navigateToStepSix} onNavigateToStepSixDirect={navigateToStepSix} />;
             case 'stepFiveBackWallPhoto':
@@ -506,7 +543,9 @@ export default function TabLayout() {
                     ...rightSidePhotoData,
                     ...frontWallPhotoData,
                     ...(frontWallDamagePhotosData || {}),
-                    ...(truckPhotoData || {})
+                    ...(truckPhotoData || {}),
+                    depotAllocationPhoto: depotAllocationPhoto,
+                    interchangeDocumentPhoto: interchangeDocumentPhoto
                 };
                 return <StepFiveBackWallPhoto onBack={navigateBackToStepFour} onBackToRightWallDamage={navigateBackToRightWallDamage} containerData={backWallData} onNavigateToStepSix={navigateToStepSix} onNavigateToDamagePhotos={navigateToStepFiveDamagePhotos} onNavigateToDamagePhotosDirect={navigateToStepFiveDamagePhotos} />;
             case 'stepSixTruckPhoto':
@@ -516,7 +555,9 @@ export default function TabLayout() {
                     ...frontWallDamagePhotosData,
                     ...truckPhotoData,
                     ...(leftSidePhotoData || {}),
-                    ...(leftSideDamagePhotosData || {})
+                    ...(leftSideDamagePhotosData || {}),
+                    depotAllocationPhoto: depotAllocationPhoto,
+                    interchangeDocumentPhoto: interchangeDocumentPhoto
                 };
                 return <StepSixTruckPhoto onBack={navigateBackToStepFive} onBackToBackWallDamage={navigateBackToBackWallDamage} containerData={truckData} onNavigateToStepSeven={navigateToStepSeven} onNavigateToStepSevenDirect={navigateToStepSeven} />;
             case 'stepSevenLeftSidePhoto':
@@ -526,7 +567,9 @@ export default function TabLayout() {
                     ...leftSidePhotoData,
                     ...(leftSideDamagePhotosData || {}),
                     ...(insidePhotoData || {}),
-                    ...(insideDamagePhotosData || {})
+                    ...(insideDamagePhotosData || {}),
+                    depotAllocationPhoto: depotAllocationPhoto,
+                    interchangeDocumentPhoto: interchangeDocumentPhoto
                 };
                 return <StepSevenLeftSidePhoto onBack={navigateBackToStepSix} containerData={leftSideData} truckData={truckPhotoData} onNavigateToStepEight={navigateToStepEight} onNavigateToDamagePhotos={navigateToStepSevenDamagePhotos} onNavigateToDamagePhotosDirect={navigateToStepSevenDamagePhotos} />;
             case 'stepSevenDamagePhotos':
@@ -535,7 +578,9 @@ export default function TabLayout() {
                     ...leftSidePhotoData,
                     ...leftSideDamagePhotosData,
                     ...(insidePhotoData || {}),
-                    ...(insideDamagePhotosData || {})
+                    ...(insideDamagePhotosData || {}),
+                    depotAllocationPhoto: depotAllocationPhoto,
+                    interchangeDocumentPhoto: interchangeDocumentPhoto
                 };
                 return <StepSevenDamagePhotos onBack={navigateBackFromLeftWallDamageToPhoto} containerData={leftDamageData} onNavigateToStepEight={navigateToStepEight} onNavigateToStepEightDirect={navigateToStepEight} />;
             case 'stepEightInsidePhoto':
@@ -545,7 +590,9 @@ export default function TabLayout() {
                     ...leftSideDamagePhotosData,
                     ...insidePhotoData,
                     ...(insideDamagePhotosData || {}),
-                    ...(inspectionRemarksData || {})
+                    ...(inspectionRemarksData || {}),
+                    depotAllocationPhoto: depotAllocationPhoto,
+                    interchangeDocumentPhoto: interchangeDocumentPhoto
                 };
                 return <StepEightInsidePhoto onBack={navigateBackToStepSeven} onBackToLeftWallDamage={navigateBackToLeftWallDamage} containerData={insideData} onNavigateToStepNine={navigateToStepNine} onNavigateToDamagePhotos={navigateToStepEightDamagePhotos} onNavigateToInspectionRemarks={navigateToInspectionRemarks} onNavigateToDamagePhotosDirect={navigateToStepEightDamagePhotos} />;
             case 'stepEightDamagePhotos':
@@ -553,7 +600,9 @@ export default function TabLayout() {
                 const insideDamageData = {
                     ...insidePhotoData,
                     ...insideDamagePhotosData,
-                    ...(inspectionRemarksData || {})
+                    ...(inspectionRemarksData || {}),
+                    depotAllocationPhoto: depotAllocationPhoto,
+                    interchangeDocumentPhoto: interchangeDocumentPhoto
                 };
                 return <StepEightDamagePhotos onBack={navigateBackFromInsideDamageToPhoto} containerData={insideDamageData} onNavigateToStepNine={navigateToStepNine} onNavigateToInspectionRemarks={navigateToInspectionRemarks} onNavigateToStepNineDirect={navigateToStepNine} />;
             case 'stepEightHalfInspectionRemarks':
@@ -562,16 +611,36 @@ export default function TabLayout() {
                     ...insidePhotoData,
                     ...insideDamagePhotosData,
                     ...inspectionRemarksData,
-                    ...(driverData || {})
+                    ...(driverData || {}),
+                    depotAllocationPhoto: depotAllocationPhoto,
+                    interchangeDocumentPhoto: interchangeDocumentPhoto
                 };
                 return <StepEightHalfInspectionRemarks onBack={navigateBackToStepEight} onBackToInsideDamagePhotos={navigateBackToInsideDamagePhotos} containerData={remarksData} onNavigateToStepNine={navigateToStepNine} />;
             case 'stepNineDriverDetails':
                 // Merge data for persistence
                 const driverDetailsData = {
                     ...inspectionRemarksData,
-                    ...driverData
+                    ...driverData,
+                    depotAllocationPhoto: depotAllocationPhoto,
+                    interchangeDocumentPhoto: interchangeDocumentPhoto
                 };
                 return <StepNineDriverDetails onBack={navigateBackToInspectionRemarks} containerData={driverDetailsData} onComplete={navigateToComplete} onShowSuccess={navigateToSuccess} onUpdateUploadProgress={updateUploadProgress} />;
+            case 'stepDepotAllocationPhoto':
+                return <StepDepotAllocationPhoto onBack={(photoUri) => {
+                    console.log('🔄 Navigating back from depot allocation photo:', photoUri);
+                    if (photoUri) {
+                        setDepotAllocationPhoto(photoUri);
+                    }
+                    setActiveTab('dashboard');
+                }} containerData={containerData} />;
+            case 'stepInterchangeDocumentPhoto':
+                return <StepInterchangeDocumentPhoto onBack={(photoUri) => {
+                    console.log('🔄 Navigating back from interchange document photo:', photoUri);
+                    if (photoUri) {
+                        setInterchangeDocumentPhoto(photoUri);
+                    }
+                    setActiveTab('dashboard');
+                }} containerData={containerData} />;
             default:
                 return <Dashboard onTakePhoto={navigateToStepOne} />;
         }

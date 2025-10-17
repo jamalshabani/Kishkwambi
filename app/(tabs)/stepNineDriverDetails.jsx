@@ -699,7 +699,7 @@ const StepNineDriverDetails = ({ onBack, containerData, onComplete, onShowSucces
             if (containerData?.containerSize === '40ft') {
                 inwardLOLOBalance = 150000;
             } else if (containerData?.containerSize === '20ft') {
-inwardLOLOBalance = 75000;
+                inwardLOLOBalance = 75000;
             }
             
             const updateData = {

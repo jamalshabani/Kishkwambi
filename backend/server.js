@@ -1538,11 +1538,11 @@ app.post('/api/upload/s3-damage-photos', uploadS3.array('photos', 10), async (re
         
         for (let i = 0; i < req.files.length; i++) {
             const file = req.files[i];
-            // Create B2 key: damage-photos/tripSegmentNumber/filename
+            // Create B2 key: InspectionPhotos/tripSegmentNumber/ArrivedContainer/filename
             const timestamp = Date.now();
             const sequenceNumber = existingDamagePhotosCount + i + 1;
             const filename = generateFilename(tripSegmentNumber, 'DamagePhoto', sequenceNumber, timestamp);
-            const s3Key = `${tripSegmentNumber}/${filename}`;
+            const s3Key = `InspectionPhotos/${tripSegmentNumber}/ArrivedContainer/${filename}`;
             
             
             // Validate file buffer
@@ -1655,11 +1655,11 @@ app.post('/api/upload/s3-container-photos', uploadS3.array('photos', 10), async 
         
         for (let i = 0; i < req.files.length; i++) {
             const file = req.files[i];
-            // Create B2 key: container-photos/tripSegmentNumber/filename
+            // Create B2 key: InspectionPhotos/tripSegmentNumber/ArrivedContainer/filename
             const timestamp = Date.now();
             const sequenceNumber = existingContainerPhotosCount + i + 1;
             const filename = generateFilename(tripSegmentNumber, 'ContainerPhoto', sequenceNumber, timestamp);
-            const s3Key = `${tripSegmentNumber}/${filename}`;
+            const s3Key = `InspectionPhotos/${tripSegmentNumber}/ArrivedContainer/${filename}`;
             
             
             // Validate file buffer
@@ -2487,7 +2487,7 @@ app.post('/api/upload/s3-left-side-photo', uploadS3.single('photo'), async (req,
         const timestamp = Date.now();
         const fileExtension = path.extname(req.file.originalname);
         const filename = `left_side_${timestamp}${fileExtension}`;
-        const s3Key = `left-side-photos/${tripSegmentNumber}/${filename}`;
+        const s3Key = `InspectionPhotos/${tripSegmentNumber}/ArrivedContainer/${filename}`;
         
         
         // Upload to B2
@@ -3102,8 +3102,8 @@ function parseDriverDetails(text) {
     return driverDetails;
 }
 
-// Image upload endpoint for mobile app (legacy - for other photo types)
-app.post('/api/upload/mobile-photos', upload.array('photos', 10), async (req, res) => {
+// Image upload endpoint for mobile app - now using Backblaze B2 cloud storage
+app.post('/api/upload/mobile-photos', uploadS3.array('photos', 10), async (req, res) => {
     try {
         const { tripSegmentNumber, containerNumber, photoType } = req.body;
         
@@ -3126,12 +3126,22 @@ app.post('/api/upload/mobile-photos', upload.array('photos', 10), async (req, re
             throw new Error('Database not connected');
         }
 
-        // Process uploaded files
+        // Process uploaded files and upload to Backblaze B2
         const uploadedFiles = [];
-        for (const file of req.files) {
-            const relativePath = `${process.env.BACKEND_URL}/InspectionPhotos/${tripSegmentNumber}/ArrivedContainer/${file.filename}`;
-            uploadedFiles.push(relativePath);
+        for (let i = 0; i < req.files.length; i++) {
+            const file = req.files[i];
+            const timestamp = Date.now() + i;
+            const filename = generateFilename(tripSegmentNumber, photoType, i + 1, timestamp);
+            const s3Key = `InspectionPhotos/${tripSegmentNumber}/ArrivedContainer/${filename}`;
             
+            // Upload to Backblaze B2 cloud storage
+            const uploadResult = await uploadToS3(file, s3Key, file.mimetype);
+            
+            if (!uploadResult.success) {
+                throw new Error(`Failed to upload ${photoType} photo to B2: ${uploadResult.error}`);
+            }
+            
+            uploadedFiles.push(uploadResult.url);
         }
 
         // Update TripSegment document with image paths
@@ -3189,11 +3199,13 @@ app.post('/api/upload/mobile-photos', upload.array('photos', 10), async (req, re
     }
 });
 
-// Batch upload endpoint for all inspection photos to LOCAL backend/InspectionPhotos folder
-// Saves all photos with consistent naming: ContainerPhoto (1-5), DamagePhoto, TruckPhoto, TrailerPhoto
+// Batch upload endpoint for all inspection photos to Backblaze B2 cloud storage
+// Saves all photos with consistent naming: ContainerPhoto (1-5), DamagePhoto, TruckPhoto, TrailerPhoto, DepotAllocation, Interchange
 app.post('/api/upload/batch-photos-arrived-containers', uploadS3.fields([
     { name: 'photos', maxCount: 20 },
-    { name: 'damagePhotos', maxCount: 50 }
+    { name: 'damagePhotos', maxCount: 50 },
+    { name: 'depotAllocationPhoto', maxCount: 1 },
+    { name: 'interchangePhoto', maxCount: 1 }
 ]), async (req, res) => {
         try {
             
@@ -3212,10 +3224,6 @@ app.post('/api/upload/batch-photos-arrived-containers', uploadS3.fields([
             }
 
             const tripsegmentsCollection = db.collection('tripsegments');
-            
-            // Create folder for this trip segment: backend/InspectionPhotos/ST25-00123/ArrivedContainer/
-            const containerFolderPath = path.join(INSPECTION_PHOTOS_DIR, tripSegmentNumber, 'ArrivedContainer');
-            await fs.mkdir(containerFolderPath, { recursive: true });
 
             const containerPhotosArray = [];
             const damagePhotosArray = [];
@@ -3272,17 +3280,21 @@ app.post('/api/upload/batch-photos-arrived-containers', uploadS3.fields([
                     
                     // Generate filename with normalized type
                     const filename = generateFilename(tripSegmentNumber, filenamePhotoType, sequenceNumber, timestamp);
-                    const filePath = path.join(containerFolderPath, filename);
+                    const s3Key = `InspectionPhotos/${tripSegmentNumber}/ArrivedContainer/${filename}`;
                     
-                    // Save to local backend/InspectionPhotos/{tripSegmentNumber}/ArrivedContainer/ folder
-                    await fs.writeFile(filePath, file.buffer);
+                    // Upload to Backblaze B2 cloud storage
+                    const uploadResult = await uploadToS3(file, s3Key, file.mimetype);
                     
-                    const photoUrl = `${process.env.BACKEND_URL}/InspectionPhotos/${tripSegmentNumber}/ArrivedContainer/${filename}`;
+                    if (!uploadResult.success) {
+                        throw new Error(`Failed to upload ${filenamePhotoType} to B2: ${uploadResult.error}`);
+                    }
+                    
+                    const photoUrl = uploadResult.url;
                     
                     // Track uploaded file
                     uploadedFiles.push({
                         filename: filename,
-                        localPath: filePath,
+                        s3Key: s3Key,
                         url: photoUrl,
                         type: filenamePhotoType,
                         originalType: originalPhotoType
@@ -3318,10 +3330,16 @@ app.post('/api/upload/batch-photos-arrived-containers', uploadS3.fields([
                     
                     // Generate filename for damage photo
                     const filename = generateFilename(tripSegmentNumber, 'DamagePhoto', sequenceNumber, timestamp);
-                    const filePath = path.join(containerFolderPath, filename);
+                    const s3Key = `InspectionPhotos/${tripSegmentNumber}/ArrivedContainer/${filename}`;
                     
-                    // Save to local backend/InspectionPhotos/{tripSegmentNumber}/ArrivedContainer/ folder
-                    await fs.writeFile(filePath, file.buffer);
+                    // Upload to Backblaze B2 cloud storage
+                    const uploadResult = await uploadToS3(file, s3Key, file.mimetype);
+                    
+                    if (!uploadResult.success) {
+                        throw new Error(`Failed to upload DamagePhoto to B2: ${uploadResult.error}`);
+                    }
+                    
+                    const photoUrl = uploadResult.url;
                     
                     // Map location names to standard format
                     let standardLocation = '';
@@ -3347,14 +3365,14 @@ app.post('/api/upload/batch-photos-arrived-containers', uploadS3.fields([
                     
                     damagePhotosArray.push({
                         damageLocation: standardLocation,
-                        damagePhotoUrl: `${process.env.BACKEND_URL}/InspectionPhotos/${tripSegmentNumber}/ArrivedContainer/${filename}`,
+                        damagePhotoUrl: photoUrl,
                         uploadedAt: new Date(timestamp).toISOString()
                     });
                     
                     uploadedFiles.push({
                         filename: filename,
-                        localPath: filePath,
-                        url: `${process.env.BACKEND_URL}/InspectionPhotos/${tripSegmentNumber}/ArrivedContainer/${filename}`,
+                        s3Key: s3Key,
+                        url: photoUrl,
                         type: 'DamagePhoto',
                         location: standardLocation
                     });
@@ -3387,6 +3405,62 @@ app.post('/api/upload/batch-photos-arrived-containers', uploadS3.fields([
                 updateData.$set.driverLicensePhoto = driverLicensePhotoUrl;
             }
             
+            // Process Depot Allocation Photo
+            if (req.files && req.files.depotAllocationPhoto && req.files.depotAllocationPhoto[0]) {
+                const file = req.files.depotAllocationPhoto[0];
+                
+                if (file.buffer && file.buffer.length > 0) {
+                    const filename = generateFilename(tripSegmentNumber, 'DepotAllocation', 1, timestamp);
+                    const s3Key = `InspectionPhotos/${tripSegmentNumber}/ArrivedContainer/${filename}`;
+                    
+                    // Upload to B2
+                    const uploadResult = await uploadToS3(file, s3Key, file.mimetype);
+                    
+                    if (uploadResult.success) {
+                        uploadedFiles.push({
+                            s3Key: s3Key,
+                            filename: filename,
+                            url: uploadResult.url,
+                            type: 'depotAllocation'
+                        });
+                        
+                        updateData.$set.depotAllocationPhoto = uploadResult.url;
+                        
+                        console.log(`✅ Depot allocation photo uploaded: ${uploadResult.url}`);
+                    } else {
+                        console.error('❌ Failed to upload depot allocation photo:', uploadResult.error);
+                    }
+                }
+            }
+            
+            // Process Interchange Document Photo
+            if (req.files && req.files.interchangePhoto && req.files.interchangePhoto[0]) {
+                const file = req.files.interchangePhoto[0];
+                
+                if (file.buffer && file.buffer.length > 0) {
+                    const filename = generateFilename(tripSegmentNumber, 'Interchange', 1, timestamp);
+                    const s3Key = `InspectionPhotos/${tripSegmentNumber}/ArrivedContainer/${filename}`;
+                    
+                    // Upload to B2
+                    const uploadResult = await uploadToS3(file, s3Key, file.mimetype);
+                    
+                    if (uploadResult.success) {
+                        uploadedFiles.push({
+                            s3Key: s3Key,
+                            filename: filename,
+                            url: uploadResult.url,
+                            type: 'interchange'
+                        });
+                        
+                        updateData.$set.interchangePhoto = uploadResult.url;
+                        
+                        console.log(`✅ Interchange document photo uploaded: ${uploadResult.url}`);
+                    } else {
+                        console.error('❌ Failed to upload interchange document photo:', uploadResult.error);
+                    }
+                }
+            }
+            
             const updateResult = await tripsegmentsCollection.updateOne(
                 { tripSegmentNumber: tripSegmentNumber },
                 updateData
@@ -3398,13 +3472,13 @@ app.post('/api/upload/batch-photos-arrived-containers', uploadS3.fields([
 
             res.json({
                 success: true,
-                message: 'All photos saved to backend/InspectionPhotos successfully',
+                message: 'All photos uploaded to Backblaze B2 cloud storage successfully',
                 photoReferences: {
                     containerPhotos: containerPhotosArray,
                     damagePhotos: damagePhotosArray
                 },
                 totalPhotos: containerPhotosArray.length + damagePhotosArray.length,
-                localPath: `InspectionPhotos/${tripSegmentNumber}/ArrivedContainer/`,
+                storageLocation: 'Backblaze B2 Cloud Storage',
                 uploadedFiles: uploadedFiles
             });
 
@@ -3413,6 +3487,139 @@ app.post('/api/upload/batch-photos-arrived-containers', uploadS3.fields([
                 success: false,
                 error: error.message || 'Failed to upload batch photos'
             });
+    }
+});
+
+// Document photos upload endpoint for Depot Allocation and Interchange Document photos
+app.post('/api/upload/document-photos', uploadS3.fields([
+    { name: 'depotAllocationPhoto', maxCount: 1 },
+    { name: 'interchangePhoto', maxCount: 1 }
+]), async (req, res) => {
+    try {
+        const { tripSegmentNumber } = req.body;
+        
+        if (!tripSegmentNumber) {
+            return res.status(400).json({
+                success: false,
+                error: 'Trip segment number is required'
+            });
+        }
+
+        if (!db) {
+            throw new Error('Database not connected');
+        }
+
+        const tripsegmentsCollection = db.collection('tripsegments');
+        const timestamp = Date.now();
+        const uploadedFiles = [];
+        const updateData = {
+            $set: {
+                lastUpdated: new Date().toISOString()
+            }
+        };
+
+        // Process Depot Allocation Photo
+        if (req.files && req.files.depotAllocationPhoto && req.files.depotAllocationPhoto[0]) {
+            const file = req.files.depotAllocationPhoto[0];
+            
+            if (!file.buffer || file.buffer.length === 0) {
+                return res.status(400).json({
+                    success: false,
+                    error: `Depot allocation photo has no data`
+                });
+            }
+            
+            const filename = generateFilename(tripSegmentNumber, 'DepotAllocation', 1, timestamp);
+            const s3Key = `InspectionPhotos/${tripSegmentNumber}/ArrivedContainer/${filename}`;
+            
+            // Upload to B2
+            const uploadResult = await uploadToS3(file, s3Key, file.mimetype);
+            
+            if (uploadResult.success) {
+                uploadedFiles.push({
+                    s3Key: s3Key,
+                    filename: filename,
+                    url: uploadResult.url,
+                    type: 'depotAllocation'
+                });
+                
+                updateData.$set.depotAllocationPhoto = uploadResult.url;
+                
+                console.log(`✅ Depot allocation photo uploaded: ${uploadResult.url}`);
+            } else {
+                console.error('❌ Failed to upload depot allocation photo:', uploadResult.error);
+                return res.status(500).json({
+                    success: false,
+                    error: 'Failed to upload depot allocation photo to B2'
+                });
+            }
+        }
+
+        // Process Interchange Document Photo
+        if (req.files && req.files.interchangePhoto && req.files.interchangePhoto[0]) {
+            const file = req.files.interchangePhoto[0];
+            
+            if (!file.buffer || file.buffer.length === 0) {
+                return res.status(400).json({
+                    success: false,
+                    error: `Interchange document photo has no data`
+                });
+            }
+            
+            const filename = generateFilename(tripSegmentNumber, 'Interchange', 1, timestamp);
+            const s3Key = `InspectionPhotos/${tripSegmentNumber}/ArrivedContainer/${filename}`;
+            
+            // Upload to B2
+            const uploadResult = await uploadToS3(file, s3Key, file.mimetype);
+            
+            if (uploadResult.success) {
+                uploadedFiles.push({
+                    s3Key: s3Key,
+                    filename: filename,
+                    url: uploadResult.url,
+                    type: 'interchange'
+                });
+                
+                updateData.$set.interchangePhoto = uploadResult.url;
+                
+                console.log(`✅ Interchange document photo uploaded: ${uploadResult.url}`);
+            } else {
+                console.error('❌ Failed to upload interchange document photo:', uploadResult.error);
+                return res.status(500).json({
+                    success: false,
+                    error: 'Failed to upload interchange document photo to B2'
+                });
+            }
+        }
+
+        // Update TripSegment document with document photos
+        if (Object.keys(updateData.$set).length > 1) { // More than just lastUpdated
+            const updateResult = await tripsegmentsCollection.updateOne(
+                { tripSegmentNumber: tripSegmentNumber },
+                updateData
+            );
+
+            if (updateResult.modifiedCount === 0) {
+                console.log('⚠️ No TripSegment document was updated');
+            } else {
+                console.log(`✅ TripSegment ${tripSegmentNumber} updated with document photos`);
+            }
+        }
+
+        res.json({
+            success: true,
+            message: 'Document photos uploaded to Backblaze B2 cloud storage successfully',
+            uploadedFiles: uploadedFiles,
+            storageLocation: 'Backblaze B2 Cloud Storage',
+            folderStructure: `InspectionPhotos/${tripSegmentNumber}/ArrivedContainer/`
+        });
+
+    } catch (error) {
+        console.error('❌ Document photos upload error:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message || 'Failed to upload document photos'
+        });
     }
 });
 

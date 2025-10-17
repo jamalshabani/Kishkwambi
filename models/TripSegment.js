@@ -136,6 +136,21 @@ const tripSegmentSchema = new Schema({
         required: false
     },
 
+    disapprovalReason: {
+        type: String,
+        required: false
+    },
+
+    depotAllocationPhoto: {
+        type: String,
+        required: false
+    },
+
+    interchangePhoto: {  
+        type: String,
+        required: false
+    },
+
     outwardFinalApproval: {
         type: Boolean,
         required: false
